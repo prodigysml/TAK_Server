@@ -617,6 +617,13 @@ $scope.saveGraph = function() {
       JointPaper.cleanUpInlineEditor();
     });
 
+    function escapeHtml(str) {
+      if (str === undefined || str === null) return '';
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(String(str)));
+      return div.innerHTML;
+    }
+
     function showPopover(targetElement, name, datasetName, uri, expressionText) {
       if (uri === undefined || uri === null || uri === "") {
         if (targetElement.data('bs.popover')) {
@@ -630,7 +637,7 @@ $scope.saveGraph = function() {
             //     return item.uri.value.split("#")[1] + ' '
             //   });
             $('.popover').popover('hide'); //Hide any lingering popovers
-            var content = name + '<br>Dataset: (' + datasetName + ')' + '<br># of Instance: ' + instances.data.results.bindings.length + (expressionText !== "" ? '<br>Instantiation Expression:' + expressionText : "") + '<br>Comment: ' + comment;
+            var content = escapeHtml(name) + '<br>Dataset: (' + escapeHtml(datasetName) + ')' + '<br># of Instance: ' + instances.data.results.bindings.length + (expressionText !== "" ? '<br>Instantiation Expression:' + escapeHtml(expressionText) : "") + '<br>Comment: ' + escapeHtml(comment);
             if (!targetElement.data('bs.popover')) { //Creat new Tooltip
               targetElement.popover({
                 placement: 'top',
