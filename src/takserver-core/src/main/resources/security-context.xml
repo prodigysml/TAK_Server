@@ -255,9 +255,9 @@
               <sec:intercept-url pattern="/Marti/api/citrap/**" method="DELETE" access="ROLE_ANONYMOUS"/>
 
               <sec:intercept-url pattern="/Marti/api/excheck/**" method="GET" access="ROLE_ANONYMOUS"/>
-              <sec:intercept-url pattern="/Marti/api/excheck/**" method="POST" access="ROLE_ANONYMOUS"/>
-              <sec:intercept-url pattern="/Marti/api/excheck/**" method="PUT" access="ROLE_ANONYMOUS"/>
-              <sec:intercept-url pattern="/Marti/api/excheck/**" method="DELETE" access="ROLE_ANONYMOUS"/>
+              <sec:intercept-url pattern="/Marti/api/excheck/**" method="POST" access="ROLE_ADMIN"/>
+              <sec:intercept-url pattern="/Marti/api/excheck/**" method="PUT" access="ROLE_ADMIN"/>
+              <sec:intercept-url pattern="/Marti/api/excheck/**" method="DELETE" access="ROLE_ADMIN"/>
               <sec:intercept-url pattern="/Marti/ExCheck.jsp" access="ROLE_NON_ADMIN_UI"/>
               <sec:intercept-url pattern="/Marti/api/subscriptions/*/filter" access="ROLE_ANONYMOUS" />
               <sec:intercept-url pattern="/Marti/api/subscriptions/*/filter" method="DELETE" access="ROLE_ANONYMOUS" />
