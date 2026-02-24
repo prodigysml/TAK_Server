@@ -275,6 +275,8 @@ public class SubscriptionApi extends BaseRestController {
     @RequestMapping(value = "/subscriptions/incognito/{uid}", method = RequestMethod.POST)
     public ResponseEntity toggleIncognito(@PathVariable(value = "uid") String uid){
         try{
+            validateSubscriptionOwnership(uid);
+
             boolean incognito = subscriptionManager.toggleIncognito(uid);
 
             logger.debug("Setting incognito for subscription: " + uid + ", to : " + incognito);
@@ -284,6 +286,20 @@ public class SubscriptionApi extends BaseRestController {
         catch (Exception e){
             logger.error("Exception in toggleIncognito!", e);
             return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private void validateSubscriptionOwnership(String clientUid) {
+        if (martiUtil.isAdmin()) {
+            return;
+        }
+        String authenticatedUser = SecurityContextHolder.getContext().getAuthentication().getName();
+        RemoteSubscription sub = subscriptionManager.getSubscriptionByClientUid(clientUid);
+        if (sub == null) {
+            throw new com.bbn.marti.remote.exception.NotFoundException("No subscription found for clientUid: " + clientUid);
+        }
+        if (sub.getUsername() == null || !sub.getUsername().equals(authenticatedUser)) {
+            throw new com.bbn.marti.remote.exception.ForbiddenException("Not authorized to modify subscription for clientUid: " + clientUid);
         }
     }
 
@@ -297,6 +313,8 @@ public class SubscriptionApi extends BaseRestController {
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
         }
 
+        validateSubscriptionOwnership(clientUid);
+
         boolean success = subscriptionManager.setGeospatialFilterOnSubscription(clientUid,
                 filter.getGeospatialFilter());
 
@@ -307,6 +325,8 @@ public class SubscriptionApi extends BaseRestController {
             method = RequestMethod.DELETE)
     ResponseEntity deleteFilter(
             @PathVariable("clientUid") @NotNull String clientUid) throws RemoteException {
+        validateSubscriptionOwnership(clientUid);
+
         boolean success = subscriptionManager.setGeospatialFilterOnSubscription(clientUid, null);
 
         return new ResponseEntity(success ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR);
