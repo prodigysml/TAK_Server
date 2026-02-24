@@ -26,7 +26,7 @@ public class EmailClient {
             mailSender.setPassword(config.getPassword());
 
             MimeMessage message = mailSender.createMimeMessage();
-            message.setContent(text, "text/html");
+            message.setContent(text, "text/plain");
 
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "utf-8");
             helper.setSubject(subject);
