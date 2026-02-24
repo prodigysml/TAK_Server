@@ -170,6 +170,9 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
     private EventLoopGroup bossGroup;
     private ChannelFuture channelFuture;
 
+    // tracks which certificate fingerprint registered each federate identity name
+    private final ConcurrentHashMap<String, String> federateIdToFingerprint = new ConcurrentHashMap<>();
+
     /* v2 variables. */
     private Map<Integer, Server> portToServerMap = new HashMap<>();
     
@@ -872,10 +875,20 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
 
     public void addFederateToGroupPolicyIfMissingV2(GuardedStreamHolder holder) {
         FederateIdentity federateIdentity = holder.getFederateIdentity();
+        String fedId = federateIdentity.getFedId();
+        String fingerprint = holder.getClientFingerprint();
+
+        // verify that the claimed federate identity is bound to this certificate
+        String existingFingerprint = federateIdToFingerprint.putIfAbsent(fedId, fingerprint);
+        if (existingFingerprint != null && !existingFingerprint.equals(fingerprint)) {
+            logger.error("Federate identity '{}' is already registered with a different certificate fingerprint. " +
+                "Rejecting connection from fingerprint: {}", fedId, fingerprint);
+            throw new IllegalArgumentException("Federate identity already registered with a different certificate");
+        }
 
         FederationPolicyGraph fpg = getFederationPolicyGraph();
 
-        if (fpg.getNode(federateIdentity.getFedId()) == null) {
+        if (fpg.getNode(fedId) == null) {
         	@SuppressWarnings("unchecked")
 			List<String> clientGroups = holder.getClientGroups();
 
