@@ -3288,7 +3288,7 @@ public class MissionApi extends BaseRestController {
 			MissionRole role = missionService.getRoleForRequest(mission, request);
 			if (role == null) {
 				logger.error("no role for request : " + request.getServletPath());
-				continue;
+				throw new ForbiddenException("Illegal attempt to access mission!");
 			}
 
 			if (!role.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
@@ -3337,7 +3337,7 @@ public class MissionApi extends BaseRestController {
 			MissionRole role = missionService.getRoleForRequest(mission, request);
 			if (role == null) {
 				logger.error("no role for request : " + request.getServletPath());
-				continue;
+				throw new ForbiddenException("Illegal attempt to access mission!");
 			}
 
 			if (!role.hasPermission(MissionPermission.Permission.MISSION_READ)) {
@@ -3378,7 +3378,7 @@ public class MissionApi extends BaseRestController {
 			MissionRole role = missionService.getRoleForRequest(mission, request);
 			if (role == null) {
 				logger.error("no role for request : " + request.getServletPath());
-				continue;
+				throw new ForbiddenException("Illegal attempt to access mission!");
 			}
 
 			if (!role.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
@@ -3424,7 +3424,7 @@ public class MissionApi extends BaseRestController {
 			MissionRole role = missionService.getRoleForRequest(mission, request);
 			if (role == null) {
 				logger.error("no role for request : " + request.getServletPath());
-				continue;
+				throw new ForbiddenException("Illegal attempt to access mission!");
 			}
 
 			if (!role.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
