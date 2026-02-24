@@ -814,7 +814,11 @@ public class KmlUtils {
         // then group
         if (!Strings.isNullOrEmpty(groupName)) {
             groupName = groupName.replace(" ", "");
-            
+
+            if (groupName.contains("..") || groupName.contains("/") || groupName.contains("\\")) {
+                throw new IllegalArgumentException("invalid group name");
+            }
+
             return "icons/team_" + groupName.toLowerCase() + ".png";
         }
         
