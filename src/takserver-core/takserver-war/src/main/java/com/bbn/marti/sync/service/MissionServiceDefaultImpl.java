@@ -1512,13 +1512,26 @@ public class MissionServiceDefaultImpl implements MissionService {
 		try {
 			Set<MissionInvitation> missionInvitations = new HashSet<>();
 
-			// add invitations for the clientUid
-			missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
-					clientUid, MissionInvitation.Type.clientUid.name(), groupVector));
+			String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-			// get the streaming channel subscription for this clientUid
-			RemoteSubscription subscription = subscriptionManagerProxy.getSubscriptionManagerForClientUid(clientUid).getRemoteSubscriptionByClientUid(clientUid);
+			// verify the clientUid belongs to the authenticated user
+			RemoteSubscription subscription = null;
+			try {
+				subscription = subscriptionManagerProxy.getSubscriptionManagerForClientUid(clientUid).getRemoteSubscriptionByClientUid(clientUid);
+			} catch (Exception e) {
+				logger.debug("no subscription found for clientUid: {}", clientUid);
+			}
+
 			if (subscription != null) {
+				// validate that the subscription's username matches the authenticated user
+				if (subscription.getUsername() != null && !subscription.getUsername().equals(username)) {
+					logger.error("clientUid {} does not belong to authenticated user {}", clientUid, username);
+					throw new ForbiddenException("clientUid does not belong to authenticated user");
+				}
+
+				// add invitations for the clientUid
+				missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
+						clientUid, MissionInvitation.Type.clientUid.name(), groupVector));
 
 				// add any invitations for the associated streaming channel callsign
 				missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
@@ -1526,12 +1539,13 @@ public class MissionServiceDefaultImpl implements MissionService {
 			}
 
 			// add any invitations for the authenticated username
-			String username = SecurityContextHolder.getContext().getAuthentication().getName();
 			missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
 					username, MissionInvitation.Type.userName.name(), groupVector));
 
 			return missionInvitations;
 
+		} catch (ForbiddenException e) {
+			throw e;
 		} catch (Exception e) {
 			logger.error("Exception in getAllMissionInvitationsForClient!", e);
 			return null;
