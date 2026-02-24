@@ -206,14 +206,12 @@ public class LogServlet extends EsapiServlet {
 		}
 
 		//
-		// inspect the log content as a zip file and look for any json content. attempt to extract
-		// an email address from the json to add on the cc line of the alert email
+		// inspect the log content as a zip file and look for any json content to include
+		// summary information in the alert email body
 		//
-		String cc = null;
 		String body = "";
-		HashMap<String, byte[]> logAsZip = null;
 		try {
-			logAsZip = extractMissionPackage(feedback);
+			HashMap<String, byte[]> logAsZip = extractMissionPackage(feedback);
 			Iterator it = logAsZip.entrySet().iterator();
 			while (it.hasNext()) {
 				Map.Entry<String, byte[]> feedbackFile = (Map.Entry<String, byte[]>) it.next();
@@ -221,12 +219,11 @@ public class LogServlet extends EsapiServlet {
 					final Map<String, Object> jsonMap =
 							new ObjectMapper().readValue(feedbackFile.getValue(), Map.class);
 					for (Map.Entry<String, Object> jsonEntry : jsonMap.entrySet()) {
-						body += jsonEntry.getKey() + " : " + jsonEntry.getValue() + "\n";
-						if (jsonEntry.getKey().equals("Email")) {
-							cc = (String)jsonEntry.getValue();
+						// Do not include user-supplied email addresses - prevents mail relay abuse
+						if (!"Email".equals(jsonEntry.getKey())) {
+							body += jsonEntry.getKey() + " : " + jsonEntry.getValue() + "\n";
 						}
 					}
-					it.remove();
 				}
 			}
 		} catch (Exception e) {
@@ -235,13 +232,14 @@ public class LogServlet extends EsapiServlet {
 			}
 		}
 
-		if (body != null) {
+		if (body != null && !body.isEmpty()) {
+			// Only send to the server-configured recipient, no CC, no user-supplied attachments
 			EmailClient.sendEmail(
 					CoreConfigFacade.getInstance().getRemoteConfiguration().getEmail(),
 					CoreConfigFacade.getInstance().getRemoteConfiguration().getEmail().getLogAlertsSubject(),
 					body,
 					CoreConfigFacade.getInstance().getRemoteConfiguration().getEmail().getLogAlertsTo(),
-					cc, logAsZip);
+					null, null);
 		}
 	}
 
