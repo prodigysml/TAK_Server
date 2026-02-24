@@ -859,6 +859,10 @@ public class MissionServiceDefaultImpl implements MissionService {
 			throw new NotFoundException();
 		}
 
+		if (missionLayerRepository.countByUidAndMissionId(layerUid, mission.getId()) == 0) {
+			throw new ForbiddenException("mission layer " + layerUid + " does not belong to mission " + missionName);
+		}
+
 		return hydrateMissionLayers(mission, Arrays.asList(missionLayer)).get(0);
 	}
 
