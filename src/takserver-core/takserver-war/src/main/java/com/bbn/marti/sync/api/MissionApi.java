@@ -3157,33 +3157,6 @@ public class MissionApi extends BaseRestController {
 			Mission mission = missionService.getMissionByGuidCheckGroups(missionGuid, martiUtil.getGroupVectorBitString(request));
 			missionService.validateMissionByGuid(mission);
 
-			CoreConfig config = CoreConfigFacade.getInstance();
-
-			// If VBM is enabled, only let the mission owner or admin invite users to a COP mission
-			if (config.getRemoteConfiguration().getVbm() != null &&
-					config.getRemoteConfiguration().getVbm().isEnabled() &&
-					config.getRemoteConfiguration().getNetwork().getMissionCopTool().equals(mission.getTool())) {
-
-				if (logger.isDebugEnabled()) {
-					logger.debug("Mission Invite 2: VBM is enabled");
-				}
-
-				MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
-				if (roleForRequest == null) {
-					throw new IllegalArgumentException("no role for request!");
-				}
-
-				if (logger.isDebugEnabled()) {
-					logger.debug("Mission Invite 2: Role for request: {}", roleForRequest.getRole().toString());
-				}
-
-				if (!roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
-					String msg = "Only mission owner or admin can send an invite";
-					logger.error(msg);
-					throw new ForbiddenException(msg);
-				}
-			}
-
 			MissionRole role = missionService.getRoleFromToken(mission, new MissionTokenUtils.TokenType[]{
 					MissionTokenUtils.TokenType.INVITATION,
 					MissionTokenUtils.TokenType.SUBSCRIPTION
@@ -3191,6 +3164,17 @@ public class MissionApi extends BaseRestController {
 
 			if (mission.isPasswordProtected() && role == null) {
 				throw new ForbiddenException("Illegal attempt to delete invitation");
+			}
+
+			// allow the invitee to remove their own invitation, otherwise require mission owner
+			String username = SecurityContextHolder.getContext().getAuthentication().getName();
+			boolean isSelfUninvite = invitee.equalsIgnoreCase(username) || invitee.equalsIgnoreCase(creatorUid);
+
+			if (!isSelfUninvite) {
+				MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
+				if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+					throw new ForbiddenException("Only mission owner can remove another user's invitation");
+				}
 			}
 
 			missionService.missionUninvite(
@@ -3221,33 +3205,6 @@ public class MissionApi extends BaseRestController {
 			Mission mission = missionService.getMissionByNameCheckGroups(missionName, martiUtil.getGroupVectorBitString(request));
 			missionService.validateMission(mission, missionName);
 
-			CoreConfig config = CoreConfigFacade.getInstance();
-
-			// If VBM is enabled, only let the mission owner or admin invite users to a COP mission
-			if (config.getRemoteConfiguration().getVbm() != null &&
-					config.getRemoteConfiguration().getVbm().isEnabled() &&
-					config.getRemoteConfiguration().getNetwork().getMissionCopTool().equals(mission.getTool())) {
-
-				if (logger.isDebugEnabled()) {
-					logger.debug("Mission Invite 2: VBM is enabled");
-				}
-
-				MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
-				if (roleForRequest == null) {
-					throw new IllegalArgumentException("no role for request!");
-				}
-
-				if (logger.isDebugEnabled()) {
-					logger.debug("Mission Invite 2: Role for request: {}", roleForRequest.getRole().toString());
-				}
-
-				if (!roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
-					String msg = "Only mission owner or admin can send an invite";
-					logger.error(msg);
-					throw new ForbiddenException(msg);
-				}
-			}
-
 			MissionRole role = missionService.getRoleFromToken(mission, new MissionTokenUtils.TokenType[]{
 					MissionTokenUtils.TokenType.INVITATION,
 					MissionTokenUtils.TokenType.SUBSCRIPTION
@@ -3255,6 +3212,17 @@ public class MissionApi extends BaseRestController {
 
 			if (mission.isPasswordProtected() && role == null) {
 				throw new ForbiddenException("Illegal attempt to delete invitation");
+			}
+
+			// allow the invitee to remove their own invitation, otherwise require mission owner
+			String username = SecurityContextHolder.getContext().getAuthentication().getName();
+			boolean isSelfUninvite = invitee.equalsIgnoreCase(username) || invitee.equalsIgnoreCase(creatorUid);
+
+			if (!isSelfUninvite) {
+				MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
+				if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+					throw new ForbiddenException("Only mission owner can remove another user's invitation");
+				}
 			}
 
 			missionService.missionUninvite(
