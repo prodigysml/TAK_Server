@@ -319,8 +319,25 @@ public class CITrapReportService {
         return true;
     }
 
-    private static void copyZipInputStreamToOutputStream(ZipInputStream zis, OutputStream os) throws  IOException {
+    // Maximum uncompressed size per ZIP entry: 50 MB
+    private static final long MAX_UNCOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;
+    // Maximum total uncompressed size across all entries: 200 MB
+    private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024;
+    // Maximum compression ratio (uncompressed/compressed) to detect zip bombs
+    private static final long MAX_COMPRESSION_RATIO = 100;
+    // Maximum number of entries in a ZIP archive
+    private static final int MAX_ZIP_ENTRIES = 1024;
+
+    private static void validateZipEntryName(ZipEntry entry) throws IOException {
+        String name = entry.getName();
+        if (name.contains("..") || name.startsWith("/") || name.startsWith("\\")) {
+            throw new IOException("ZIP entry has illegal path (zip slip): " + name);
+        }
+    }
+
+    private static void copyZipInputStreamToOutputStream(ZipInputStream zis, OutputStream os, long compressedSize, long[] totalBytesCounter) throws  IOException {
         int count;
+        long entryBytes = 0;
         final int BUFFER = 2048;
         byte data[] = new byte[BUFFER];
         final byte[] BOM = DatatypeConverter.parseHexBinary("efbbbf");
@@ -330,22 +347,42 @@ public class CITrapReportService {
         if ((count = zis.read(header, 0, BOM.length)) != -1) {
             if (!Arrays.equals(header, BOM)) {
                 os.write(header, 0, count);
+                entryBytes += count;
             }
         }
 
         while ((count = zis.read(data, 0, BUFFER)) != -1) {
+            entryBytes += count;
+            totalBytesCounter[0] += count;
+
+            if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+                throw new IOException("ZIP entry exceeds maximum uncompressed size of " + MAX_UNCOMPRESSED_ENTRY_SIZE + " bytes");
+            }
+            if (totalBytesCounter[0] > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+                throw new IOException("ZIP archive exceeds maximum total uncompressed size of " + MAX_UNCOMPRESSED_TOTAL_SIZE + " bytes");
+            }
+            if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+                throw new IOException("ZIP entry compression ratio exceeds maximum of " + MAX_COMPRESSION_RATIO + ", possible zip bomb");
+            }
+
             os.write(data, 0, count);
         }
     }
 
     protected static String getReportXmlFromReportMp(byte[] reportMp) throws Exception {
         String reportXml = null;
+        long[] totalBytesCounter = {0};
+        int entryCount = 0;
         ByteArrayInputStream bis = new ByteArrayInputStream(reportMp);
         ZipInputStream zis = new ZipInputStream(new BufferedInputStream(bis));
 
         // iterate across file in the zip archive
         ZipEntry entry;
         while ((entry = zis.getNextEntry()) != null) {
+            if (++entryCount > MAX_ZIP_ENTRIES) {
+                throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+            }
+            validateZipEntryName(entry);
 
             // only look at xml files
             if (!entry.getName().endsWith(".xml")) {
@@ -354,7 +391,7 @@ public class CITrapReportService {
 
             // extract the contents
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            copyZipInputStreamToOutputStream(zis, bos);
+            copyZipInputStreamToOutputStream(zis, bos, entry.getCompressedSize(), totalBytesCounter);
             String fileContents = new String(bos.toByteArray(), "UTF-8");
             bos.flush();
             bos.close();
@@ -372,6 +409,8 @@ public class CITrapReportService {
     }
 
     protected static byte[] replaceReportInMp(byte[] report, byte[] mp) throws Exception {
+        long[] totalBytesCounter = {0};
+        int entryCount = 0;
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ZipOutputStream zos = new ZipOutputStream(bos);
         ByteArrayInputStream bis = new ByteArrayInputStream(mp);
@@ -382,19 +421,23 @@ public class CITrapReportService {
         // iterate across file in the zip archive
         ZipEntry entry;
         while ((entry = zis.getNextEntry()) != null) {
+            if (++entryCount > MAX_ZIP_ENTRIES) {
+                throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+            }
+            validateZipEntryName(entry);
 
             // copy all non xml files over to the new archive
             if (!entry.getName().endsWith(".xml")) {
                 ZipEntry newEntry = new ZipEntry(entry.getName());
                 zos.putNextEntry(newEntry);
-                copyZipInputStreamToOutputStream(zis, zos);
+                copyZipInputStreamToOutputStream(zis, zos, entry.getCompressedSize(), totalBytesCounter);
                 zos.closeEntry();
                 continue;
             }
 
             // extract the contents of the xml file
             ByteArrayOutputStream bosXml = new ByteArrayOutputStream();
-            copyZipInputStreamToOutputStream(zis, bosXml);
+            copyZipInputStreamToOutputStream(zis, bosXml, entry.getCompressedSize(), totalBytesCounter);
             String fileContents = new String(bosXml.toByteArray(), "UTF-8");
             bosXml.flush();
             bosXml.close();
@@ -432,6 +475,8 @@ public class CITrapReportService {
     }
 
     protected static byte[] addAttachmentToMp(String filename, byte[] contents, byte[] mp) throws Exception {
+        long[] totalBytesCounter = {0};
+        int entryCount = 0;
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         ZipOutputStream zos = new ZipOutputStream(bos);
         ByteArrayInputStream bis = new ByteArrayInputStream(mp);
@@ -440,9 +485,13 @@ public class CITrapReportService {
         // copy all files over to the new mp
         ZipEntry entry;
         while ((entry = zis.getNextEntry()) != null) {
+            if (++entryCount > MAX_ZIP_ENTRIES) {
+                throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+            }
+            validateZipEntryName(entry);
             ZipEntry newEntry = new ZipEntry(entry.getName());
             zos.putNextEntry(newEntry);
-            copyZipInputStreamToOutputStream(zis, zos);
+            copyZipInputStreamToOutputStream(zis, zos, entry.getCompressedSize(), totalBytesCounter);
             zos.closeEntry();
         }
         zis.close();
