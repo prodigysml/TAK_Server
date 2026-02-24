@@ -14,6 +14,8 @@ import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
+import java.io.StringReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,7 +231,11 @@ public class ProtoBufHelper {
 		.addAttribute("le", Double.toString(geo.getLe()));
 		if (!Strings.isNullOrEmpty(geo.getOther())) {
 			try {
-				Document otherDoc = DocumentHelper.parseText(geo.getOther());
+				SAXReader reader = new SAXReader();
+				reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+				reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+				reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+				Document otherDoc = reader.read(new StringReader(geo.getOther()));
 				Element detailE = otherDoc.getRootElement();
 				detailE.addElement("track")
 				.addAttribute("speed", Double.toString(geo.getSpeed()))
