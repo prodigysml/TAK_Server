@@ -37,12 +37,16 @@ public class DeleteServlet extends EnterpriseSyncServlet {
 	
 	@Override
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException {
-		this.doDelete(request, response);
+		try {
+			response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED, "GET is not supported for delete operations");
+		} catch (IOException e) {
+			throw new ServletException(e);
+		}
 	}
 
 	/**
 	 * Processes a POST request to delete a file from the server.
-	 * 
+	 *
 	 */
 	@Override
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException {
