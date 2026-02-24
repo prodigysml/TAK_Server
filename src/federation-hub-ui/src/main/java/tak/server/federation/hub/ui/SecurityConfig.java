@@ -82,7 +82,9 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		
-		http.csrf().disable();
+		http.csrf()
+			.csrfTokenRepository(org.springframework.security.web.csrf.CookieCsrfTokenRepository.withHttpOnlyFalse())
+			.ignoringRequestMatchers(getMatchers("/oauth/**", "/login**", "/login/**"));
 		
 		http.x509().authenticationUserDetailsService(new X509AuthenticatedUserDetailsService());
 		
