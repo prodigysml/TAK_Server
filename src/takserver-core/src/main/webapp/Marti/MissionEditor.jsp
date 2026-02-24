@@ -380,13 +380,19 @@
             expirationDiv.innerHTML = html;
         }
 
+        function sanitize(str) {
+            var temp = document.createElement('div');
+            temp.textContent = str;
+            return temp.innerHTML;
+        }
+
         function addContentsToEditor(contents) {
             var html = "<br><h3>Contents</h3><table border=0>";
             if (contents.length > 0) {
                 for (var i = 0; i < contents.length; i++) {
                     html += "<tr>"
-                    html += "<td><a href=\"sync/content?hash=" + contents[i].data.hash + "\">" + contents[i].data.name + "</a></td>";
-                    html += "<td><input type=button id=\"Delete\" value=\"Remove\" onClick=\"deleteContents('" + _mission.name + "','" + contents[i].data.hash + "');\"></td>"
+                    html += "<td><a href=\"sync/content?hash=" + encodeURIComponent(contents[i].data.hash) + "\">" + sanitize(contents[i].data.name) + "</a></td>";
+                    html += "<td><input type=button id=\"Delete\" value=\"Remove\" onClick=\"deleteContents('" + sanitize(_mission.name) + "','" + sanitize(contents[i].data.hash) + "');\"></td>"
                     html += "</tr>"
                 }
             } else {
@@ -424,7 +430,7 @@
             var keywordText = "";
             if (keywords.length > 0) {
                 for (var i=0; i < keywords.length; i++) {
-                    keywordText += keywords[i] + ' ';
+                    keywordText += sanitize(keywords[i]) + ' ';
                 }
             }
             html += "<table><tr><td><input type=\"text\" style=\"width:415px\" id=\"keywords\" value=\""
@@ -481,8 +487,8 @@
             if (uids.length > 0) {
                 for (var i = 0; i < uids.length; i++) {
                     html += "<tr>"
-                    html += "<td><a href=\"api/cot/xml/" + uids[i].data + "\">" + uids[i].data + "</a>&nbsp;";
-                    html += "<input type=button id=\"Delete\" value=\"Remove\" onClick=\"deleteUid('" + uids[i].data + "');\"></td>"
+                    html += "<td><a href=\"api/cot/xml/" + encodeURIComponent(uids[i].data) + "\">" + sanitize(uids[i].data) + "</a>&nbsp;";
+                    html += "<input type=button id=\"Delete\" value=\"Remove\" onClick=\"deleteUid('" + sanitize(uids[i].data) + "');\"></td>"
                     html += "</tr>"
                 }
             } else {
