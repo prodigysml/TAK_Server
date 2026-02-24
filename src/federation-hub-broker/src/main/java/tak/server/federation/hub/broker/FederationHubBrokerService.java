@@ -1935,16 +1935,11 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
                 FederateEdge edge = policyGraph.getEdge(srcNode, destNode);
 
                 if (edge != null && !Strings.isNullOrEmpty(edge.getFilterExpression())) {
-
-                    /*
-                     * Important note: filters need to be responsible for
-                     * mutating the message. It's recommended that they
-                     * follow an immutable approach, and return a new
-                     * message instead of mutating.
-                     */
-
-                    /* TODO Apply the lambda filter. */
-                    //message = federateLambdaFilter.filter(message, edge.getFilterExpression());
+                    // Fail closed: filter expressions are configured but filter engine is not yet implemented.
+                    // Block the message rather than silently bypassing the policy filter.
+                    logger.warn("Dropping ROL message from {} to {} - edge filter expression is configured but filter engine is not implemented. Filter: {}",
+                            src.getFedId(), dest.getFedId(), edge.getFilterExpression());
+                    continue;
                 }
 
                 deliverRol(message, src, dest);
@@ -1957,16 +1952,11 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
             if (entry.getValue().getFederateIdentity().equals(dest)) {
                 Message filteredMessage = message;
 
-                /* TODO use filter
+                // Fail closed: if a subscription filter is configured, block delivery since the filter engine is not implemented
                 if (!Strings.isNullOrEmpty(entry.getValue().getSubscription().getFilter())) {
-                    filteredMessage = federateLambdaFilter.filter(message, entry.getValue().getSubscription().getFilter());
-                }
-
-                if (filteredMessage == null) {
-                    logger.debug("message delivery denied by subscription filter");
+                    logger.warn("Dropping V1 message to {} - subscription filter is configured but filter engine is not implemented", dest.getFedId());
                     continue;
                 }
-                */
 
                 if (logger.isTraceEnabled()) {
                     logger.trace("Sending message {} from {} to {}", message.toString(), src, dest);
@@ -1992,16 +1982,11 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
             if (entry.getValue().getFederateIdentity().equals(dest)) {
                 Message filteredMessage = message;
 
-                /* TODO use filter
+                // Fail closed: if a subscription filter is configured, block delivery since the filter engine is not implemented
                 if (!Strings.isNullOrEmpty(entry.getValue().getSubscription().getFilter())) {
-                    filteredMessage = federateLambdaFilter.filter(message, entry.getValue().getSubscription().getFilter());
-                }
-
-                if (filteredMessage == null) {
-                    logger.debug("message delivery denied by subscription filter");
+                    logger.warn("Dropping V2 message to {} - subscription filter is configured but filter engine is not implemented", dest.getFedId());
                     continue;
                 }
-                */
 
                 FederatedEvent event = requireNonNull((FederatedEvent)filteredMessage.getPayload().getContent(),
                     "federated event message payload");
@@ -2041,16 +2026,11 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
                 FederateEdge edge = policyGraph.getEdge(srcNode, destNode);
 
                 if (edge != null && !Strings.isNullOrEmpty(edge.getFilterExpression())) {
-
-                    /*
-                     * Important note: filters need to be responsible for
-                     * mutating the message. It's recommended that they
-                     * follow an immutable approach, and return a new
-                     * message instead of mutating.
-                     */
-
-                    /* TODO Apply the lambda filter. */
-                    //message = federateLambdaFilter.filter(message, edge.getFilterExpression());
+                    // Fail closed: filter expressions are configured but filter engine is not yet implemented.
+                    // Block the message rather than silently bypassing the policy filter.
+                    logger.warn("Dropping message from {} to {} - edge filter expression is configured but filter engine is not implemented. Filter: {}",
+                            src.getFedId(), dest.getFedId(), edge.getFilterExpression());
+                    continue;
                 }
 
                 deliverV1(message, src, dest);
