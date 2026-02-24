@@ -1226,7 +1226,7 @@ public class MissionApi extends BaseRestController {
 	 * Delete a mission by name. Respond with the deleted mission JSON.
 	 *
 	 */
-	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
+	@PreAuthorize("hasPermission(#request, 'MISSION_DELETE')")
 	@RequestMapping(value = "/missions/{name:.+}", method = RequestMethod.DELETE)
 	ApiResponse<Set<Mission>> deleteMission(
 			@PathVariable("name") @NotNull String name,
@@ -1320,7 +1320,7 @@ public class MissionApi extends BaseRestController {
 	 * Delete a mission by guid. Respond with the deleted mission JSON.
 	 *
 	 */
-	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
+	@PreAuthorize("hasPermission(#request, 'MISSION_DELETE')")
 	@RequestMapping(value = "/missions", method = RequestMethod.DELETE)
 	@Transactional(noRollbackFor = Exception.class)
 	ApiResponse<Set<Mission>> deleteMissionByGuid(
