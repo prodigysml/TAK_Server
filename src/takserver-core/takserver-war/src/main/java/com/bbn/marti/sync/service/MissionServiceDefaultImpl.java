@@ -4522,6 +4522,12 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	@CacheEvict(cacheResolver = MissionCacheResolver.MISSION_CACHE_RESOLVER, allEntries = true)
 	public void removeFeedFromMission(String missionName, String creatorUid, Mission mission, String missionFeedUid) {
+		// verify the feed belongs to the specified mission
+		String feedMissionName = missionFeedRepository.getMissionNameByMissionFeedUid(missionFeedUid);
+		if (feedMissionName == null || !feedMissionName.equals(missionName)) {
+			throw new ForbiddenException("Feed does not belong to the specified mission");
+		}
+
 		MissionFeed missionFeed = missionFeedRepository.getByUidNoMission(missionFeedUid);
 
 		if (missionFeed != null) {
