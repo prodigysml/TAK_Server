@@ -72,6 +72,46 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
         return conf;
     }
 
+    // RFC 4515 LDAP filter escaping - escapes special characters to prevent LDAP injection
+    private static String escapeLdapFilter(String input) {
+        if (input == null) return null;
+        StringBuilder sb = new StringBuilder(input.length());
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            switch (c) {
+                case '\\': sb.append("\\5c"); break;
+                case '*':  sb.append("\\2a"); break;
+                case '(':  sb.append("\\28"); break;
+                case ')':  sb.append("\\29"); break;
+                case '\0': sb.append("\\00"); break;
+                default:   sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    // RFC 4514 LDAP DN escaping - escapes special characters in DN attribute values
+    private static String escapeLdapDn(String input) {
+        if (input == null) return null;
+        StringBuilder sb = new StringBuilder(input.length());
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            switch (c) {
+                case '\\': sb.append("\\\\"); break;
+                case ',':  sb.append("\\,"); break;
+                case '+':  sb.append("\\+"); break;
+                case '"':  sb.append("\\\""); break;
+                case '<':  sb.append("\\<"); break;
+                case '>':  sb.append("\\>"); break;
+                case ';':  sb.append("\\;"); break;
+                case '#':  if (i == 0) sb.append("\\#"); else sb.append(c); break;
+                case ' ':  if (i == 0 || i == input.length() - 1) sb.append("\\ "); else sb.append(c); break;
+                default:   sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     // attributes to apply to the user object, which will return only attributes indicating group membership.
     private final String[] groupUserAttrs = {"memberOf", "ntUserWorkstations"};
     private final String[] distinguishedNameAttr = {"distinguishedName"};
@@ -514,13 +554,13 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
         		logger.debug("getting user info using AD approach");
         	}
             // For AD, use the sAMAccountName
-            searchFilter = "(sAMAccountName=" + userId + ")";
+            searchFilter = "(sAMAccountName=" + escapeLdapFilter(userId) + ")";
         } else {
         	if (logger.isDebugEnabled()) {
         		logger.debug("getting user info using AD chain approach");
         	}
             String distinguishedName = getDistinguishedName(ctx, userId);
-            searchFilter = "(member:1.2.840.113556.1.4.1941:=" + distinguishedName + ")";
+            searchFilter = "(member:1.2.840.113556.1.4.1941:=" + escapeLdapFilter(distinguishedName) + ")";
         }
         
         if (logger.isDebugEnabled()) {
@@ -541,7 +581,7 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
             SearchControls userControls = new SearchControls();
             userControls.setReturningAttributes(userAttrList);
             userControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            results = ctx.search("", "(sAMAccountName=" + userId + ")", userControls);
+            results = ctx.search("", "(sAMAccountName=" + escapeLdapFilter(userId) + ")", userControls);
             getGroupAttrs(results, attributeMap);
             results.close();
 
@@ -601,7 +641,7 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
 
             switch(getConf().getStyle()) {
                 case DS: {
-                    String bindDn = userString.replace("{username}", userId);
+                    String bindDn = userString.replace("{username}", escapeLdapDn(userId));
                     result = getGroupInfoByDN(ctx, bindDn);
                     break;
                 }
@@ -638,7 +678,7 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
             controls.setReturningAttributes(distinguishedNameAttr);
 
             controls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            results = ctx.search("", "(sAMAccountName=" + userId + ")", controls);
+            results = ctx.search("", "(sAMAccountName=" + escapeLdapFilter(userId) + ")", controls);
 
             getGroupAttrs(results, groupAttrs);
             distinguishedName = groupAttrs.get("distinguishedName0");
@@ -678,7 +718,7 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
             controls.setReturningAttributes(logonNameAttr);
 
             controls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            String filter = "(mail=" + email + ")";
+            String filter = "(mail=" + escapeLdapFilter(email) + ")";
 
             String userBaseRDN = conf.getUserBaseRDN() != null ? conf.getUserBaseRDN() : "";
             results = ctx.search(userBaseRDN, filter, controls);
@@ -970,7 +1010,7 @@ public class LdapAuthenticator extends AbstractAuthenticator implements Serializ
             }
 
             // get the userString, substituting in the username for the placeholder variable {username} from the config.
-            String bindDn = userString.replace("{username}", username);
+            String bindDn = userString.replace("{username}", escapeLdapDn(username));
 
             if (logger.isDebugEnabled()) {
                 logger.debug("bindDn: " + bindDn);
