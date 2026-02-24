@@ -2,6 +2,7 @@ package com.bbn.marti.service;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.NavigableSet;
@@ -47,6 +48,11 @@ public class MissionPackageExtractor {
 
 	public static final String B_F_T_R = "b-f-t-r";
 	private static final String CALLSIGN = "callsign";
+
+	private static final long MAX_UNCOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;  // 50 MB per entry
+	private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total
+	private static final int MAX_ZIP_ENTRIES = 1024;
+	private static final long MAX_COMPRESSION_RATIO = 100;
 
 	private MimetypesFileTypeMap mtft;
 	private MissionPackageMessage mpm;
@@ -145,16 +151,55 @@ public class MissionPackageExtractor {
 			// copy all files over to the new mp
 			ZipEntry entry;
 			String filename;
+			long totalBytes = 0;
+			int entryCount = 0;
+			final int BUFFER = 2048;
 
 			while ((entry = zis.getNextEntry()) != null) {
+				if (++entryCount > MAX_ZIP_ENTRIES) {
+					throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+				}
+
+				String entryName = entry.getName();
+				if (entryName.contains("..") || entryName.startsWith("/") || entryName.startsWith("\\")) {
+					throw new IOException("ZIP entry has illegal path: " + entryName);
+				}
+
+				if (entry.isDirectory()) {
+					continue;
+				}
+
 				missionPackageEntry = new MissionPackageEntry();
-				filename = entry.getName();
-				filename = FilenameUtils.getName(filename);
+				filename = FilenameUtils.getName(entryName);
 				if (logger.isDebugEnabled()) {
 					logger.debug(" adding zip entry adding entry to list " + filename);
 				}
 				missionPackageEntry.setName(filename);
-				byte[] data = IOUtils.toByteArray(zis);
+
+				// Read with size limits instead of unbounded IOUtils.toByteArray
+				int count;
+				long entryBytes = 0;
+				long compressedSize = entry.getCompressedSize();
+				byte[] buf = new byte[BUFFER];
+				ByteArrayOutputStream entryBos = new ByteArrayOutputStream();
+				while ((count = zis.read(buf, 0, BUFFER)) != -1) {
+					entryBytes += count;
+					totalBytes += count;
+					if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+						throw new IOException("ZIP entry exceeds maximum uncompressed size");
+					}
+					if (totalBytes > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+						throw new IOException("ZIP archive exceeds maximum total uncompressed size");
+					}
+					if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+						throw new IOException("ZIP entry compression ratio exceeds maximum, possible zip bomb");
+					}
+					entryBos.write(buf, 0, count);
+				}
+				entryBos.flush();
+				entryBos.close();
+				byte[] data = entryBos.toByteArray();
+
 				missionPackageEntry.setSizeInBytes(Long.valueOf(data.length));
 
 				// "real" mission packages don't contain a callsign parameter in the manifest

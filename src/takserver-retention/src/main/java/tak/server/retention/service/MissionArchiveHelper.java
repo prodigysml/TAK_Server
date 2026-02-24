@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,6 +45,11 @@ public class MissionArchiveHelper {
 	
 	private static final String ARCHIVE_DIR = "mission-archive/";
 	private static final String MISSION_STORE_FILE = ARCHIVE_DIR + "mission-store.yml";
+
+	private static final long MAX_UNCOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;  // 50 MB per entry
+	private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total
+	private static final int MAX_ZIP_ENTRIES = 1024;
+	private static final long MAX_COMPRESSION_RATIO = 100;
 
 	@Autowired
 	MissionArchiveStoreConfig missionArchiveStore;
@@ -144,10 +150,21 @@ public class MissionArchiveHelper {
 			Map<String, byte[]> files = new HashMap<>();
 			ZipEntry entry;
 			final int BUFFER = 2048;
+			long totalBytes = 0;
+			int entryCount = 0;
 			FileInputStream fis = new FileInputStream(filename);
 			BufferedInputStream bis = new BufferedInputStream(fis);
 			ZipInputStream zis = new ZipInputStream(new BufferedInputStream(bis));
 			while ((entry = zis.getNextEntry()) != null) {
+
+				if (++entryCount > MAX_ZIP_ENTRIES) {
+					throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+				}
+
+				String entryName = entry.getName();
+				if (entryName.contains("..") || entryName.startsWith("/") || entryName.startsWith("\\")) {
+					throw new IOException("ZIP entry has illegal path: " + entryName);
+				}
 
 				// skip directories
 				if (entry.isDirectory()) {
@@ -156,9 +173,22 @@ public class MissionArchiveHelper {
 
 				// load in the file
 				int count;
+				long entryBytes = 0;
+				long compressedSize = entry.getCompressedSize();
 				byte data[] = new byte[BUFFER];
 				ByteArrayOutputStream bos = new ByteArrayOutputStream();
 				while ((count = zis.read(data, 0, BUFFER)) != -1) {
+					entryBytes += count;
+					totalBytes += count;
+					if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+						throw new IOException("ZIP entry exceeds maximum uncompressed size");
+					}
+					if (totalBytes > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+						throw new IOException("ZIP archive exceeds maximum total uncompressed size");
+					}
+					if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+						throw new IOException("ZIP entry compression ratio exceeds maximum, possible zip bomb");
+					}
 					bos.write(data, 0, count);
 				}
 				bos.flush();

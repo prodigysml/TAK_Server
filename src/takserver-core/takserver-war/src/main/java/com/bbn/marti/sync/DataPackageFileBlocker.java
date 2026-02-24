@@ -34,6 +34,11 @@ public class DataPackageFileBlocker {
 
     private static final Logger logger = LoggerFactory.getLogger(DataPackageFileBlocker.class);
 
+    private static final long MAX_UNCOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;  // 50 MB per entry
+    private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total
+    private static final int MAX_ZIP_ENTRIES = 1024;
+    private static final long MAX_COMPRESSION_RATIO = 100;
+
     public static byte[] blockCoT(Metadata metadata, byte[] content, String cotFilter) {
         try {
 
@@ -125,32 +130,63 @@ public class DataPackageFileBlocker {
             String manifestContent = "";
             int addedEntry = 0;
             byte[] updatedManifest = null;
+            long totalBytes = 0;
+            int entryCount = 0;
+            final int BUFFER = 2048;
 
             ZipEntry entry;
             // copy the contents and make changes as needed
             while ((entry = zis.getNextEntry()) != null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(" get name " + entry.getName());
+                if (++entryCount > MAX_ZIP_ENTRIES) {
+                    throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
                 }
-                if (entry.getName().endsWith(fileExt)) {
+
+                String entryName = entry.getName();
+                if (entryName.contains("..") || entryName.startsWith("/") || entryName.startsWith("\\")) {
+                    throw new IOException("ZIP entry has illegal path: " + entryName);
+                }
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug(" get name " + entryName);
+                }
+                if (entryName.endsWith(fileExt)) {
                     if (logger.isInfoEnabled()) {
-                        logger.info("skipping " + entry.getName());
+                        logger.info("skipping " + entryName);
                     }
                     continue; //skip blocked file
                 }
-                if (! entry.getName().contains("manifest.xml")) {
+                if (! entryName.contains("manifest.xml")) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(" adding entry " + entry.getName());
+                        logger.debug(" adding entry " + entryName);
                     }
-                    ZipEntry copyEntry = new ZipEntry(entry.getName());
+                    ZipEntry copyEntry = new ZipEntry(entryName);
                     zos.putNextEntry(copyEntry);
                     addedEntry++;
-                    IOUtils.copy(zis, zos);
+                    // Bounded copy instead of unbounded IOUtils.copy
+                    int count;
+                    long entryBytes = 0;
+                    long compressedSize = entry.getCompressedSize();
+                    byte[] buf = new byte[BUFFER];
+                    while ((count = zis.read(buf, 0, BUFFER)) != -1) {
+                        entryBytes += count;
+                        totalBytes += count;
+                        if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+                            throw new IOException("ZIP entry exceeds maximum uncompressed size");
+                        }
+                        if (totalBytes > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+                            throw new IOException("ZIP archive exceeds maximum total uncompressed size");
+                        }
+                        if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+                            throw new IOException("ZIP entry compression ratio exceeds maximum, possible zip bomb");
+                        }
+                        zos.write(buf, 0, count);
+                    }
                     zos.closeEntry();
                     continue; // copy in non-manifest file and non-blocked file
                 }
 
-                manifestContent = getManifestContent(zis);
+                manifestContent = getManifestContent(zis, entry, totalBytes);
+                totalBytes += manifestContent.length();
                 if (manifestContent.contains(fileExt)) {
                     manifestEntryName = entry.getName();
                 }
@@ -255,9 +291,19 @@ public class DataPackageFileBlocker {
              ZipInputStream zis = new ZipInputStream(bis)) {
 
             ZipEntry entry;
+            int entryCount = 0;
             while ((entry = zis.getNextEntry()) != null) {
+                if (++entryCount > MAX_ZIP_ENTRIES) {
+                    logger.error("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+                    return false;
+                }
+                String entryName = entry.getName();
+                if (entryName.contains("..") || entryName.startsWith("/") || entryName.startsWith("\\")) {
+                    logger.error("ZIP entry has illegal path: " + entryName);
+                    return false;
+                }
                 if (logger.isTraceEnabled()) {
-                    logger.trace(" what is the entry name in contains entry " + entry.getName());
+                    logger.trace(" what is the entry name in contains entry " + entryName);
                 }
                 if (entry.isDirectory()) {
                     continue;
@@ -274,9 +320,26 @@ public class DataPackageFileBlocker {
         return false;
     }
 
-    private static String getManifestContent(ZipInputStream zis) throws IOException {
+    private static String getManifestContent(ZipInputStream zis, ZipEntry entry, long currentTotalBytes) throws IOException {
+        final int BUFFER = 2048;
         ByteArrayOutputStream bosXml = new ByteArrayOutputStream();
-        IOUtils.copy(zis, bosXml);
+        int count;
+        long entryBytes = 0;
+        long compressedSize = entry.getCompressedSize();
+        byte[] buf = new byte[BUFFER];
+        while ((count = zis.read(buf, 0, BUFFER)) != -1) {
+            entryBytes += count;
+            if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+                throw new IOException("ZIP manifest entry exceeds maximum uncompressed size");
+            }
+            if (currentTotalBytes + entryBytes > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+                throw new IOException("ZIP archive exceeds maximum total uncompressed size");
+            }
+            if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+                throw new IOException("ZIP entry compression ratio exceeds maximum, possible zip bomb");
+            }
+            bosXml.write(buf, 0, count);
+        }
         String manifestContent = new String(bosXml.toByteArray());
         bosXml.flush();
         bosXml.close();

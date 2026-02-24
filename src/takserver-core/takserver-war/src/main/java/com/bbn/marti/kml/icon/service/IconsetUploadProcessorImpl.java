@@ -61,6 +61,11 @@ public class IconsetUploadProcessorImpl implements IconsetUploadProcessor {
 
     private static final String COT_TYPE_UNKNOWN = "a-u";
 
+    private static final long MAX_UNCOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;  // 50 MB per entry
+    private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total
+    private static final int MAX_ZIP_ENTRIES = 1024;
+    private static final long MAX_COMPRESSION_RATIO = 100;
+
     // use a concurrent map to lock a particular iconset uid (and associated icons) for update
     private static ConcurrentMap<String, Object> iconsetLockMap = new ConcurrentHashMap<>();
 
@@ -155,13 +160,23 @@ public class IconsetUploadProcessorImpl implements IconsetUploadProcessor {
             // traverse the zipfile. Look for iconset.xml and icon files.
             try {
                 boolean iconsetFound = false;
+                long totalBytes = 0;
+                int entryCount = 0;
 
                 while((zipEntry = zis.getNextEntry()) != null) {
                     try {
+                        if (++entryCount > MAX_ZIP_ENTRIES) {
+                            throw new IOException("ZIP archive exceeds maximum entry count of " + MAX_ZIP_ENTRIES);
+                        }
+
                         String zipEntryFilename = zipEntry.getName();
+                        if (zipEntryFilename.contains("..") || zipEntryFilename.startsWith("/") || zipEntryFilename.startsWith("\\")) {
+                            throw new IOException("ZIP entry has illegal path: " + zipEntryFilename);
+                        }
+
                         logger.debug("zip entry: " + zipEntryFilename + " size: " + zipEntry.getSize());
 
-                        // process only the first iconset file that is encountered in the zipfile 
+                        // process only the first iconset file that is encountered in the zipfile
                         if (!iconsetFound && zipEntryFilename.toLowerCase(Locale.ENGLISH).endsWith(ICONSET_FILENAME)) {
                             iconsetFound = true;
                             logger.debug("iconset xml zip file entry found");
@@ -170,7 +185,20 @@ public class IconsetUploadProcessorImpl implements IconsetUploadProcessor {
                             ByteArrayOutputStream os = new ByteArrayOutputStream();
 
                             int len;
+                            long entryBytes = 0;
+                            long compressedSize = zipEntry.getCompressedSize();
                             while ((len = zis.read(buffer)) > 0) {
+                                entryBytes += len;
+                                totalBytes += len;
+                                if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+                                    throw new IOException("ZIP entry exceeds maximum uncompressed size");
+                                }
+                                if (totalBytes > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+                                    throw new IOException("ZIP archive exceeds maximum total uncompressed size");
+                                }
+                                if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+                                    throw new IOException("ZIP entry compression ratio exceeds maximum, possible zip bomb");
+                                }
                                 os.write(buffer, 0, len);
                             }
 
@@ -224,7 +252,20 @@ public class IconsetUploadProcessorImpl implements IconsetUploadProcessor {
                             ByteArrayOutputStream os = new ByteArrayOutputStream();
 
                             int len;
+                            long entryBytes = 0;
+                            long compressedSize = zipEntry.getCompressedSize();
                             while ((len = zis.read(buffer)) > 0) {
+                                entryBytes += len;
+                                totalBytes += len;
+                                if (entryBytes > MAX_UNCOMPRESSED_ENTRY_SIZE) {
+                                    throw new IOException("ZIP entry exceeds maximum uncompressed size");
+                                }
+                                if (totalBytes > MAX_UNCOMPRESSED_TOTAL_SIZE) {
+                                    throw new IOException("ZIP archive exceeds maximum total uncompressed size");
+                                }
+                                if (compressedSize > 0 && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
+                                    throw new IOException("ZIP entry compression ratio exceeds maximum, possible zip bomb");
+                                }
                                 os.write(buffer, 0, len);
                             }
 
