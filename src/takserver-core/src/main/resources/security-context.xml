@@ -91,8 +91,10 @@
 	  	      <sec:intercept-url pattern="/Marti/api/missions/**" method="DELETE" access="ROLE_ANONYMOUS" />
 	  	      
 	  	      <!-- Map Layer API -->
-              <sec:intercept-url pattern="/Marti/api/maplayers/**" method="DELETE" access="ROLE_ANONYMOUS" />
-	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" access="ROLE_ANONYMOUS" />
+              <sec:intercept-url pattern="/Marti/api/maplayers/**" method="DELETE" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="POST" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="PUT" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="GET" access="ROLE_ANONYMOUS" />
 	  	      
 	  	      <!-- injector API -->
 	  	      <sec:intercept-url pattern="/Marti/api/injectors/cot/uid/**" method="DELETE" access="ROLE_ADMIN" />
