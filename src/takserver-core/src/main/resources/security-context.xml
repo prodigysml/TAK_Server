@@ -194,7 +194,8 @@
 	  	      <sec:intercept-url pattern="/error" access="ROLE_ANONYMOUS, ROLE_NO_CLIENT_CERT, ROLE_FEDERATE"/>
 
 			  <!-- properties API -->
-	  	      <sec:intercept-url pattern="/Marti/api/properties/**" method="DELETE" access="ROLE_ANONYMOUS" />
+	  	      <sec:intercept-url pattern="/Marti/api/properties/**" method="DELETE" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/properties/**" method="PUT" access="ROLE_ADMIN" />
 
 			  <sec:intercept-url pattern="/Marti/menubar.html/**" method="GET" access="ROLE_NON_ADMIN_UI" />
 			  <sec:intercept-url pattern="/Marti/api/missions/**" access="ROLE_ANONYMOUS" />
@@ -203,8 +204,7 @@
 			  <sec:intercept-url pattern="/Marti/api/cops/**" access="ROLE_ANONYMOUS" />
 
               <!--  properties API -->
-              <sec:intercept-url pattern="/Marti/api/properties/**" access="ROLE_ANONYMOUS" />
-              <sec:intercept-url pattern="/Marti/api/properties/**" method="DELETE" access="ROLE_ANONYMOUS" />
+              <sec:intercept-url pattern="/Marti/api/properties/**" method="GET" access="ROLE_ANONYMOUS" />
               
               <!--  files API -->
               <sec:intercept-url pattern="/Marti/api/files/**" access="ROLE_ANONYMOUS" />
