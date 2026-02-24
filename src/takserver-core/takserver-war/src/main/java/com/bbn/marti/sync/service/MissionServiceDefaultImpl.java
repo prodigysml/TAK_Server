@@ -716,6 +716,10 @@ public class MissionServiceDefaultImpl implements MissionService {
 			throw new NotFoundException();
 		}
 
+		if (missionLayerRepository.countByUidAndMissionId(layerUid, mission.getId()) == 0) {
+			throw new ForbiddenException("mission layer " + layerUid + " does not belong to mission " + missionName);
+		}
+
 		MissionLayer updated = new MissionLayer(layer);
 
 		missionLayerRepository.setName(layerUid, name);
@@ -733,6 +737,10 @@ public class MissionServiceDefaultImpl implements MissionService {
 		MissionLayer layer = missionLayerRepository.findByUidNoMission(layerUid);
 		if (layer == null) {
 			throw new NotFoundException();
+		}
+
+		if (missionLayerRepository.countByUidAndMissionId(layerUid, mission.getId()) == 0) {
+			throw new ForbiddenException("mission layer " + layerUid + " does not belong to mission " + missionName);
 		}
 
 		MissionLayer updated = new MissionLayer(layer);
@@ -756,6 +764,13 @@ public class MissionServiceDefaultImpl implements MissionService {
 
 		if (layer == null || (parentUid != null && parent == null)) {
 			throw new NotFoundException();
+		}
+
+		if (missionLayerRepository.countByUidAndMissionId(layerUid, mission.getId()) == 0) {
+			throw new ForbiddenException("mission layer " + layerUid + " does not belong to mission " + missionName);
+		}
+		if (parentUid != null && missionLayerRepository.countByUidAndMissionId(parentUid, mission.getId()) == 0) {
+			throw new ForbiddenException("parent layer " + parentUid + " does not belong to mission " + missionName);
 		}
 
 		MissionLayer updated = new MissionLayer(layer);
