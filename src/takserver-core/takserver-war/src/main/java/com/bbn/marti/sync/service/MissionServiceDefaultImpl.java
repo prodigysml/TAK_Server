@@ -4591,12 +4591,15 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	@CacheEvict(cacheResolver = MissionCacheResolver.MISSION_CACHE_RESOLVER, allEntries = true)
 	public MapLayer updateMapLayer(String missionName, String creatorUid, Mission mission, MapLayer mapLayer) {
+		mapLayerService.validateMapLayerBelongsToMission(mapLayer.getUid(), mission);
 		return mapLayerService.updateMapLayer(mapLayer);
 	}
 
 	@Override
 	@CacheEvict(cacheResolver = MissionCacheResolver.MISSION_CACHE_RESOLVER, allEntries = true)
 	public void removeMapLayerFromMission(String missionName, String creatorUid, Mission mission, String mapLayerUid) {
+
+		mapLayerService.validateMapLayerBelongsToMission(mapLayerUid, mission);
 
 		// record the change
 		MissionChanges changes = saveMapLayerChangeAtTime(

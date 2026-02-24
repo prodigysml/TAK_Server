@@ -9,8 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import com.bbn.marti.maplayer.model.MapLayer;
 import com.bbn.marti.maplayer.repository.MapLayerRepository;
+import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.remote.exception.NotFoundException;
 import com.bbn.marti.remote.exception.TakException;
+import com.bbn.marti.sync.model.Mission;
 
 
 public class MapLayerService {
@@ -66,6 +68,22 @@ public class MapLayerService {
             mapLayerRepository.deleteByUid(uid);
         } catch (Exception e) {
             throw new TakException("exception in deleteMapLayer", e);
+        }
+    }
+
+    public void validateMapLayerBelongsToMission(String mapLayerUid, Mission mission) {
+        MapLayer record = mapLayerRepository.findByUid(mapLayerUid);
+        if (record == null) {
+            throw new NotFoundException("no map layer stored for uid " + mapLayerUid);
+        }
+        Mission layerMission = record.getMission();
+        if (mission == null && layerMission != null) {
+            throw new ForbiddenException("map layer " + mapLayerUid + " belongs to a mission and cannot be modified in this context");
+        }
+        if (mission != null) {
+            if (layerMission == null || !mission.getId().equals(layerMission.getId())) {
+                throw new ForbiddenException("map layer " + mapLayerUid + " does not belong to mission " + mission.getName());
+            }
         }
     }
 
