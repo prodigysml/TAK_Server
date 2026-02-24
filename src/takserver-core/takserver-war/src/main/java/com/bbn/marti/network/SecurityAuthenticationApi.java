@@ -52,6 +52,7 @@ public class SecurityAuthenticationApi extends BaseRestController {
                 .getAuthenticationConfig(), Constants.DISTRIBUTED_SECURITY_MANAGER, SecurityManager.class);
 
             if (info != null) {
+                info.setServiceAccountCredential(null);
                 return new ResponseEntity<ApiResponse<AuthenticationConfigInfo>>(new ApiResponse<AuthenticationConfigInfo>(Constants.API_VERSION, AuthenticationConfigInfo.class.getName(), info), HttpStatus.OK);
             } else {
                 return new ResponseEntity<ApiResponse<AuthenticationConfigInfo>>(new ApiResponse<AuthenticationConfigInfo>(Constants.API_VERSION, AuthenticationConfigInfo.class.getName(), null), HttpStatus.OK);
