@@ -215,21 +215,30 @@ public class CotElement implements Serializable {
         return true;
     }
 
+    private static String escapeXmlAttr(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                     .replace("<", "&lt;")
+                     .replace(">", "&gt;")
+                     .replace("'", "&apos;")
+                     .replace("\"", "&quot;");
+    }
+
     public String toCotXml() {
         String time = servertime == null ? "" : DateUtil.toCotTime(this.servertime.getTime());
         String staleTime = staletime == null ? "" : DateUtil.toCotTime(this.staletime.getTime());
         String cot =
               "<event version='2.0' "
-            + "uid='" + this.uid + "' "
-            + "type='" + this.cottype +"' "
+            + "uid='" + escapeXmlAttr(this.uid) + "' "
+            + "type='" + escapeXmlAttr(this.cottype) +"' "
             + "time='" + time + "' "
             + "start='" + time + "' "
             + "stale='" + staleTime + "' "
-            + "how='" + this.how + "'>"
+            + "how='" + escapeXmlAttr(this.how) + "'>"
             + "<point "
             + "lat='" + Double.toString(this.lat) + "' "
             + "lon='" + Double.toString(this.lon) + "' "
-            + "hae='" + this.hae + "' "
+            + "hae='" + escapeXmlAttr(this.hae) + "' "
             + "ce='" + Double.toString(this.ce) + "' "
             + "le='" + Double.toString(this.le) + "' />"
             + this.detailtext
