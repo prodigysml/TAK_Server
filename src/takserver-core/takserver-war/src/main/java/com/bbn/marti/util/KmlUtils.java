@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
+import org.apache.commons.lang3.StringEscapeUtils;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -233,13 +234,13 @@ public class KmlUtils {
                     }
                 }
                 if (remarks.length() > 0) {
-                    remarks = "<br>" + remarks;
+                    remarks = "<br>" + StringEscapeUtils.escapeHtml4(remarks);
                 }
             }
 
         } catch (Exception e) { }
 
-        return "Type: " + qr.cottype + "<br> Time: " + qr.prettytime + " (" + qr.servertime + ")<br> " + location + remarks;
+        return "Type: " + StringEscapeUtils.escapeHtml4(qr.cottype) + "<br> Time: " + StringEscapeUtils.escapeHtml4(qr.prettytime) + " (" + StringEscapeUtils.escapeHtml4(qr.servertime) + ")<br> " + location + remarks;
     }
 
     public static void getImageUrlList(List<CotElement> events, Map<String, byte[]> images, int maxImages, String baseUrl, KMLDao kmlDao, Set<String> uids) {
