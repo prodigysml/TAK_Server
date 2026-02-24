@@ -122,6 +122,11 @@ public class StreamingProtoBufProtocol extends AbstractBroadcastingProtocol<CotE
                     if (!gotSize) {
                         break;
                     }
+                    if (nextSize <= 0 || nextSize > MAX_SIZE) {
+                        log.error("Received message with invalid size: " + nextSize + ", closing connection");
+                        handler.forceClose();
+                        return;
+                    }
                 }
 
                 // do we have enough left in the buffer to read out a full message?
