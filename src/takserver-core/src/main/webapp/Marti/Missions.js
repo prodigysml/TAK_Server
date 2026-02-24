@@ -101,7 +101,7 @@ function createFeeds(feeds) {
     for (var i = 0; i < feeds.length; i++) {
         if (i!=0) html += "<br>";
         // use datafeed UID to get datafeed's url/info to encode the url
-        html +=  "<a href=\"inputs/index.html#!/modifyPluginDataFeed/" + feeds[i].name + "\">";
+        html +=  "<a href=\"inputs/index.html#!/modifyPluginDataFeed/" + encodeURIComponent(feeds[i].name) + "\">";
         html += sanitize(feeds[i].name) + "</a></li>";
     }
     return html;
