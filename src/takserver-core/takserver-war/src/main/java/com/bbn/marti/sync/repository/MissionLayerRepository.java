@@ -47,6 +47,9 @@ public interface MissionLayerRepository extends JpaRepository<MissionLayer, Stri
             "from mission_layer where uid = :uid ", nativeQuery = true)
     MissionLayer findByUidNoMission(@Param("uid") String uid);
 
+    @Query(value = "select count(*) from mission_layer where uid = :uid and mission_id = :missionId ", nativeQuery = true)
+    int countByUidAndMissionId(@Param("uid") String uid, @Param("missionId") Long missionId);
+
     @Query(value = "select ml.uid, ml.name, ml.type, ml.parent_node_uid, null as mission_id, ml.after " +
             "from mission_layer ml inner join mission m on m.id = ml.mission_id where lower(m.name) = lower(:missionName) and ml.parent_node_uid is null ", nativeQuery = true)
     List<MissionLayer> findMissionLayers(@Param("missionName") String missionName);

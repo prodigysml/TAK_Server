@@ -818,6 +818,11 @@ public class MissionServiceDefaultImpl implements MissionService {
 				throw new NotFoundException();
 			}
 
+			// Verify the layer belongs to the specified mission
+			if (missionLayerRepository.countByUidAndMissionId(layerUid, mission.getId()) == 0) {
+				throw new ForbiddenException("mission layer " + layerUid + " does not belong to mission " + missionName);
+			}
+
 			missionLayerRepository.fixupAfter(layer.getAfter(), layer.getParentUid(), layerUid);
 
 			removeMissionLayerData(layer,  mission, creatorUid, groupVector);
