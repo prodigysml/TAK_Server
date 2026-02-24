@@ -34,6 +34,7 @@ import tak.server.federation.FederationException;
 public class NioNettyFederationHubServerHandler extends SimpleChannelInboundHandler<byte[]> {
     private final static Logger logger = LoggerFactory.getLogger(NioNettyFederationHubServerHandler.class);
     private static final int INTBYTES = Integer.SIZE / Byte.SIZE;
+    private static final int MAX_FEDERATION_MESSAGE_SIZE = 67108864; // 64 MB
     private AtomicBoolean alreadyClosed = new AtomicBoolean(true);
     private ByteBuffer leftovers = null;
     private int nextSize = -1;
@@ -203,6 +204,13 @@ public class NioNettyFederationHubServerHandler extends SimpleChannelInboundHand
                 if (nextSize == -1) {
                     if (fullBuf.remaining() > INTBYTES) {
                         nextSize = fullBuf.getInt();
+                        if (nextSize <= 0 || nextSize > MAX_FEDERATION_MESSAGE_SIZE) {
+                            logger.error("Federation message with invalid size: " + nextSize + ", closing connection");
+                            leftovers = null;
+                            nextSize = -1;
+                            nettyContext.close();
+                            return;
+                        }
                     } else {
                         leftovers = ByteBuffer.allocate(fullBuf.remaining());
                         leftovers.put(fullBuf);

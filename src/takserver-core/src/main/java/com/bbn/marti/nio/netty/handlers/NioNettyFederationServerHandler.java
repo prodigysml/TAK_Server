@@ -36,6 +36,7 @@ public class NioNettyFederationServerHandler extends NioNettyHandlerBase {
 	private final static Logger log = Logger.getLogger(NioNettyHandlerBase.class);
 	protected Protocol<FederatedEvent> fedProto;
 	private static final int INTBYTES = Integer.SIZE / Byte.SIZE;
+	private static final int MAX_FEDERATION_MESSAGE_SIZE = 67108864; // 64 MB
 	private AtomicBoolean alreadyClosed = new AtomicBoolean(true);
 	private ByteBuffer leftovers = null;
 	private int nextSize = -1;
@@ -150,6 +151,13 @@ public class NioNettyFederationServerHandler extends NioNettyHandlerBase {
 				if (nextSize == -1) {
 					if (fullBuf.remaining() > INTBYTES) {
 						nextSize = fullBuf.getInt();
+						if (nextSize <= 0 || nextSize > MAX_FEDERATION_MESSAGE_SIZE) {
+							log.error("Federation message with invalid size: " + nextSize + ", closing connection");
+							leftovers = null;
+							nextSize = -1;
+							channelHandler.forceClose();
+							return;
+						}
 					} else {
 						leftovers = ByteBuffer.allocate(fullBuf.remaining());
 						leftovers.put(fullBuf);
