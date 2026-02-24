@@ -179,12 +179,20 @@ public class LatestKMLServlet extends EsapiServlet {
 			String groupVector = null;
 
 	        try {
-	         
+
 	            // Get group vector for the user associated with this session
 	            groupVector = martiUtil.getGroupBitVector(request);
 	            log.finer("groups bit vector: " + groupVector);
 	        } catch (Exception e) {
-	            log.fine("exception getting group membership for current web user " + e.getMessage());
+	            logger.error("exception getting group membership for current web user", e);
+	            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unable to determine group membership");
+	            return;
+	        }
+
+	        if (groupVector == null || groupVector.isEmpty()) {
+	            logger.error("null or empty group vector for KML request");
+	            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unable to determine group membership");
+	            return;
 	        }
 
 			logger.debug("latestKMLService: " + kmlService + " calling process for cotType: " + cotType + " secAgoInt: " + secAgoInt + " groupVector: " + groupVector);
