@@ -3370,7 +3370,14 @@ public class MissionApi extends BaseRestController {
 
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
-		for (String name : entry.getMissionNames()) {
+		// Verify the log entry exists before checking authorization
+		if (!logEntryRepository.existsById(entry.getId())) {
+			throw new IllegalArgumentException("Log entry " + entry.getId() + " not found");
+		}
+
+		// Authorize against the EXISTING log entry's missions (not just the request body)
+		LogEntry existingEntry = logEntryRepository.getOne(entry.getId());
+		for (String name : existingEntry.getMissionNames()) {
 			String missionName = missionService.trimName(name);
 			Mission mission = missionService.getMissionByNameCheckGroups(missionName, groupVector);
 			missionService.validateMission(mission, missionName);
@@ -3386,9 +3393,21 @@ public class MissionApi extends BaseRestController {
 			}
 		}
 
-		// Don't allow create through this path (by specifying primary key)
-		if (!logEntryRepository.existsById(entry.getId())) {
-			throw new IllegalArgumentException("Log entry " + entry.getId() + " not found");
+		// Also authorize against any NEW missions being added in the request
+		for (String name : entry.getMissionNames()) {
+			String missionName = missionService.trimName(name);
+			Mission mission = missionService.getMissionByNameCheckGroups(missionName, groupVector);
+			missionService.validateMission(mission, missionName);
+
+			MissionRole role = missionService.getRoleForRequest(mission, request);
+			if (role == null) {
+				logger.error("no role for request : " + request.getServletPath());
+				throw new ForbiddenException("Illegal attempt to access mission!");
+			}
+
+			if (!role.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
+				throw new ForbiddenException("Illegal attempt to access mission!");
+			}
 		}
 
 		entry = missionService.addUpdateLogEntry(entry, new Date(), groupVector);
