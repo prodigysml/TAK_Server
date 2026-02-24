@@ -23,6 +23,7 @@ public class TakProtoBufProtocol extends AbstractBroadcastingProtocol<FederatedE
     private volatile boolean outboundClosed = false;
 
     private static final int INTBYTES = Integer.SIZE / Byte.SIZE;
+    private static final int MAX_MESSAGE_SIZE = 65536;
 
     ByteBuffer leftovers = null;
     int nextSize = -1;
@@ -74,6 +75,11 @@ public class TakProtoBufProtocol extends AbstractBroadcastingProtocol<FederatedE
             if (nextSize == -1) {
                 if (fullBuf.remaining() > INTBYTES) {
                     nextSize = fullBuf.getInt();
+                    if (nextSize <= 0 || nextSize > MAX_MESSAGE_SIZE) {
+                        log.error("Received message with invalid size: " + nextSize + ", closing connection");
+                        handler.forceClose();
+                        return;
+                    }
                     //log.warn("getting new event: " + nextSize);
                 } else {
                     //log.warn("not even enough bytes to read an int, waiting for more data");
