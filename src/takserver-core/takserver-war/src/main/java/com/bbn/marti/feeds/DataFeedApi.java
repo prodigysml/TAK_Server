@@ -186,15 +186,29 @@ public class DataFeedApi extends BaseRestController {
 	 */
 	@RequestMapping(value = "/datafeeds/predicate", method = RequestMethod.POST)
 	public Callable<ApiResponse<PredicateDataFeed>> createPredicateDataFeed(@RequestBody PredicateDataFeed pfeed) {
-		
-		final String requestGroupVector = remoteUtil.bitVectorToString(remoteUtil.getBitVectorForGroups(groupManager.findGroups(pfeed.getFilterGroups())));
-	
+
+		// Use the caller's authenticated groups for the group vector, not the attacker-supplied filterGroups
+		final String requestGroupVector = remoteUtil.bitVectorToString(remoteUtil.getBitVectorForGroups(commonUtil.getGroupsFromActiveRequest()));
+
 		return () -> {
-			
+
 			try {
-			
+
 			if (Strings.isNullOrEmpty(pfeed.getName()) || pfeed.getDataSourceEndpoint() == null) {
 				throw new IllegalArgumentException("empty name or datasource endpoint URL in create predicate data feed request.");
+			}
+
+			// Validate that requested filterGroups are a subset of the caller's groups
+			if (pfeed.getFilterGroups() != null && !pfeed.getFilterGroups().isEmpty()) {
+				java.util.Set<String> callerGroupNames = new java.util.HashSet<>();
+				for (com.bbn.marti.remote.groups.Group g : commonUtil.getGroupsFromActiveRequest()) {
+					callerGroupNames.add(g.getName());
+				}
+				for (String requestedGroup : pfeed.getFilterGroups()) {
+					if (!callerGroupNames.contains(requestedGroup)) {
+						throw new ForbiddenException("Caller does not belong to requested filter group: " + requestedGroup);
+					}
+				}
 			}
 			
 			pfeed.setUuid(UUID.randomUUID().toString());
