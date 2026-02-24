@@ -79,6 +79,8 @@ public class VideoConnectionManagerV2 extends BaseRestController {
             @PathVariable("uid") @NotNull String uid,
             @RequestBody VideoConnection videoConnection) {
         try {
+            // Enforce that the body's UUID matches the path variable to prevent IDOR
+            videoConnection.setUuid(uid);
             String groupVector = martiUtil.getGroupVectorBitString(request);
             videoManagerService.updateVideoConnection(videoConnection, groupVector);
         } catch (Exception e) {
