@@ -6,9 +6,6 @@ import java.util.List;
 
 import org.apache.ignite.Ignite;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration;
-import org.springframework.boot.actuate.autoconfigure.metrics.MetricsEndpointAutoConfiguration;
-import org.springframework.boot.actuate.metrics.MetricsEndpoint;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
@@ -88,7 +85,6 @@ import com.bbn.marti.util.MessagingDependencyInjectionProxy;
 import com.bbn.marti.util.spring.RequestHolderBean;
 import com.bbn.metrics.DistributedMetricsCollector;
 import com.bbn.metrics.MetricsCollector;
-import com.bbn.metrics.service.ActuatorMetricsService;
 import com.bbn.metrics.service.DatabaseMetricsService;
 import com.bbn.metrics.service.NetworkMetricsService;
 import com.bbn.metrics.service.QueueMetricsService;
@@ -133,7 +129,7 @@ import tak.server.qos.QoSManager;
 @Configuration
 @EnableAutoConfiguration
 @Profile({Constants.MESSAGING_PROFILE_NAME, Constants.MONOLITH_PROFILE_NAME})
-@SpringBootApplication(exclude = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class, ErrorMvcAutoConfiguration.class, MetricsAutoConfiguration.class, MetricsEndpointAutoConfiguration.class, CloudWatchExportAutoConfiguration.class, AwsS3ResourceLoaderProperties.class})
+@SpringBootApplication(exclude = {MongoAutoConfiguration.class, MongoDataAutoConfiguration.class, ErrorMvcAutoConfiguration.class, CloudWatchExportAutoConfiguration.class, AwsS3ResourceLoaderProperties.class})
 public class MessagingConfiguration {
 
 	@Autowired
@@ -409,11 +405,6 @@ public class MessagingConfiguration {
 
 		return ignite.services(ClusterGroupDefinition.getMessagingLocalClusterDeploymentGroup(ignite))
 				.serviceProxy(Constants.DISTRIBUTED_SECURITY_MANAGER, SecurityManager.class, false);
-	}
-
-	@Bean
-	public ActuatorMetricsService actuatorMetricsService(MetricsEndpoint metricsEndpoint) {
-		return new ActuatorMetricsService(metricsEndpoint);
 	}
 
 	@Bean

@@ -87,7 +87,6 @@ dependencies {
    // nats message queue
   implementation group: 'io.nats', name: 'jnats', version: nats_version
 
-  implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: spring_boot_version
 //  implementation group: 'org.springframework.boot', name: 'spring-boot-loader', version: spring_boot_version
 //  implementation group: 'org.springframework.boot', name: 'spring-boot-starter-jdbc', version: spring_boot_version
   implementation group: 'org.springframework', name: 'spring-context'

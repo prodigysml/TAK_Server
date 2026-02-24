@@ -48,7 +48,6 @@ dependencies {
   implementation group: 'org.apache.ignite', name: 'ignite-kubernetes', version: ignite_version
   implementation group: 'org.apache.ignite', name: 'ignite-slf4j', version: ignite_version
 
-  implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: spring_boot_version
   implementation group: 'org.springframework.boot', name: 'spring-boot-loader', version: spring_boot_version
   implementation group: 'org.springframework', name: 'spring-context', version: spring_version
 

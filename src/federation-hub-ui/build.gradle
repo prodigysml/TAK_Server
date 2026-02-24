@@ -94,9 +94,6 @@ dependencies {
   implementation group: 'org.apache.ignite', name: 'ignite-kubernetes', version: ignite_version
   implementation group: 'org.apache.ignite', name: 'ignite-slf4j', version: ignite_version
 
-  implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: spring_boot_version
-  implementation group: 'io.micrometer', name: 'micrometer-core', version: micrometer_version
-
   implementation ("org.springframework.boot:spring-boot-loader:$spring_boot_version") {
     exclude group: 'log4j', module: 'log4j'
     exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'

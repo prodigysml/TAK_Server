@@ -148,7 +148,6 @@ import com.bbn.marti.util.VersionBean;
 import com.bbn.marti.util.spring.TakAuthenticationProvider;
 import com.bbn.metrics.MetricsCollector;
 import com.bbn.metrics.MissionServiceAspect;
-import com.bbn.metrics.endpoint.NetworkMetricsEndpoint;
 import com.bbn.security.web.MartiValidator;
 import com.bbn.tak.tls.repository.TakCertRepository;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -1278,11 +1277,6 @@ public class ServerConfiguration extends SpringBootServletInitializer  {
 	
 	@Bean("allCopMissionCacheResolver")
 	public AllCopMissionCacheResolver allCopMissionCacheResolver() { return new AllCopMissionCacheResolver(); }
-	
-	@Bean
-	public NetworkMetricsEndpoint networkMetrics(@Lazy MetricsCollector metricsCollector, SubscriptionManager subscriptionManager) {
-		return new NetworkMetricsEndpoint(metricsCollector, subscriptionManager);
-	}
 	
 	@Bean
 	public EnterpriseSyncCacheHelper enterpriseSyncCacheHelper() {

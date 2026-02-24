@@ -21,7 +21,6 @@ import jakarta.servlet.SessionTrackingMode;
 import jakarta.servlet.ServletRegistration.Dynamic;
 import jakarta.servlet.descriptor.JspConfigDescriptor;
 
-import org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.web.embedded.EmbeddedWebServerFactoryCustomizerAutoConfiguration;
@@ -47,7 +46,7 @@ import tak.server.Constants;
  * services that are only used in separate messaging process
  */
 @Configuration
-@EnableAutoConfiguration(exclude = {WebMvcAutoConfiguration.class, WebSocketMessagingAutoConfiguration.class, WebSocketServletAutoConfiguration.class, SecurityAutoConfiguration.class, ManagementWebSecurityAutoConfiguration.class, EmbeddedWebServerFactoryCustomizerAutoConfiguration.class})
+@EnableAutoConfiguration(exclude = {WebMvcAutoConfiguration.class, WebSocketMessagingAutoConfiguration.class, WebSocketServletAutoConfiguration.class, SecurityAutoConfiguration.class, EmbeddedWebServerFactoryCustomizerAutoConfiguration.class})
 @Profile({Constants.MESSAGING_PROFILE_NAME})
 public class MessagingOnlyConfiguration {
 

@@ -16,7 +16,7 @@ import org.springframework.context.event.EventListener;
 import com.bbn.marti.remote.CoreConfig;
 import com.bbn.marti.service.AddSubscriptionEvent;
 import com.bbn.marti.service.RemoveSubscriptionEvent;
-import com.bbn.metrics.endpoint.NetworkMetricsEndpoint;
+import com.bbn.marti.service.SubscriptionManager;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.cache.CacheBuilder;
@@ -34,11 +34,11 @@ public abstract class MessageBaseStrategy<T> implements MessageStrategy<T> {
 
 	protected AtomicInteger currentRateLimit = null; // default to no rate limit
 	protected AtomicInteger currentThreshold = null; // default to no rate limit
-	
+
 	protected AtomicBoolean enabled = new AtomicBoolean(false);
 
 	@Autowired
-	protected NetworkMetricsEndpoint metrics;
+	protected SubscriptionManager subscriptionManager;
 
 	private static final Logger logger = LoggerFactory.getLogger(MessageBaseStrategy.class);
 
@@ -87,8 +87,8 @@ public abstract class MessageBaseStrategy<T> implements MessageStrategy<T> {
 		}
 		
 		// handle init race conditions on metrics
-		if (enabled.get() && metrics != null && metrics.getMetrics() != null) {
-			changeRateLimitIfRequired((int) metrics.getMetrics().getNumClients()); // truncate
+		if (enabled.get() && subscriptionManager != null) {
+			changeRateLimitIfRequired(subscriptionManager.getLocalSubscriptionCount());
 		}
 	}
 
@@ -97,10 +97,10 @@ public abstract class MessageBaseStrategy<T> implements MessageStrategy<T> {
 		if (logger.isDebugEnabled()) {
 			logger.debug("Remove subscription: " + event);
 		}
-		
+
 		// handle init race conditions on metrics
-		if (enabled.get() && metrics != null && metrics.getMetrics() != null) {
-			changeRateLimitIfRequired((int) metrics.getMetrics().getNumClients()); // truncate
+		if (enabled.get() && subscriptionManager != null) {
+			changeRateLimitIfRequired(subscriptionManager.getLocalSubscriptionCount());
 		}
 	}
 

@@ -10,7 +10,6 @@ import org.apache.ignite.Ignite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.actuate.metrics.MetricsEndpoint;
 import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.boot.web.servlet.MultipartConfigFactory;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
@@ -129,12 +128,6 @@ import com.bbn.marti.video.VideoConnectionUploader;
 import com.bbn.marti.video.VideoManagerService;
 import com.bbn.marti.xmpp.XmppAPI;
 import com.bbn.metrics.MetricsCollector;
-import com.bbn.metrics.endpoint.ClusterMetricsEndpoint;
-import com.bbn.metrics.endpoint.CpuMetricsEndpoint;
-import com.bbn.metrics.endpoint.DatabaseMetricsEndpoint;
-import com.bbn.metrics.endpoint.MemoryMetricsEndpoint;
-import com.bbn.metrics.endpoint.QueueMetricsEndpoint;
-import com.bbn.metrics.service.ActuatorMetricsService;
 import com.bbn.metrics.service.DatabaseMetricsService;
 import com.bbn.tak.tls.CertManager;
 import com.bbn.tak.tls.CertManagerAdminApi;
@@ -551,40 +544,9 @@ public class ApiConfiguration implements WebMvcConfigurer {
 		return new MissionActionROLConverter(remoteUtil, mapper);
 	}
 
-	// Metrics Services
-	@Bean
-	public ActuatorMetricsService actuatorMetricsService(MetricsEndpoint metricsEndpoint) {
-		return new ActuatorMetricsService(metricsEndpoint);
-	}
-
 	@Bean
 	public DatabaseMetricsService databaseMetricsService(RepositoryService repositoryService) {
 		return new DatabaseMetricsService(repositoryService);
-	}
-	
-	@Bean
-	public DatabaseMetricsEndpoint databaseMetricsEndpoint(@Lazy MetricsCollector metricsCollector) {
-		return new DatabaseMetricsEndpoint(metricsCollector);
-	}
-
-	@Bean
-	public MemoryMetricsEndpoint memoryMetricsEndpoint(@Lazy MetricsCollector metricsCollector) {
-		return new MemoryMetricsEndpoint(metricsCollector);
-	}
-
-	@Bean
-	public ClusterMetricsEndpoint clusterMetricsEndpoint() {
-		return new ClusterMetricsEndpoint();
-	}
-	
-	@Bean
-	public CpuMetricsEndpoint cpuMetricsEndpoint(@Lazy MetricsCollector metricsCollector) {
-		return new CpuMetricsEndpoint(metricsCollector);
-	}
-
-	@Bean
-	public QueueMetricsEndpoint queueMetricsEndpoint(@Lazy MetricsCollector metricsCollector) {
-		return new QueueMetricsEndpoint(metricsCollector);
 	}
 
 	@Bean
