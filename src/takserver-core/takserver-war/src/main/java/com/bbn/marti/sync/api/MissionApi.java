@@ -3945,7 +3945,12 @@ public class MissionApi extends BaseRestController {
 			throw new NotFoundException("Parent mission not found");
 		}
 
-		Mission re =  missionService.hydrate(mission.getParent(), true);
+		Mission parent = mission.getParent();
+		if (!remoteUtil.isGroupVectorAllowed(groupVector, parent.getGroupVector())) {
+			throw new ForbiddenException("access denied to parent mission");
+		}
+
+		Mission re =  missionService.hydrate(parent, true);
 
 		return new ApiResponse<Mission>(Constants.API_VERSION, Mission.class.getSimpleName(),re);
 	}
