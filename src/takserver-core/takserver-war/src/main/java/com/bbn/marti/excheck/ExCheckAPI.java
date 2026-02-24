@@ -1,5 +1,6 @@
 package com.bbn.marti.excheck;
 
+import org.springframework.web.util.HtmlUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLDecoder;
@@ -489,7 +490,7 @@ public class ExCheckAPI extends BaseRestController {
             //
             StringBuilder sb = new StringBuilder();
             sb.append("<html><body>");
-            sb.append("<h2>Checklist : " + checklist.getChecklistDetails().getName() + "</h2>");
+            sb.append("<h2>Checklist : " + HtmlUtils.htmlEscape(checklist.getChecklistDetails().getName()) + "</h2>");
             sb.append("<h3>Progress : " + complete + "/" + total + "</h3>");
             sb.append("<progress value=\"" + complete + "\" max=\"" + total + "\"></progress>");
 
@@ -497,12 +498,12 @@ public class ExCheckAPI extends BaseRestController {
             // show task level info if we were given a token
             //
             if (checklistTask != null) {
-                sb.append("<h4>The following task is now " + checklistTask.getStatus().value() + "</h4>");
+                sb.append("<h4>The following task is now " + HtmlUtils.htmlEscape(checklistTask.getStatus().value()) + "</h4>");
 
                 sb.append("<table>");
                 sb.append("<tr>");
                 for (ChecklistColumn checklistColumn : checklist.getChecklistColumns().getChecklistColumn()) {
-                    sb.append("<th>" + checklistColumn.getColumnName() + "</th>");
+                    sb.append("<th>" + HtmlUtils.htmlEscape(checklistColumn.getColumnName()) + "</th>");
                 }
                 sb.append("</tr>");
 
@@ -512,7 +513,7 @@ public class ExCheckAPI extends BaseRestController {
                     if (columnValue.length() > 8) {
                         columnValue = columnValue.substring(0, 8) + "...";
                     }
-                    sb.append("<td align=center>" + columnValue + "</td>");
+                    sb.append("<td align=center>" + HtmlUtils.htmlEscape(columnValue) + "</td>");
                 }
                 sb.append("</tr>");
 
