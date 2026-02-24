@@ -272,9 +272,15 @@ public class ProfileAdminAPI extends BaseRestController {
             throw new NotFoundException();
         }
 
+        // sanitize filename to prevent path traversal in generated zip entries
+        String safeName = new java.io.File(filename).getName();
+        if (safeName.contains("..") || safeName.isEmpty()) {
+            throw new IllegalArgumentException("invalid filename");
+        }
+
         ProfileFile profileFile = new ProfileFile();
         profileFile.setProfileId(profile.getId());
-        profileFile.setName(filename);
+        profileFile.setName(safeName);
         profileFile.setData(contents);
         profileFileRepository.save(profileFile);
 

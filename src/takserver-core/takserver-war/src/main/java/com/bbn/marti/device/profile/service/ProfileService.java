@@ -195,8 +195,13 @@ public class ProfileService {
 
             int ndx = 0;
             for (ProfileFile profileFile : files) {
+                String safeName = new java.io.File(profileFile.getName()).getName();
+                if (safeName.contains("..") || safeName.isEmpty()) {
+                    logger.error("skipping profile file with invalid name: " + profileFile.getName());
+                    continue;
+                }
                 mp.addDirectory("file" + ndx + "/");
-                mp.addFile("file" + ndx + "/" + profileFile.getName(), profileFile.getData());
+                mp.addFile("file" + ndx + "/" + safeName, profileFile.getData());
                 ndx++;
             }
 
