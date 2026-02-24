@@ -51,8 +51,8 @@ import de.micromata.opengis.kml.v_2_2_0.Polygon;
 import de.micromata.opengis.kml.v_2_2_0.SchemaData;
 import de.micromata.opengis.kml.v_2_2_0.Style;
 import de.micromata.opengis.kml.v_2_2_0.TimeSpan;
-import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.HttpHeaders;
@@ -385,7 +385,11 @@ public class KmlUtils {
     public static Feature buildRangeAndBearing(CotElement qr, Document kmlDoc) {
         try {
 
-            org.dom4j.Document doc = DocumentHelper.parseText(qr.detailtext);
+            SAXReader reader = new SAXReader();
+            reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            org.dom4j.Document doc = reader.read(new java.io.StringReader(qr.detailtext));
             if (doc == null) {
                 return null;
             }

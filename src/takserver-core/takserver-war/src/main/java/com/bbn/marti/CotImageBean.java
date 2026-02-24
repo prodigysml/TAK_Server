@@ -22,6 +22,7 @@ import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import tak.server.Constants;
@@ -196,7 +197,11 @@ public class CotImageBean implements Serializable {
 
 	private boolean hasSubElementNamed(String detailText, String elementName) {
 		try {
-			Document cotDoc = DocumentHelper.parseText(detailText);
+			SAXReader saxReader = new SAXReader();
+			saxReader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			saxReader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			saxReader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			Document cotDoc = saxReader.read(new java.io.StringReader(detailText));
 			Element detailElement = cotDoc.getRootElement();
 			return detailElement.element(elementName) != null;
 		} catch (Exception e) {
@@ -314,7 +319,11 @@ public class CotImageBean implements Serializable {
 		pointE.addAttribute("lon", Double.toString(lon));
 
 		String detailStr = results.getString("detail");
-		Document detailDoc = DocumentHelper.parseText(detailStr);
+		SAXReader detailReader = new SAXReader();
+		detailReader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+		detailReader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+		detailReader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+		Document detailDoc = detailReader.read(new java.io.StringReader(detailStr));
 		eventE.add(detailDoc.getRootElement());
 
 		return event;

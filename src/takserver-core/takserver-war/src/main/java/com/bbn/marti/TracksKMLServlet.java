@@ -23,6 +23,7 @@ import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.DocumentHelper;
 import org.dom4j.XPath;
+import org.dom4j.io.SAXReader;
 import org.owasp.esapi.errors.ValidationException;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
@@ -175,7 +176,11 @@ public class TracksKMLServlet extends EsapiServlet {
 			}			
 
 			XPath geoPointSrcExpression = DocumentHelper.createXPath("/detail/precisionlocation/@geopointsrc");
-			Document doc = DocumentHelper.parseText(cotTrack.detailtext);
+			SAXReader saxReader = new SAXReader();
+			saxReader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			saxReader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			saxReader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			Document doc = saxReader.read(new java.io.StringReader(cotTrack.detailtext));
 			String geopointsrc = (String) geoPointSrcExpression.valueOf(doc);
 
 			String how = null;

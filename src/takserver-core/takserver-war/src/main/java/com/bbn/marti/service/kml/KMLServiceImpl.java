@@ -10,8 +10,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
+import org.dom4j.io.SAXReader;
 import org.ocpsoft.prettytime.PrettyTime;
 import org.owasp.esapi.Validator;
 import org.slf4j.Logger;
@@ -182,7 +182,11 @@ public class KMLServiceImpl implements KMLService {
 		org.dom4j.Document doc = null;
 
 		try {
-			doc = DocumentHelper.parseText(detailText);
+			SAXReader reader = new SAXReader();
+			reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			doc = reader.read(new java.io.StringReader(detailText));
 		} catch (Exception e) {
 			logger.warn("exception parsing detail field from CoT data", e);
 		}
