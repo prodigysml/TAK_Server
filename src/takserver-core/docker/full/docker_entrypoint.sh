@@ -132,11 +132,15 @@ chmod -R 777 ${TR}/data/
 
 python3 ${TR}/coreConfigEnvHelper.py "${CONFIG}" "${CONFIG}"
 
+# Symlink updated CoreConfig.xml back to /opt/tak so SchemaManager can find it
+ln -sf "${CONFIG}" "${TR}/CoreConfig.xml"
+
 # Wait for PGSQL init
 sleep 8
 
 # Init PGSQL
-java -jar ${TR}/db-utils/SchemaManager.jar -url jdbc:postgresql://takdb:5432/${POSTGRES_DB} -user ${POSTGRES_USER} -password ${POSTGRES_PASSWORD} upgrade
+DB_URL=${POSTGRES_URL:-jdbc:postgresql://${POSTGRES_HOST:-takdb}:5432/${POSTGRES_DB}}
+java -jar ${TR}/db-utils/SchemaManager.jar -url "${DB_URL}" -user ${POSTGRES_USER} -password ${POSTGRES_PASSWORD} upgrade
 sleep 4
 
 cd ${TR}
