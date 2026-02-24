@@ -17,6 +17,9 @@ public interface ExternalMissionDataRepository extends JpaRepository<ExternalMis
             "from mission_external_data where id = :id ", nativeQuery = true)
     ExternalMissionData findByIdNoMission(@Param("id") String id);
 
+    @Query(value = "select count(*) from mission_external_data where id = :id and mission_id = :missionId ", nativeQuery = true)
+    int countByIdAndMissionId(@Param("id") String id, @Param("missionId") Long missionId);
+
     @Query(value = "insert into mission_external_data (id, name, tool, url_data, url_display, notes, mission_id ) values (:id, :name, :tool, :url_data, :url_display, :notes, :mission_id) returning id", nativeQuery = true)
     String create(@Param("id") String id, @Param("name") String name, @Param("tool") String tool, @Param("url_data") String url_data, @Param("url_display") String url_display, @Param("notes") String notes, @Param("mission_id") Long mission_id);
 

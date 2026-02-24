@@ -3678,6 +3678,10 @@ public class MissionServiceDefaultImpl implements MissionService {
 			ExternalMissionData externalMissionDataResult = externalMissionDataRepository
 					.findByIdNoMission(externalMissionData.getId());
 			if (externalMissionDataResult != null) {
+				// verify the existing external data belongs to this mission before updating
+				if (externalMissionDataRepository.countByIdAndMissionId(externalMissionData.getId(), mission.getId()) == 0) {
+					throw new ForbiddenException("external mission data " + externalMissionData.getId() + " does not belong to this mission");
+				}
 				externalMissionDataRepository.update(
 						externalMissionData.getId(), externalMissionData.getName(), externalMissionData.getTool(),
 						externalMissionData.getUrlData(), externalMissionData.getUrlDisplay(), externalMissionData.getNotes(),
@@ -3723,6 +3727,11 @@ public class MissionServiceDefaultImpl implements MissionService {
 		ExternalMissionData externalMissionData = externalMissionDataRepository.findByIdNoMission(externalMissionDataId);
 		if (externalMissionData == null) {
 			throw new NotFoundException("externalMissionDataId " + externalMissionDataId + " not found");
+		}
+
+		// verify the external data belongs to this mission
+		if (externalMissionDataRepository.countByIdAndMissionId(externalMissionDataId, mission.getId()) == 0) {
+			throw new ForbiddenException("external mission data " + externalMissionDataId + " does not belong to this mission");
 		}
 
 		try {
