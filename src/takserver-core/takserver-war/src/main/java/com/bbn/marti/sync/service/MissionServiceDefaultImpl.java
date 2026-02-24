@@ -4243,6 +4243,8 @@ public class MissionServiceDefaultImpl implements MissionService {
 					|| Strings.isNullOrEmpty(password)) {
 				throw new ForbiddenException("Illegal attempt to access mission!");
 			}
+		} else if (!Strings.isNullOrEmpty(password)) {
+			throw new ForbiddenException("Illegal attempt to access mission!");
 		}
 	}
 
