@@ -2219,7 +2219,7 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
                             "  for " + streamHolder.getFederateIdentity().getFedId());
                     }
                 } else {
-                	assignGroupFilteredMessageSourceAndDestinationsFromPolicy(federatedMessage, event.getFederateGroupsList(),
+                	assignGroupFilteredMessageSourceAndDestinationsFromPolicy(federatedMessage, streamHolder.getClientGroups(),
                             streamHolder.getFederateIdentity(),
                             getFederationPolicyGraph());
 
