@@ -1548,7 +1548,14 @@ public class MissionServiceDefaultImpl implements MissionService {
 
 			if (subscription != null) {
 				// validate that the subscription's username matches the authenticated user
-				if (subscription.getUsername() != null && !subscription.getUsername().equals(username)) {
+				String subscriptionUsername = null;
+				if (subscription.getUser() != null) {
+					subscriptionUsername = subscription.getUser().getId();
+				} else if (subscription.getUsername() != null) {
+					subscriptionUsername = subscription.getUsername();
+				}
+
+				if (subscriptionUsername != null && !subscriptionUsername.equals(username)) {
 					logger.error("clientUid {} does not belong to authenticated user {}", clientUid, username);
 					throw new ForbiddenException("clientUid does not belong to authenticated user");
 				}
