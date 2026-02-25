@@ -24,13 +24,25 @@ angular.module('roger_federation.OntologyService')
     return pre;
   };
 
+  var escapeSparqlString = function(str) {
+    if (!str) return '';
+    return str.replace(/\\/g, '\\\\')
+              .replace(/"/g, '\\"')
+              .replace(/\n/g, '\\n')
+              .replace(/\r/g, '\\r');
+  };
+
+  var isValidUri = function(uri) {
+    return /^[a-zA-Z][a-zA-Z0-9+.\-]*:\/?\/?[^\s<>"{}|\\^`]*$/.test(uri);
+  };
+
 
   OntologyService.queryClasses = function(dataset, searchString, maxResults) {
     var query = prefixes() +
     'select ?uri ?label {' +
       '?uri a owl:Class .' + //      #  <- Only Select Classes
       '?uri rdfs:label ?label .' +
-       'FILTER regex(str(?label), "' + searchString + '", "i")' +
+       'FILTER regex(str(?label), "' + escapeSparqlString(searchString) + '", "i")' +
     '}' +
     'limit ' + maxResults;
 
@@ -42,6 +54,7 @@ angular.module('roger_federation.OntologyService')
   };
 
   OntologyService.queryClassInstances = function(dataset, uri) {
+    if (!isValidUri(uri)) { throw new Error('Invalid URI'); }
     var query = prefixes() +
     'SELECT DISTINCT ?uri' +
     'WHERE {' +
@@ -57,6 +70,7 @@ angular.module('roger_federation.OntologyService')
   };
 
   OntologyService.describeURI = function(dataset, uri) {
+    if (!isValidUri(uri)) { throw new Error('Invalid URI'); }
     var query = ' DESCRIBE <' + uri + '>  ';
     return OntologyService.queryFusekiEndpoint(dataset, query).then(function(result) {
       return result;
@@ -66,6 +80,7 @@ angular.module('roger_federation.OntologyService')
   };
 
   OntologyService.queryClassComment = function(dataset, uri) {
+    if (!isValidUri(uri)) { throw new Error('Invalid URI'); }
     var query = prefixes() +
     'SELECT ?comment ?uri' +
     'WHERE {' +
