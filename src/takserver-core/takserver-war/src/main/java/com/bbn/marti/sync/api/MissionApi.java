@@ -4205,6 +4205,7 @@ public class MissionApi extends BaseRestController {
 		}
 	}
 
+	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
 	@RequestMapping(value = "/missions/{name}/expiration", method = RequestMethod.PUT)
 	@ResponseStatus(HttpStatus.OK)
 	public void setExpiration(
@@ -4229,6 +4230,7 @@ public class MissionApi extends BaseRestController {
 		}
 	}
 	
+	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
 	@RequestMapping(value = "/missions/guid/{guid}/expiration", method = RequestMethod.PUT)
 	@ResponseStatus(HttpStatus.OK)
 	public void setExpirationByGuid(
