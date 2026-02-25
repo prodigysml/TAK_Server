@@ -40,11 +40,16 @@ import tak.server.retention.config.MissionArchiveStoreConfig;
 import tak.server.retention.config.MissionArchiveStoreConfig.MissionArchiveStoreEntry;
 
 public class MissionArchiveHelper {
-	
+
 	private static final Logger logger = LoggerFactory.getLogger(MissionArchiveHelper.class);
-	
+
 	private static final String ARCHIVE_DIR = "mission-archive/";
 	private static final String MISSION_STORE_FILE = ARCHIVE_DIR + "mission-store.yml";
+
+	private static String sanitizeFilenameComponent(String name) {
+		if (name == null) return "unknown";
+		return name.replaceAll("[/\\\\:*?\"<>|.]+", "_");
+	}
 
 	private static final long MAX_UNCOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;  // 50 MB per entry
 	private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total
@@ -85,8 +90,8 @@ public class MissionArchiveHelper {
 			
 			logger.info("Removed Expired Mission Archive Entries " + Arrays.toString(entriesToRemove.toArray()));
 		
-	        entriesToRemove.forEach(missionArchiveStoreEntry-> {			
-		        String filename = missionArchiveStoreEntry.getCreateTime().toString() + "_" + missionArchiveStoreEntry.getMissionName() + ".zip";
+	        entriesToRemove.forEach(missionArchiveStoreEntry-> {
+		        String filename = sanitizeFilenameComponent(missionArchiveStoreEntry.getCreateTime().toString()) + "_" + sanitizeFilenameComponent(missionArchiveStoreEntry.getMissionName()) + ".zip";
 	    		filename = filename.replace(":", "-");
 	    		String zipPath = ARCHIVE_DIR + filename;
 				File missionArchiveFileToDelete = new File(zipPath);
@@ -123,7 +128,7 @@ public class MissionArchiveHelper {
     		logger.info("Trying to archive mission " + missionName);
     		byte[] zip = retentionQueryService.getArchivedMission(missionName, groupVector, "");
     		
-    		String filename = createtime.toString() + "_" + missionName + ".zip";
+    		String filename = sanitizeFilenameComponent(createtime.toString()) + "_" + sanitizeFilenameComponent(missionName) + ".zip";
     		filename = filename.replace(":", "-");
     		logger.info("Writing " + filename + " to disk");
     		writeMissionToArchive(filename, missionName, createtime, archiveTime, zip);
@@ -145,7 +150,7 @@ public class MissionArchiveHelper {
 			}
 					
 			MissionArchiveStoreEntry matchingEntry = matchingEntryOp.get();
-			String filename = ARCHIVE_DIR + matchingEntry.getCreateTime() + "_" + matchingEntry.getMissionName() + ".zip";
+			String filename = ARCHIVE_DIR + sanitizeFilenameComponent(matchingEntry.getCreateTime().toString()) + "_" + sanitizeFilenameComponent(matchingEntry.getMissionName()) + ".zip";
 			
 			Map<String, byte[]> files = new HashMap<>();
 			ZipEntry entry;
@@ -269,12 +274,17 @@ public class MissionArchiveHelper {
 	private void writeMissionToArchive(String filename, String missionName, Timestamp createTime,
 			Timestamp archiveTime, byte[] zip) throws Exception {
 		String zipPath = ARCHIVE_DIR + filename;
-		
-		if (new File(zipPath).exists()) {
+
+		File archiveDir = new File(ARCHIVE_DIR).getCanonicalFile();
+		File targetFile = new File(zipPath).getCanonicalFile();
+		if (!targetFile.toPath().startsWith(archiveDir.toPath())) {
+			throw new IOException("Archive path traversal attempt blocked: " + filename);
+		}
+
+		if (targetFile.exists()) {
 			return;
 		} else {
-			Path path = Paths.get(zipPath);
-			Files.write(path, zip);
+			Files.write(targetFile.toPath(), zip);
 		}
 		
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory().enable(YAMLGenerator.Feature.MINIMIZE_QUOTES));
