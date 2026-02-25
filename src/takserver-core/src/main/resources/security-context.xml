@@ -87,8 +87,8 @@
 	  	      <sec:intercept-url pattern="/Marti/api/inputs/**" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/inputs/**" method="DELETE" access="ROLE_ADMIN" />
 	  	      
-	  	      <!-- data sync API -->
-	  	      <sec:intercept-url pattern="/Marti/api/missions/**" method="DELETE" access="ROLE_ANONYMOUS" />
+	  	      <!-- data sync API - require authentication for mission DELETE operations -->
+	  	      <sec:intercept-url pattern="/Marti/api/missions/**" method="DELETE" access="ROLE_READONLY" />
 	  	      
 	  	      <!-- Map Layer API -->
               <sec:intercept-url pattern="/Marti/api/maplayers/**" method="DELETE" access="ROLE_ADMIN" />
