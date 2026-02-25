@@ -61,6 +61,7 @@ public class DistributedRetentionQueryManager implements RetentionQueryService, 
 				if (logger.isWarnEnabled()) {
 					logger.warn(" bad argument, delete MissionByExpiration is ignored expiration:  " + expiration);
 				}
+				return;
 			}
 
 			if (logger.isInfoEnabled()) {
