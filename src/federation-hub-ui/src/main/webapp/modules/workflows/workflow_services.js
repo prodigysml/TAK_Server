@@ -579,7 +579,7 @@ angular.module('roger_federation.Workflows')
     };
 
   workflowService.sendToFederationManager = function(graphId) {
-    return $http.get(
+    return $http.post(
           ConfigService.getServerBaseUrlStr() + 'updateFederationManager/' + graphId).then(
           function(res) {
             return res.data;
@@ -590,7 +590,7 @@ angular.module('roger_federation.Workflows')
   };
 
   workflowService.sendToFederationManagerAndFile = function(graphId) {
-      return $http.get(
+      return $http.post(
           ConfigService.getServerBaseUrlStr() + 'updateFederationManagerAndFile/' + graphId).then(
           function(res) {
               return res.data;

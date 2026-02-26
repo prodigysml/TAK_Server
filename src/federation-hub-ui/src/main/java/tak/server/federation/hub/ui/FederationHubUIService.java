@@ -352,7 +352,7 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
         }
     }
 
-    @RequestMapping(value = "/fig/updateFederationManager/{federationId}")
+    @RequestMapping(value = "/fig/updateFederationManager/{federationId}", method = RequestMethod.POST)
     public ResponseEntity<Void> updateFederationManager(@PathVariable String federationId) {
         if (isUpdateActiveFederation()) {
             if (this.cachedPolicies.containsKey(federationId)) {
@@ -379,7 +379,7 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
         return new ResponseEntity<>(new HttpHeaders(), HttpStatus.FORBIDDEN);
     }
 
-    @RequestMapping(value = "/fig/updateFederationManagerAndFile/{federationId}")
+    @RequestMapping(value = "/fig/updateFederationManagerAndFile/{federationId}", method = RequestMethod.POST)
     public ResponseEntity<Void> updateFederationManagerAndFile(@PathVariable String federationId) {
         if (isUpdateActiveFederation()) {
             if (this.cachedPolicies.containsKey(federationId)) {
