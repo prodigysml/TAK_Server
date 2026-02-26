@@ -34,6 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -98,7 +99,7 @@ public class CertManagerApi extends BaseRestController {
     
     @RequestMapping(value = "/tls/makeClientKeyStore", method = RequestMethod.GET)
     ResponseEntity<byte[]> makeKeyStore(@RequestParam(value = "cn", required = false) String cn,
-                                        @RequestParam(value = "password", required = false,
+                                        @RequestHeader(value = "X-Keystore-Password", required = false,
                                                 defaultValue = DEFAULT_PASSWORD) String password) throws Exception {
         if (cn == null || cn.isEmpty()) {
             cn = getHttpUser();
