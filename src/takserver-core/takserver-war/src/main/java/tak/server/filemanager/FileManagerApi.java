@@ -229,10 +229,10 @@ public class FileManagerApi extends BaseRestController {
 	 
 	 @RequestMapping(value = "/files/{hash}", method = RequestMethod.DELETE)
 	 public void deleteFile(@PathVariable("hash") String hash) throws RemoteException {
-		 
+
 		 String groupVector = null;
 		 final HttpServletRequest request = requestHolderBean.getRequest();
-	
+
 		 try {
 			// Get group vector for the user associated with this session
 			groupVector = SpringContextBeanForApi.getSpringContext().getBean(CommonUtil.class).getGroupBitVector(request);
@@ -240,12 +240,17 @@ public class FileManagerApi extends BaseRestController {
 		 } catch (Exception e) {
 			logger.debug("exception getting group membership for current web user " + e);
 		 }
-		 
+
+		 if (groupVector == null || groupVector.isEmpty()) {
+			 logger.error("Rejecting file deletion: unable to determine group vector for request");
+			 throw new IllegalStateException("Unable to determine group vector");
+		 }
+
 		 try {
 			 if (!hash.isEmpty()) {
 				 persistenceStore.delete(hash, groupVector);
 			 }
-			 
+
 		 } catch (Exception e) {
 			 logger.error("Unable to delete file ",e);
 		 }
