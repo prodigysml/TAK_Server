@@ -2688,6 +2688,8 @@ public class MissionApi extends BaseRestController {
 
 		final String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
+		final HttpServletRequest finalRequest = request;
+
 		return () -> {
 
 			String missionName = missionService.trimName(missionNameParam);
@@ -2700,7 +2702,17 @@ public class MissionApi extends BaseRestController {
 				throw new IllegalArgumentException("either 'uid' or 'topic' parameter must be specified");
 			}
 
-			missionService.missionUnsubscribe(mission.getGuidAsUUID(), Strings.isNullOrEmpty(topic) ? uid : topic, username, groupVector, disconnectOnly);
+			String targetUid = Strings.isNullOrEmpty(topic) ? uid : topic;
+
+			// verify the caller owns this subscription or is mission owner
+			if (!Strings.isNullOrEmpty(uid) && !uid.equals(username)) {
+				MissionRole roleForRequest = missionService.getRoleForRequest(mission, finalRequest);
+				if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+					throw new ForbiddenException("Only mission owner can unsubscribe another user");
+				}
+			}
+
+			missionService.missionUnsubscribe(mission.getGuidAsUUID(), targetUid, username, groupVector, disconnectOnly);
 
 			return null;
 		};
@@ -2723,8 +2735,10 @@ public class MissionApi extends BaseRestController {
 
 		final String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
+		final HttpServletRequest finalRequest = request;
+
 		return () -> {
-			
+
 			UUID missionGuid = parseGuid(missionGuidParam);
 
 			// validate existence of mission
@@ -2735,7 +2749,17 @@ public class MissionApi extends BaseRestController {
 				throw new IllegalArgumentException("either 'uid' or 'topic' parameter must be specified");
 			}
 
-			missionService.missionUnsubscribe(mission.getGuidAsUUID(), Strings.isNullOrEmpty(topic) ? uid : topic, username, groupVector, disconnectOnly);
+			String targetUid = Strings.isNullOrEmpty(topic) ? uid : topic;
+
+			// verify the caller owns this subscription or is mission owner
+			if (!Strings.isNullOrEmpty(uid) && !uid.equals(username)) {
+				MissionRole roleForRequest = missionService.getRoleForRequest(mission, finalRequest);
+				if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+					throw new ForbiddenException("Only mission owner can unsubscribe another user");
+				}
+			}
+
+			missionService.missionUnsubscribe(mission.getGuidAsUUID(), targetUid, username, groupVector, disconnectOnly);
 
 			return null;
 		};

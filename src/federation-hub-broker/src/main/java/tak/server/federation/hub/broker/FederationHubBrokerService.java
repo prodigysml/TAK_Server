@@ -171,6 +171,7 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
     private ChannelFuture channelFuture;
 
     // tracks which certificate fingerprint registered each federate identity name
+    private static final int MAX_FEDERATE_ID_ENTRIES = 10_000;
     private final ConcurrentHashMap<String, String> federateIdToFingerprint = new ConcurrentHashMap<>();
 
     /* v2 variables. */
@@ -290,6 +291,7 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
      	}
      	
 		hubConnectionStore.clearIdFromAllStores(connectionId);
+		federateIdToFingerprint.remove(connectionId);
     }
 
     /* TODO find place to call this. */
@@ -324,6 +326,7 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
     public void removeV1Connection(String sessionId) {
     	v1ClientStreamMap.remove(sessionId);
         hubConnectionStore.clearIdFromAllStores(sessionId);
+        federateIdToFingerprint.remove(sessionId);
     }
 
     private SslContext buildServerSslContext(FederationHubServerConfig fedHubConfig) throws Exception {
@@ -879,6 +882,10 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
         String fingerprint = holder.getClientFingerprint();
 
         // verify that the claimed federate identity is bound to this certificate
+        if (federateIdToFingerprint.size() >= MAX_FEDERATE_ID_ENTRIES && !federateIdToFingerprint.containsKey(fedId)) {
+            logger.error("Federate identity map has reached maximum size of {}. Rejecting new federate: {}", MAX_FEDERATE_ID_ENTRIES, fedId);
+            throw new IllegalStateException("Maximum number of federate identities reached");
+        }
         String existingFingerprint = federateIdToFingerprint.putIfAbsent(fedId, fingerprint);
         if (existingFingerprint != null && !existingFingerprint.equals(fingerprint)) {
             logger.error("Federate identity '{}' is already registered with a different certificate fingerprint. " +
