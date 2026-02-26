@@ -51,9 +51,6 @@
                 }
 
                 var password = mission[3].value;
-                if (password != null && password.length != 0) {
-                    url += "&password=" + password;
-                }
 
                 if ($("#defaultRole").val() != null && $("#defaultRole").val() !== undefined) {
                     var defaultRole = $("#defaultRole").val();
@@ -70,9 +67,15 @@
 
                 url += "&allowGroupChange=true";
 
+                var ajaxHeaders = {};
+                if (password != null && password.length != 0) {
+                    ajaxHeaders['MissionPassword'] = password;
+                }
+
                 $.ajax({
                     url  : url,
                     type : 'PUT',
+                    headers: ajaxHeaders,
                 })
                     .done(function() {
                         window.location.href="MissionEditor.jsp?name=" + name;
@@ -113,12 +116,13 @@
             }
 
             $.ajax({
-                url  : "api/missions/" + _mission.name  + "/password?password=" + document.getElementById('newPassword').value + "&creatorUid=<%=URLEncoder.encode(AuditLogUtil.getUsername(), "UTF-8")%>",
+                url  : "api/missions/" + _mission.name  + "/password?creatorUid=<%=URLEncoder.encode(AuditLogUtil.getUsername(), "UTF-8")%>",
                 type : "PUT",
                 async : false,
                 cache : false,
                 contentType : false,
                 processData : false,
+                headers: { 'MissionPassword': document.getElementById('newPassword').value },
                 success: function (response) {
                     window.location.href="MissionEditor.jsp?name=" + _mission.name ;
                 },

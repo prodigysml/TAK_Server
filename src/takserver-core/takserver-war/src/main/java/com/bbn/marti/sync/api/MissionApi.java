@@ -48,6 +48,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.transaction.annotation.Transactional;
@@ -242,7 +243,7 @@ public class MissionApi extends BaseRestController {
 	@RequestMapping(value = "/missions/{name:.+}", method = RequestMethod.GET)
 	Callable<ApiResponse<Set<Mission>>> getMission(
 			@PathVariable("name") @NotNull String name,
-			@RequestParam(value = "password", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@RequestParam(value = "changes", defaultValue = "false") boolean changes,
 			@RequestParam(value = "logs", defaultValue = "false") boolean logs,
 			@RequestParam(value = "secago", required = false) Long secago,
@@ -341,7 +342,7 @@ public class MissionApi extends BaseRestController {
 	@RequestMapping(value = "/missions/guid/{guid:.+}", method = RequestMethod.GET)
 	Callable<ApiResponse<Set<Mission>>> getMissionByGuid(
 			@PathVariable("guid") String guid,
-			@RequestParam(value = "password", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@RequestParam(value = "changes", defaultValue = "false") boolean changes,
 			@RequestParam(value = "logs", defaultValue = "false") boolean logs,
 			@RequestParam(value = "secago", required = false) Long secago,
@@ -437,7 +438,7 @@ public class MissionApi extends BaseRestController {
 															 @RequestParam(value = "path", defaultValue = "") @ValidatedBy("MartiSafeString") String pathParam,
 															 @RequestParam(value = "classification", defaultValue = "") @ValidatedBy("MartiSafeString") String classificationParam,
 															 @RequestParam(value = "tool", defaultValue = "public") @ValidatedBy("MartiSafeString") String toolParam,
-															 @RequestParam(value = "password", required = false) @ValidatedBy("MartiSafeString") String passwordParam,
+															 @RequestHeader(value = "MissionPassword", required = false) String passwordParam,
 															 @RequestParam(value = "defaultRole", required = false) @ValidatedBy("MartiSafeString") MissionRole.Role roleParam,
 															 @RequestParam(value = "expiration", required = false) Long expirationParam,
 															 @RequestParam(value = "inviteOnly", defaultValue = "false") Boolean inviteOnlyParam,
@@ -548,7 +549,7 @@ public class MissionApi extends BaseRestController {
 																	  @RequestParam(value = "path", defaultValue = "") @ValidatedBy("MartiSafeString") String pathParam,
 																	  @RequestParam(value = "classification", defaultValue = "") @ValidatedBy("MartiSafeString") String classificationParam,
 																	  @RequestParam(value = "tool", defaultValue = "public") @ValidatedBy("MartiSafeString") String toolParam,
-																	  @RequestParam(value = "password", required = false) @ValidatedBy("MartiSafeString") String passwordParam,
+																	  @RequestHeader(value = "MissionPassword", required = false) String passwordParam,
 																	  @RequestParam(value = "defaultRole", required = false) @ValidatedBy("MartiSafeString") MissionRole.Role roleParam,
 																	  @RequestParam(value = "expiration", required = false) Long expirationParam,
 																	  @RequestParam(value = "inviteOnly", defaultValue = "false") Boolean inviteOnlyParam,
@@ -1137,7 +1138,7 @@ public class MissionApi extends BaseRestController {
 			@RequestParam(value = "copyName", required = true) @ValidatedBy("MartiSafeString") String copyName,
 			@RequestParam(value = "copyPath", required = false) @ValidatedBy("MartiSafeString") String copyPath,
 			@RequestParam(value = "defaultRole", required = false) @ValidatedBy("MartiSafeString") MissionRole.Role roleParam,
-			@RequestParam(value = "password", required = false) String passwordParam)
+			@RequestHeader(value = "MissionPassword", required = false) String passwordParam)
 	{
 
 		if (Strings.isNullOrEmpty(missionName)) {
@@ -2278,7 +2279,7 @@ public class MissionApi extends BaseRestController {
 	@RequestMapping(value = "/missions/{missionName:.+}/token", method = RequestMethod.GET)
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<String>  getReadOnlyAccessToken(
-			@RequestParam(value = "password", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@PathVariable("missionName") String missionName) {
 
 		missionName = missionService.trimName(missionName);
@@ -2359,7 +2360,7 @@ public class MissionApi extends BaseRestController {
 	public Callable<ApiResponse<MissionSubscription>> createMissionSubscription(
 			@RequestParam(value = "uid", defaultValue = "") String uid,
 			@RequestParam(value = "topic", defaultValue = "") String topic,
-			@RequestParam(value = "password", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@RequestParam(value = "secago", required = false) Long secago,
 			@RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
 			@RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end,
@@ -2481,7 +2482,7 @@ public class MissionApi extends BaseRestController {
 	public Callable<ApiResponse<MissionSubscription>> createMissionSubscriptionByGuid(
 			@RequestParam(value = "uid", defaultValue = "") String uid,
 			@RequestParam(value = "topic", defaultValue = "") String topic,
-			@RequestParam(value = "password", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@RequestParam(value = "secago", required = false) Long secago,
 			@RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
 			@RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end,
@@ -4108,7 +4109,7 @@ public class MissionApi extends BaseRestController {
 	@ResponseStatus(HttpStatus.OK)
 	public void setPassword(
 			@PathVariable(value = "name") @ValidatedBy("MartiSafeString") String missionName,
-			@RequestParam(value = "password", defaultValue = "") @ValidatedBy("MartiSafeString") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@RequestParam(value = "creatorUid", defaultValue = "") @ValidatedBy("MartiSafeString") String creatorUid,
 			HttpServletRequest request) {
 
@@ -4134,7 +4135,7 @@ public class MissionApi extends BaseRestController {
 	@ResponseStatus(HttpStatus.OK)
 	public void setPasswordByGuid(
 			@PathVariable(value = "guid") @ValidatedBy("MartiSafeString") String missionGuidParam,
-			@RequestParam(value = "password", defaultValue = "") @ValidatedBy("MartiSafeString") String password,
+			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
 			@RequestParam(value = "creatorUid", defaultValue = "") @ValidatedBy("MartiSafeString") String creatorUid,
 			HttpServletRequest request) {
 
