@@ -140,7 +140,7 @@ public class LDAPApi extends BaseRestController {
 
             if (errors.isEmpty()) {
                 for (String filter : search) {
-                    for (LdapGroup group : groupManager.searchGroups(filter, false)) {
+                    for (LdapGroup group : groupManager.searchGroups(filter, true)) {
                         if (group.getMembers() == null) {
                             continue;
                         }
