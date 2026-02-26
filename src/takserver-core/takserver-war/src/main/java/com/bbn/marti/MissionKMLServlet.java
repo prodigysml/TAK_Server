@@ -597,7 +597,11 @@ public class MissionKMLServlet extends LatestKMLServlet {
     						}
 
     						BufferedInputStream ins = new BufferedInputStream(is);
-    						zip.putNextEntry(new ZipEntry(iconUrl));
+    						String safeIconEntry = iconUrl.replace("..", "_");
+   						if (safeIconEntry.startsWith("/") || safeIconEntry.startsWith("\\")) {
+   							safeIconEntry = safeIconEntry.substring(1);
+   						}
+   						zip.putNextEntry(new ZipEntry(safeIconEntry));
     						try {
     							int nread = 0;
     							while((nread = ins.read(inputBuffer)) != -1){
@@ -624,7 +628,11 @@ public class MissionKMLServlet extends LatestKMLServlet {
     					// put images into zip file
     					for(Entry<String, byte[]> image : images.entrySet()) {
     						try {
-    							zip.putNextEntry(new ZipEntry(image.getKey()));
+    							String safeImageKey = image.getKey().replace("..", "_");
+    							if (safeImageKey.startsWith("/") || safeImageKey.startsWith("\\")) {
+    								safeImageKey = safeImageKey.substring(1);
+    							}
+    							zip.putNextEntry(new ZipEntry(safeImageKey));
     							zip.write(image.getValue());
     						} catch (Exception e) {
     							log.warning("exception writing zip file entry for image " + image + " " + e.getMessage());

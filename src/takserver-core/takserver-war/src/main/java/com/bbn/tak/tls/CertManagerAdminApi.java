@@ -142,7 +142,8 @@ public class CertManagerAdminApi extends BaseRestController {
 
             Integer ndx = 1;
             for (TakCert cert : certs) {
-                zos.putNextEntry(new ZipEntry((ndx++).toString() + "_" + cert.getUserDn() + "_ClientCert.pem"));
+                String safeDn = cert.getUserDn().replace("..", "_").replace("/", "_").replace("\\", "_");
+                zos.putNextEntry(new ZipEntry((ndx++).toString() + "_" + safeDn + "_ClientCert.pem"));
                 zos.write(cert.getCertificate().getBytes());
                 zos.closeEntry();
             }

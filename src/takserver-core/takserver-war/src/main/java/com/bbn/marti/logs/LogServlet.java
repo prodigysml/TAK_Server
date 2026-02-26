@@ -304,7 +304,8 @@ public class LogServlet extends EsapiServlet {
 					continue;
 				}
 
-				zos.putNextEntry(new ZipEntry(nextId + "_" + log.getFilename()));
+				String safeFilename = new java.io.File(log.getFilename()).getName().replace("..", "_");
+				zos.putNextEntry(new ZipEntry(nextId + "_" + safeFilename));
 				zos.write(log.getContents());
 				zos.closeEntry();
 			}
