@@ -1844,6 +1844,17 @@ public class SubmissionService extends BaseService implements MessagingConfigura
                 setIncognito(c, false);
                 break;
             default:
+                // validate that the caller owns the subscription being deleted
+                ChannelHandler defaultHandler = c.getContext(Constants.SOURCE_TRANSPORT_KEY, ChannelHandler.class);
+                if (defaultHandler != null) {
+                    Subscription defaultSub = subscriptionStore.getByHandler(defaultHandler);
+                    if (defaultSub != null && !Strings.isNullOrEmpty(defaultSub.clientUid)
+                            && !defaultSub.clientUid.equals(c.getUid())) {
+                        logger.error("Rejecting subscription deletion: message uid {} does not match authenticated uid {}",
+                                c.getUid(), defaultSub.clientUid);
+                        return;
+                    }
+                }
                 subMgr.deleteSubscription(c.getUid());
         }
     }
@@ -1914,6 +1925,18 @@ public class SubmissionService extends BaseService implements MessagingConfigura
         // ...unless, of course, the protocol or transport weren't set above
         //    (e.g., onConnect subscription add)
         if (subscription == null && handlerAndProtocol != null) {
+            // validate that the message UID matches the authenticated connection identity
+            ChannelHandler sourceHandler = msg.getContext(Constants.SOURCE_TRANSPORT_KEY, ChannelHandler.class);
+            if (sourceHandler != null) {
+                Subscription existingSub = subscriptionStore.getByHandler(sourceHandler);
+                if (existingSub != null && !Strings.isNullOrEmpty(existingSub.clientUid)
+                        && !existingSub.clientUid.equals(msg.getUid())) {
+                    logger.error("Rejecting subscription creation: message uid {} does not match authenticated uid {}",
+                            msg.getUid(), existingSub.clientUid);
+                    return;
+                }
+            }
+
         	if (logger.isDebugEnabled()) {
         		logger.debug("adding subscription for uid: " + msg.getUid());
         	}
