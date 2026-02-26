@@ -125,8 +125,6 @@ public class CITrapReportAPI extends BaseRestController {
             @RequestParam(value = "maxReportCount", required = false) String maxReportCount,
             @RequestParam(value = "type", required = false) String type,
             @RequestParam(value = "callsign", required = false) String callsign,
-            @RequestParam(value = "subscribe", required = false) String subscribe,
-            @RequestParam(value = "clientUid", required = false) String clientUid,
             HttpServletRequest request)
     {
         try {
@@ -145,54 +143,12 @@ public class CITrapReportAPI extends BaseRestController {
             		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.LONG_STRING_CHARS, true);
             validator.getValidInput("citrap", callsign,
             		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
-            validator.getValidInput("citrap", subscribe,
-            		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
-            validator.getValidInput("citrap", clientUid,
-            		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
 
             // Get group vector for the user associated with this session
             String groupVector = martiUtil.getGroupBitVector(request);
 
-            PGbox spatialConstraint = null;
-            Timestamp startTimestamp = null;
-            Timestamp endTimestamp = null;
-
-            if (bbox != null) {
-                Double[] coordinates = KmlUtils.parseSpatialCoordinates(bbox);
-                spatialConstraint = new PGbox(coordinates[0], coordinates[1], coordinates[2], coordinates[3]);
-            }
-
-            SimpleDateFormat dateFormat = new SimpleDateFormat(tak.server.Constants.COT_DATE_FORMAT);
-
-            if (startTime != null) {
-                Date dateTime = dateFormat.parse(startTime);
-                startTimestamp = new Timestamp(dateTime.getTime());
-            }
-
-            if (endTime != null) {
-                Date dateTime = dateFormat.parse(endTime);
-                endTimestamp = new Timestamp(dateTime.getTime());
-            }
-
-            List<ReportType> reports = persistenceStore.getReports(
-                    groupVector, keywords, spatialConstraint, startTimestamp, endTimestamp, maxReportCount, type, callsign);
-
-            if (subscribe != null && subscribe.equalsIgnoreCase("true") && clientUid != null) {
-                for (ReportType reportType : reports) {
-                    try {
-                    	
-                    	Mission reportMission = missionService.getMissionByNameCheckGroups(reportType.getId(), groupVector);
-                    	
-                        missionService.missionSubscribe(reportMission.getGuidAsUUID(), clientUid, groupVector);
-                    } catch (JpaSystemException e) { } // DuplicateKeyException comes through as JpaSystemException due to transaction
-                    
-                    catch (NotFoundException e) {
-                        if (logger.isErrorEnabled()) {
-                            logger.error("missionSubscribe couldn't find mission for report id : " + StringUtils.normalizeSpace(reportType.getId()));
-                        }
-                    }
-                }
-            }
+            List<ReportType> reports = searchReportsInternal(
+                    groupVector, keywords, bbox, startTime, endTime, maxReportCount, type, callsign);
 
             String accept = request.getHeader("Accept");
             if (accept != null) {
@@ -215,6 +171,90 @@ public class CITrapReportAPI extends BaseRestController {
             logger.error("exception in searchReports!", e);
             return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @RequestMapping(value = "/citrap/subscribe", method = RequestMethod.POST)
+    ResponseEntity subscribeToReports(
+            @RequestParam(value = "keywords", required = false) String keywords,
+            @RequestParam(value = "bbox", required = false) String bbox,
+            @RequestParam(value = "startTime", required = false) String startTime,
+            @RequestParam(value = "endTime", required = false) String endTime,
+            @RequestParam(value = "maxReportCount", required = false) String maxReportCount,
+            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "callsign", required = false) String callsign,
+            @RequestParam(value = "clientUid", required = true) String clientUid,
+            HttpServletRequest request)
+    {
+        try {
+            // validate inputs
+            validator.getValidInput("citrap", keywords,
+            		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+            validator.getValidInput("citrap", bbox,
+            		MartiValidatorConstants.Regex.Coordinates.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+            validator.getValidInput("citrap", startTime,
+            		MartiValidatorConstants.Regex.Timestamp.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+            validator.getValidInput("citrap", endTime,
+            		MartiValidatorConstants.Regex.Timestamp.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+            validator.getValidInput("citrap", maxReportCount,
+            		MartiValidatorConstants.Regex.NonNegativeInteger.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+            validator.getValidInput("citrap", type,
+            		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.LONG_STRING_CHARS, true);
+            validator.getValidInput("citrap", callsign,
+            		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+            validator.getValidInput("citrap", clientUid,
+            		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
+
+            String groupVector = martiUtil.getGroupBitVector(request);
+
+            List<ReportType> reports = searchReportsInternal(
+                    groupVector, keywords, bbox, startTime, endTime, maxReportCount, type, callsign);
+
+            for (ReportType reportType : reports) {
+                try {
+                    Mission reportMission = missionService.getMissionByNameCheckGroups(reportType.getId(), groupVector);
+                    missionService.missionSubscribe(reportMission.getGuidAsUUID(), clientUid, groupVector);
+                } catch (JpaSystemException e) { } // DuplicateKeyException comes through as JpaSystemException due to transaction
+                catch (NotFoundException e) {
+                    if (logger.isErrorEnabled()) {
+                        logger.error("missionSubscribe couldn't find mission for report id : " + StringUtils.normalizeSpace(reportType.getId()));
+                    }
+                }
+            }
+
+            return new ResponseEntity(HttpStatus.OK);
+
+        } catch (Exception e) {
+            logger.error("exception in subscribeToReports!", e);
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private List<ReportType> searchReportsInternal(String groupVector, String keywords, String bbox,
+            String startTime, String endTime, String maxReportCount, String type, String callsign) throws Exception {
+
+        PGbox spatialConstraint = null;
+        Timestamp startTimestamp = null;
+        Timestamp endTimestamp = null;
+
+        if (bbox != null) {
+            Double[] coordinates = KmlUtils.parseSpatialCoordinates(bbox);
+            spatialConstraint = new PGbox(coordinates[0], coordinates[1], coordinates[2], coordinates[3]);
+        }
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat(tak.server.Constants.COT_DATE_FORMAT);
+
+        if (startTime != null) {
+            Date dateTime = dateFormat.parse(startTime);
+            startTimestamp = new Timestamp(dateTime.getTime());
+        }
+
+        if (endTime != null) {
+            Date dateTime = dateFormat.parse(endTime);
+            endTimestamp = new Timestamp(dateTime.getTime());
+        }
+
+        return persistenceStore.getReports(
+                groupVector, keywords, spatialConstraint, startTimestamp, endTimestamp, maxReportCount, type, callsign);
     }
 
     @RequestMapping(value = "/citrap/{id}", method = RequestMethod.GET)
