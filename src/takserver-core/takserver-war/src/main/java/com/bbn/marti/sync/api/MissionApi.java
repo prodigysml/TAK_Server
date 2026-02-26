@@ -1129,7 +1129,7 @@ public class MissionApi extends BaseRestController {
 		}
 	}
 
-	@PreAuthorize("hasPermission(#request, 'MISSION_READ')")
+	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
 	@RequestMapping(value = "/missions/{missionName:.+}/copy", method = RequestMethod.PUT)
 	Callable<ApiResponse<Set<Mission>>> copyMission(
 			@PathVariable("missionName") @NotNull String missionName,
