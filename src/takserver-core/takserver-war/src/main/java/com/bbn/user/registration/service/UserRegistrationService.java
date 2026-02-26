@@ -7,6 +7,7 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import jakarta.mail.internet.MimeMessage;
 
@@ -34,6 +35,8 @@ import tak.server.util.PasswordUtils;
 
 public class UserRegistrationService {
 
+    private static final Pattern VALID_HOSTNAME = Pattern.compile("^[a-zA-Z0-9.\\-]+$");
+
     private final org.slf4j.Logger logger = LoggerFactory.getLogger(com.bbn.user.registration.service.UserRegistrationService.class);
 
     @Autowired
@@ -52,6 +55,12 @@ public class UserRegistrationService {
 
     public boolean addUser(String emailAddress, String serverName, int serverPort, String[] groupNames, boolean invite) {
         try {
+            // validate serverName to prevent host header injection
+            if (serverName == null || !VALID_HOSTNAME.matcher(serverName).matches()) {
+                logger.error("Rejecting registration: invalid server name '{}'", serverName);
+                return false;
+            }
+
             // make sure we have config
             if (getEmailConfig() == null || getEmailConfig().getWhitelist() == null) {
                 logger.error("missing email configuration!");
