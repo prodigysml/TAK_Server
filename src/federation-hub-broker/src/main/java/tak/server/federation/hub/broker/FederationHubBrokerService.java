@@ -2055,6 +2055,13 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
                 /* Validate src/dest and nodes. */
                 FederateEdge edge = policyGraph.getEdge(srcNode, destNode);
 
+                if (edge != null && !Strings.isNullOrEmpty(edge.getFilterExpression())) {
+                    // Fail closed: filter expressions are configured but filter engine is not yet implemented.
+                    // Block the message rather than silently bypassing the policy filter.
+                    logger.warn("Dropping message from {} to {} - edge filter expression is configured but filter engine is not implemented. Filter: {}",
+                            src.getFedId(), dest.getFedId(), edge.getFilterExpression());
+                    continue;
+                }
 
                 deliver(message, src, dest);
             }
