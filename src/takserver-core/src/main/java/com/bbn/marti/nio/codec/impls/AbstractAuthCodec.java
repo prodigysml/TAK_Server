@@ -189,8 +189,8 @@ public abstract class AbstractAuthCodec implements ByteCodec {
                 try {
                     authMessageStringOnly = authMessageString.substring(0, pos + AUTH_END_MARKER.length());
                     remainder = authMessageString.substring(pos + AUTH_END_MARKER.length(), authMessageString.length());
-                    if (logger.isDebugEnabled()) {                    	
-                    	logger.debug("remainder data after auth message: " + remainder);
+                    if (logger.isDebugEnabled()) {
+                    	logger.debug("remainder data after auth message: " + remainder.length() + " bytes");
                     }
                 } catch (Exception e) {
                     logger.debug("exception getting trimmed auth message", e);
@@ -211,7 +211,7 @@ public abstract class AbstractAuthCodec implements ByteCodec {
                     }
 
                     if (logger.isTraceEnabled()) {
-                        logger.trace("Found instead : " + authMessageString);
+                        logger.trace("Found instead : non-auth data, " + authMessageString.length() + " bytes");
                     }
 
                     return ByteUtils.getEmptyReadBuffer();
@@ -223,8 +223,8 @@ public abstract class AbstractAuthCodec implements ByteCodec {
 
             if (!Strings.isNullOrEmpty(authMessageStringOnly)) {
                 try {
-                	if (logger.isDebugEnabled()) {                		
-                		logger.debug("potential auth message data: " + authMessageStringOnly);
+                	if (logger.isDebugEnabled()) {
+                		logger.debug("potential auth message data: " + authMessageStringOnly.length() + " bytes");
                 	}
 
                     Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
@@ -233,7 +233,7 @@ public abstract class AbstractAuthCodec implements ByteCodec {
                         authMessage = (AuthMessage) unmarshaller.unmarshal(doc);
                     }
                 } catch (Exception e) {
-                    logger.debug("exception deserializing auth message - may be incomplete. message: '" + authMessageString + "'", e);
+                    logger.debug("exception deserializing auth message - may be incomplete. length: " + authMessageString.length() + " bytes", e);
                 }
             }
 
