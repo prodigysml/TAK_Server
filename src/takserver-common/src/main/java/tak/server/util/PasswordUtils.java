@@ -1,5 +1,6 @@
 package tak.server.util;
 
+import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -24,18 +25,20 @@ public class PasswordUtils {
 		return matcher.matches();
 	}
 	
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     public static String generatePassword() {
-        String upperCaseLetters = RandomStringUtils.random(3, 65, 90, true, true);
-        String lowerCaseLetters = RandomStringUtils.random(3, 97, 122, true, true);
-        String numbers = RandomStringUtils.randomNumeric(3);
-        String totalChars = RandomStringUtils.randomAlphanumeric(3);
-        
+        String upperCaseLetters = RandomStringUtils.random(3, 65, 90, true, true, null, SECURE_RANDOM);
+        String lowerCaseLetters = RandomStringUtils.random(3, 97, 122, true, true, null, SECURE_RANDOM);
+        String numbers = RandomStringUtils.random(3, 0, 0, false, true, null, SECURE_RANDOM);
+        String totalChars = RandomStringUtils.random(3, 0, 0, true, true, null, SECURE_RANDOM);
+
         String specialChars = "";
         for (int count = 0; count < 3; count ++) {
-        	int random_int = (int)Math.floor(Math.random()*(SPECIAL_CHARS_GENERATION.length()));
+        	int random_int = SECURE_RANDOM.nextInt(SPECIAL_CHARS_GENERATION.length());
         	specialChars += SPECIAL_CHARS_GENERATION.charAt(random_int);
         }
-        		
+
         String combinedChars = upperCaseLetters.concat(lowerCaseLetters)
                 .concat(numbers)
                 .concat(totalChars)
@@ -43,7 +46,7 @@ public class PasswordUtils {
         List<Character> pwdChars = combinedChars.chars()
                 .mapToObj(c -> (char) c)
                 .collect(Collectors.toList());
-        Collections.shuffle(pwdChars);
+        Collections.shuffle(pwdChars, SECURE_RANDOM);
         String password = pwdChars.stream()
                 .collect(StringBuilder::new, StringBuilder::append, StringBuilder::append)
                 .toString();
