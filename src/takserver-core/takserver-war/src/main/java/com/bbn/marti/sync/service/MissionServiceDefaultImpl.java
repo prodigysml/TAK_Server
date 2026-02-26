@@ -2482,7 +2482,8 @@ public class MissionServiceDefaultImpl implements MissionService {
 						continue;
 					}
 
-					mp.addCotFile("cot/" + uid + ".cot", cot.toCotXml().getBytes(), uid);
+					String safeUid = new java.io.File(uid).getName().replace("..", "_");
+					mp.addCotFile("cot/" + safeUid + ".cot", cot.toCotXml().getBytes(), uid);
 				} catch (NotFoundException nfe) {
 					logger.error("Unable to add cot to mission archive: " + uid, nfe);
 					continue;
@@ -2510,7 +2511,8 @@ public class MissionServiceDefaultImpl implements MissionService {
 				String filename = resource.getHash();
 
 				if (resource.getName() != null) {
-					filename = ndx++ + "_" + resource.getName();
+					String safeName = new java.io.File(resource.getName()).getName().replace("..", "_");
+					filename = ndx++ + "_" + safeName;
 				}
 
 
