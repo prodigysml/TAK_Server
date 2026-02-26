@@ -199,6 +199,15 @@ public class MissionPackageCreatorServlet extends EnterpriseSyncServlet {
 				{
 					try (InputStream payloadIn = part.getInputStream()){
 						String filename = getFileNameFromPart(part);
+						if (filename != null) {
+							// sanitize: strip path components to prevent zip slip
+							filename = new java.io.File(filename).getName();
+							if (filename.contains("..") || filename.isEmpty()) {
+								logger.error("Rejecting file with invalid name from multipart upload");
+								response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid filename");
+								return;
+							}
+						}
 						if (firstFilename == null) firstFilename = filename;
 						if (filename != null && filename.length() > 0 && payloadIn != null) {
 							zip.putNextEntry(new ZipEntry(filename));
