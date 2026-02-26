@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -55,6 +56,9 @@ public class MissionArchiveHelper {
 	private static final long MAX_UNCOMPRESSED_TOTAL_SIZE = 200 * 1024 * 1024; // 200 MB total
 	private static final int MAX_ZIP_ENTRIES = 1024;
 	private static final long MAX_COMPRESSION_RATIO = 100;
+
+	// per-archive-entry lock to prevent concurrent restores of the same mission
+	private final ConcurrentHashMap<Integer, Object> restoreLocks = new ConcurrentHashMap<>();
 
 	@Autowired
 	MissionArchiveStoreConfig missionArchiveStore;
@@ -142,9 +146,12 @@ public class MissionArchiveHelper {
     }
     
     public String restoreMissionFromArchive(int id) {
+		// acquire a per-id lock to prevent concurrent restores of the same archive entry
+		Object lock = restoreLocks.computeIfAbsent(id, k -> new Object());
+		synchronized (lock) {
 		try {
 			Optional<MissionArchiveStoreEntry> matchingEntryOp = missionArchiveStore.getMissionArchiveStoreEntries().stream().filter(m->m.getId() == id).findFirst();
-			
+
 			if (!matchingEntryOp.isPresent()) {
 				return "Mission to restore not found in mission index";
 			}
@@ -262,13 +269,17 @@ public class MissionArchiveHelper {
 				missionArchiveFileToDelete.delete();
 				return props.get("mission_name") + " Restored";
 			} else {
-				retentionQueryService.deleteMission(props.get("mission_name"), props.get("creatorUid"), groups, true);
-				return "Mission name already exsists. Cannot restore.";
+				// mission already exists — do NOT delete it, just report the conflict
+				logger.warn("Cannot restore mission '{}' — a mission with that name already exists", props.get("mission_name"));
+				return "Mission name already exists. Cannot restore.";
 			}
 		} catch (Exception e) {
 			logger.info("Error reading mission zip from archive",e);
 			return "Error reading mission zip from archive";
+		} finally {
+			restoreLocks.remove(id);
 		}
+		} // end synchronized
     }
 
 	private void writeMissionToArchive(String filename, String missionName, Timestamp createTime,
