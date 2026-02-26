@@ -3910,7 +3910,7 @@ public class MissionServiceDefaultImpl implements MissionService {
 
 			// see if the request is using bearer/token authentication
 			if (!authorization.startsWith("Bearer ")) {
-				logger.error("Bearer not found : " + StringUtils.normalizeSpace(authorization) + " : " + StringUtils.normalizeSpace(request.getServletPath()));
+				logger.error("Bearer not found in Authorization header for : " + StringUtils.normalizeSpace(request.getServletPath()));
 				return null;
 			}
 
@@ -3926,7 +3926,7 @@ public class MissionServiceDefaultImpl implements MissionService {
 				claims = MissionTokenUtils.getInstance(JwtUtils.getInstance().getPrivateKey()).decodeMissionToken(token);
 
 			} catch (Exception e) {
-				logger.error("decodeMissionToken failed! : " + authorization + " : " + request.getServletPath());
+				logger.error("decodeMissionToken failed for : " + request.getServletPath());
 				return null;
 			}
 
