@@ -652,19 +652,24 @@ public class CommonUtil {
 		return requestBean.isAdmin();
 	}
 
+	private static String escapeXmlAttr(String value) {
+		if (value == null) return "";
+		return value.replace("&", "&amp;").replace("'", "&apos;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;");
+	}
+
 	public static String getFileTransferCotMessage(
 			String uid, String shaHash, String callsign, String filename, String url, long sizeInBytes, String[] contacts)
 	{
 		String time = DateUtil.toCotTime(System.currentTimeMillis()); // now
 		String staleTime = DateUtil.toCotTime(System.currentTimeMillis()+100000); // 100 seconds from now
 		String cot = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
-				+ "<event version='2.0' uid='"+uid+"' type='b-f-t-r' time='"+time+"' start='"+time+"' stale='"+staleTime+"' how='h-e'>"
+				+ "<event version='2.0' uid='"+escapeXmlAttr(uid)+"' type='b-f-t-r' time='"+time+"' start='"+time+"' stale='"+staleTime+"' how='h-e'>"
 				+ "<point lat='0.0' lon='0.0' hae='9999999.0' ce='9999999' le='9999999' />"
 				+ "<detail>"
-				+ "<fileshare sha256='"+shaHash+"' senderUid='"+uid+"' name='"+filename+"' filename='"+filename+"' senderUrl='"+url+"' sizeInBytes='"+sizeInBytes+"' senderCallsign='"+callsign+"'/>"
+				+ "<fileshare sha256='"+escapeXmlAttr(shaHash)+"' senderUid='"+escapeXmlAttr(uid)+"' name='"+escapeXmlAttr(filename)+"' filename='"+escapeXmlAttr(filename)+"' senderUrl='"+escapeXmlAttr(url)+"' sizeInBytes='"+sizeInBytes+"' senderCallsign='"+escapeXmlAttr(callsign)+"'/>"
 				+ "<marti>";
 		for(String contact : contacts) {
-			cot += "<dest uid='" + contact + "'/>";
+			cot += "<dest uid='" + escapeXmlAttr(contact) + "'/>";
 		}
 		//+ "<ackrequest uid='02629afa-ab2e-44a8-9048-2f517b72b221' ackrequested='true' tag='MP-Grizzly' endpoint='192.168.1.9:4242:tcp'/>"
 		//+ "<precisionlocation geopointsrc='???' altsrc='???'/>"
