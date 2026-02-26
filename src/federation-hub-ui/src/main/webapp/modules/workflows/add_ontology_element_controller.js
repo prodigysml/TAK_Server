@@ -370,6 +370,13 @@ function addOntologyElementController($scope, $rootScope, $state, $stateParams, 
     }
   };
 
+  function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(String(str)));
+    return div.innerHTML;
+  }
+
   //FIXME BEK
   $scope.showPopover = function(node, evt) {
     if (!$(evt.target).data('bs.popover')) {
@@ -384,7 +391,7 @@ function addOntologyElementController($scope, $rootScope, $state, $stateParams, 
             "hide": 0
           },
           container: 'body',
-          content: 'Dataset: (' + node.datasetName + ')<br>Comment: ' + (result.description === "" ? "none" : result.description)
+          content: 'Dataset: (' + escapeHtml(node.datasetName) + ')<br>Comment: ' + (result.description === "" ? "none" : escapeHtml(result.description))
         }).popover('show');
       }, function() {});
       $('.popover').popover('hide');
