@@ -783,17 +783,31 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
     	}
     }
 
+    private static final int MAX_RETRY_ATTEMPTS = 10;
+    private static final long RETRY_DELAY_MS = 5000;
+
     private void attemptRetry(String name, FederationOutgoingCell outgoing) {
-    	try {
-			HubFigClient client = new HubFigClient(fedHubConfigManager, federationHubMissionDisruptionManager, outgoing);
-    		client.start();
-    		outgoingClientMap.put(name, client);
-    		outgoingClientRetryMap.get(name).cancel(true);
-    		outgoingClientRetryMap.remove(name);
-		} catch (Exception e) {
-			logger.error("", e);
-			attemptRetry(name, outgoing);
-		}
+    	for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+    		try {
+				HubFigClient client = new HubFigClient(fedHubConfigManager, federationHubMissionDisruptionManager, outgoing);
+    			client.start();
+    			outgoingClientMap.put(name, client);
+    			outgoingClientRetryMap.get(name).cancel(true);
+    			outgoingClientRetryMap.remove(name);
+    			return;
+			} catch (Exception e) {
+				logger.error("Retry attempt {}/{} failed for {}", attempt, MAX_RETRY_ATTEMPTS, name, e);
+				if (attempt < MAX_RETRY_ATTEMPTS) {
+					try {
+						Thread.sleep(RETRY_DELAY_MS);
+					} catch (InterruptedException ie) {
+						Thread.currentThread().interrupt();
+						return;
+					}
+				}
+			}
+    	}
+    	logger.error("All {} retry attempts exhausted for outgoing connection {}", MAX_RETRY_ATTEMPTS, name);
     }
 
     public void setupFederationServers() {
