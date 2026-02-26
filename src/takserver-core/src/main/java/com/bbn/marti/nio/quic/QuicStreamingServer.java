@@ -1,10 +1,15 @@
 package com.bbn.marti.nio.quic;
 
 import java.net.InetSocketAddress;
+import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,12 +38,20 @@ import io.netty.incubator.codec.quic.QuicTokenHandler;
 
 public class QuicStreamingServer {
 	private static final Logger log = LoggerFactory.getLogger(QuicStreamingServer.class);
+	private static final int HMAC_TOKEN_LENGTH = 32; // SHA-256 output
+	private static final byte[] TOKEN_KEY;
+
+	static {
+		TOKEN_KEY = new byte[32];
+		new SecureRandom().nextBytes(TOKEN_KEY);
+	}
+
 	private final Map<String, InetSocketAddress> clientAddressMap = new ConcurrentHashMap<>();
 	private final Map<String, NioNettyQuicServerHandler> clientHandlerMap = new ConcurrentHashMap<>();
-	
+
 	private ScheduledFuture<?> timeoutSchedulerFuture;
 	private final int highwaterMark;
-	
+
 	private Input input;
 	private Channel channel;
 
@@ -73,20 +86,46 @@ public class QuicStreamingServer {
 		                .tokenHandler(new QuicTokenHandler() {
 							@Override
 							public boolean writeToken(ByteBuf out, ByteBuf dcid, InetSocketAddress address) {
-								// TODO Auto-generated method stub
-								return false;
+								try {
+									byte[] addressBytes = address.getAddress().getAddress();
+									Mac mac = Mac.getInstance("HmacSHA256");
+									mac.init(new SecretKeySpec(TOKEN_KEY, "HmacSHA256"));
+									mac.update(addressBytes);
+									byte[] hmac = mac.doFinal();
+									out.writeBytes(hmac);
+									return true;
+								} catch (Exception e) {
+									log.error("Error writing QUIC retry token", e);
+									return false;
+								}
 							}
 
 							@Override
 							public int validateToken(ByteBuf token, InetSocketAddress address) {
-								// TODO Auto-generated method stub
-								return 0;
+								if (token.readableBytes() != HMAC_TOKEN_LENGTH) {
+									return -1;
+								}
+								try {
+									byte[] tokenBytes = new byte[HMAC_TOKEN_LENGTH];
+									token.readBytes(tokenBytes);
+									byte[] addressBytes = address.getAddress().getAddress();
+									Mac mac = Mac.getInstance("HmacSHA256");
+									mac.init(new SecretKeySpec(TOKEN_KEY, "HmacSHA256"));
+									mac.update(addressBytes);
+									byte[] expected = mac.doFinal();
+									if (Arrays.equals(tokenBytes, expected)) {
+										return 0;
+									}
+									return -1;
+								} catch (Exception e) {
+									log.error("Error validating QUIC retry token", e);
+									return -1;
+								}
 							}
 
 							@Override
 							public int maxTokenLength() {
-								// TODO Auto-generated method stub
-								return 0;
+								return HMAC_TOKEN_LENGTH;
 							}
 		                })
 						.handler(new ChannelInboundHandlerAdapter() {
