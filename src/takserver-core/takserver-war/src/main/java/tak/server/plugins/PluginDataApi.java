@@ -41,6 +41,8 @@ public class PluginDataApi extends BaseRestController {
 
 	private static final Logger logger = LoggerFactory.getLogger(PluginDataApi.class);
 
+	private static final int MAX_PLUGIN_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
+
 	@Autowired(required = false)	
 	private PluginManager pluginManager;
 	
@@ -60,6 +62,11 @@ public class PluginDataApi extends BaseRestController {
 		try {
 			if (requestBodyBytes == null) {
 				throw new IllegalArgumentException("null data submitted to plugin - ignoring.");
+			}
+
+			if (requestBodyBytes.length > MAX_PLUGIN_PAYLOAD_SIZE) {
+				logger.error("Plugin submit payload rejected: size {} exceeds maximum {}", requestBodyBytes.length, MAX_PLUGIN_PAYLOAD_SIZE);
+				return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
 			}
 
 			String contentType =  requestHolderBean.getRequest().getHeader("content-type");
@@ -97,6 +104,11 @@ public class PluginDataApi extends BaseRestController {
 		try {
 			if (requestBodyBytes == null) {
 				throw new IllegalArgumentException("null data submitted to plugin - ignoring.");
+			}
+
+			if (requestBodyBytes.length > MAX_PLUGIN_PAYLOAD_SIZE) {
+				logger.error("Plugin submit payload rejected: size {} exceeds maximum {}", requestBodyBytes.length, MAX_PLUGIN_PAYLOAD_SIZE);
+				return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
 			}
 
 			String contentType =  requestHolderBean.getRequest().getHeader("content-type");
