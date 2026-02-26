@@ -397,6 +397,16 @@ public class CITrapReportAPI extends BaseRestController {
             HttpServletRequest request) {
 
         try {
+            // enforce maximum upload size (100 MB)
+            final long MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+            if (contents == null || contents.length == 0) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+            if (contents.length > MAX_UPLOAD_SIZE) {
+                logger.error("Attachment upload rejected: size {} exceeds maximum allowed {}", contents.length, MAX_UPLOAD_SIZE);
+                return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
+            }
+
             // validate inputs
             validator.getValidInput("citrap", id,
             		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.LONG_STRING_CHARS, true);
