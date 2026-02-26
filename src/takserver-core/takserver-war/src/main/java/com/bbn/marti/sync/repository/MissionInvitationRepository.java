@@ -19,7 +19,7 @@ public interface MissionInvitationRepository extends JpaRepository<MissionInvita
     
     @Query(value = "select mi.id, mi.mission_name, mi.invitee, mi.type, mi.creator_uid, mi.create_time, mi.token, mi.role_id, mi.mission_id, m.guid as mission_guid " +
             "from mission m inner join mission_invitation mi on m.id = mi.mission_id " +
-            "where mi.invitee ~* :invitee and mi.type = :type and " + RemoteUtil.GROUP_CLAUSE, nativeQuery = true)
+            "where LOWER(mi.invitee) = LOWER(:invitee) and mi.type = :type and " + RemoteUtil.GROUP_CLAUSE, nativeQuery = true)
     List<MissionInvitation> findAllMissionInvitationsByInviteeIgnoreCaseAndType(
             @Param("invitee") String invitee, @Param("type") String type, @Param("groupVector") String groupVector);
 }
