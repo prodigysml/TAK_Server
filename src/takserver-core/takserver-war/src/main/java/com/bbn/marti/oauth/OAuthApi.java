@@ -1,13 +1,16 @@
 package com.bbn.marti.oauth;
 
+import java.io.FileInputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.KeyManagementException;
+import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -107,7 +110,7 @@ public class OAuthApi {
     private void processAuthServerRequest(
             MultiValueMap<String, String> requestBody,
             HttpServletRequest request, HttpServletResponse response)
-            throws NoSuchAlgorithmException, KeyManagementException, ParseException {
+            throws Exception {
 
         // get the auth server config
         Oauth.AuthServer authServer = getAuthServerConfig();
@@ -119,30 +122,29 @@ public class OAuthApi {
         RestTemplate restTemplate;
 
         if (authServer.isTrustAllCerts()) {
-            TrustManager[] trustAllCerts = new TrustManager[]{
-                    new X509TrustManager() {
-                        @Override
-                        public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) {
-                        }
-
-                        @Override
-                        public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) {
-                        }
-
-                        @Override
-                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                            return new java.security.cert.X509Certificate[]{};
-                        }
-                    }
-            };
-
             Tls tlsConfig = CoreConfigFacade.getInstance().getRemoteConfiguration().getSecurity().getTls();
+
+            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            try (FileInputStream fis = new FileInputStream(tlsConfig.getTruststoreFile())) {
+                trustStore.load(fis, tlsConfig.getTruststorePass().toCharArray());
+            }
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(trustStore);
+
             SSLContext sslContext = SSLContext.getInstance(tlsConfig.getContext());
-            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+            sslContext.init(null, tmf.getTrustManagers(), new java.security.SecureRandom());
+
+            X509TrustManager trustManager = null;
+            for (TrustManager tm : tmf.getTrustManagers()) {
+                if (tm instanceof X509TrustManager) {
+                    trustManager = (X509TrustManager) tm;
+                    break;
+                }
+            }
 
             OkHttpClient.Builder builder = new OkHttpClient.Builder()
-                    .sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
-                    .hostnameVerifier((hostname, session) -> true);
+                    .sslSocketFactory(sslContext.getSocketFactory(), trustManager);
             restTemplate = new RestTemplate(new OkHttp3ClientHttpRequestFactory(builder.build()));
 
         } else {
