@@ -267,6 +267,14 @@ public class ProfileAdminAPI extends BaseRestController {
             @RequestParam(value = "filename") String filename,
             @RequestBody byte[] contents) {
 
+        final int MAX_PROFILE_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+        if (contents == null || contents.length == 0) {
+            throw new IllegalArgumentException("empty file contents");
+        }
+        if (contents.length > MAX_PROFILE_FILE_SIZE) {
+            throw new IllegalArgumentException("File exceeds maximum allowed size of " + MAX_PROFILE_FILE_SIZE + " bytes");
+        }
+
         Profile profile = profileRepository.findByName(name);
         if (profile == null) {
             throw new NotFoundException();

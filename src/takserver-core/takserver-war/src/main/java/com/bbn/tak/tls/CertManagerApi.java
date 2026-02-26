@@ -285,6 +285,11 @@ public class CertManagerApi extends BaseRestController {
             @RequestBody String base64CSR)
             throws Exception {
 
+        final int MAX_CSR_SIZE = 64 * 1024; // 64 KB
+        if (base64CSR != null && base64CSR.length() > MAX_CSR_SIZE) {
+            throw new IllegalArgumentException("CSR exceeds maximum allowed size");
+        }
+
         try {
             // TAK 4.4 clients that support Channels will pass in the version parameter
             TakCert cert = certManagerService.signClient(clientUid, version != null, base64CSR);
@@ -329,6 +334,11 @@ public class CertManagerApi extends BaseRestController {
             HttpServletRequest request,
             HttpServletResponse response)
             throws Exception {
+
+        final int MAX_CSR_SIZE = 64 * 1024; // 64 KB
+        if (base64CSR != null && base64CSR.length() > MAX_CSR_SIZE) {
+            throw new IllegalArgumentException("CSR exceeds maximum allowed size");
+        }
 
         try {
             TakCert cert = certManagerService.signClient(clientUid, version != null, base64CSR);

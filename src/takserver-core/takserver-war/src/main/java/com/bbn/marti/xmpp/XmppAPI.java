@@ -197,6 +197,11 @@ public class XmppAPI extends BaseRestController {
             HttpServletRequest request,
             HttpServletResponse response) {
         try {
+            final int MAX_XMPP_TRANSFER_SIZE = 100 * 1024 * 1024; // 100 MB
+            if (contents != null && contents.length > MAX_XMPP_TRANSFER_SIZE) {
+                return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body("File exceeds maximum allowed size");
+            }
+
             // validate inputs
             validator.getValidInput(XMPP_TOOL, uid,
                     MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);

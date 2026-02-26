@@ -1647,6 +1647,14 @@ public class MissionApi extends BaseRestController {
 
 		validateParameters(new Object() {}.getClass().getEnclosingMethod());
 
+		final int MAX_MISSION_PACKAGE_SIZE = 100 * 1024 * 1024; // 100 MB
+		if (missionPackage == null || missionPackage.length == 0) {
+			throw new IllegalArgumentException("empty mission package");
+		}
+		if (missionPackage.length > MAX_MISSION_PACKAGE_SIZE) {
+			throw new IllegalArgumentException("Mission package exceeds maximum allowed size of " + MAX_MISSION_PACKAGE_SIZE + " bytes");
+		}
+
 		Mission mission = missionService.getMissionByNameCheckGroups(name, martiUtil.getGroupVectorBitString(request));
 		missionService.validateMission(mission, name);
 
@@ -3609,7 +3617,12 @@ public class MissionApi extends BaseRestController {
 
 		if (missionService.getApiVersionNumberFromRequest(request) > 2) {
 
-			String body = new String(IOUtils.toByteArray(request.getInputStream()));
+			final int MAX_INVITE_BODY_SIZE = 1024 * 1024; // 1 MB
+			byte[] bodyBytes = IOUtils.toByteArray(request.getInputStream());
+			if (bodyBytes.length > MAX_INVITE_BODY_SIZE) {
+				throw new IllegalArgumentException("Request body exceeds maximum allowed size");
+			}
+			String body = new String(bodyBytes);
 
 			ObjectMapper mapper = new ObjectMapper();
 			List<MissionInvitation> missionInvitations =
@@ -3730,7 +3743,12 @@ public class MissionApi extends BaseRestController {
 
 		if (missionService.getApiVersionNumberFromRequest(request) > 2) {
 
-			String body = new String(IOUtils.toByteArray(request.getInputStream()));
+			final int MAX_INVITE_BODY_SIZE = 1024 * 1024; // 1 MB
+			byte[] bodyBytes = IOUtils.toByteArray(request.getInputStream());
+			if (bodyBytes.length > MAX_INVITE_BODY_SIZE) {
+				throw new IllegalArgumentException("Request body exceeds maximum allowed size");
+			}
+			String body = new String(bodyBytes);
 
 			ObjectMapper mapper = new ObjectMapper();
 			List<MissionInvitation> missionInvitations =
@@ -4078,8 +4096,11 @@ public class MissionApi extends BaseRestController {
 			@RequestParam(value = "notes") @ValidatedBy("MartiSafeString") String notes,
 			@RequestBody String token,
 			HttpServletRequest request) {
+		if (token != null && token.length() > 10240) {
+			throw new IllegalArgumentException("Token exceeds maximum allowed size");
+		}
 		String groupVector = martiUtil.getGroupVectorBitString(request);
-		
+
 		Mission mission = missionService.getMission(missionName, groupVector);
 
 		missionService.notifyExternalMissionDataChanged(mission.getGuidAsUUID(), externalMissionDataId, token, notes, creatorUid, groupVector);
@@ -4095,8 +4116,11 @@ public class MissionApi extends BaseRestController {
 			@RequestParam(value = "notes") @ValidatedBy("MartiSafeString") String notes,
 			@RequestBody String token,
 			HttpServletRequest request) {
+		if (token != null && token.length() > 10240) {
+			throw new IllegalArgumentException("Token exceeds maximum allowed size");
+		}
 		String groupVector = martiUtil.getGroupVectorBitString(request);
-		
+
 		UUID missionGuid = parseGuid(missionGuidParam);
 
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);

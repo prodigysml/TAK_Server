@@ -157,6 +157,12 @@ public class LogServlet extends EsapiServlet {
 	      	String platform = getParameterValue(httpParameters, QueryParameter.platform.name());
 	      	String majorVersion = getParameterValue(httpParameters, QueryParameter.majorVersion.name());
 	      	String minorVersion = getParameterValue(httpParameters, QueryParameter.minorVersion.name());
+	      	// limit upload size to 50 MB to prevent memory exhaustion
+	      	final int MAX_LOG_UPLOAD_SIZE = 50 * 1024 * 1024;
+	      	if (request.getContentLength() > MAX_LOG_UPLOAD_SIZE) {
+	      		response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "Payload too large");
+	      		return;
+	      	}
 	      	String encodedString = IOUtils.toString(request.getInputStream());
 	    	      		      	
 	      	final int BUFFER = 2048;

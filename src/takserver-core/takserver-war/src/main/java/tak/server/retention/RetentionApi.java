@@ -120,6 +120,9 @@ public class RetentionApi extends BaseRestController {
 
     @RequestMapping(value = "/retention/service/schedule", method = RequestMethod.PUT)
     ResponseEntity<ApiResponse<String>> setRetentionServiceSchedule(@RequestBody String cronexp) throws ValidationException {
+        if (cronexp != null && cronexp.length() > 256) {
+            throw new IllegalArgumentException("Cron expression exceeds maximum allowed length");
+        }
         ResponseEntity<ApiResponse<String>> result = null;
         if (logger.isDebugEnabled()) {
             logger.debug(" setRetentionSchedule called " + cronexp);
