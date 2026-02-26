@@ -115,7 +115,7 @@ public class IconsetIconApi extends BaseRestController {
 
                 logger.debug("tempDir: " + tempDir.getAbsolutePath());
 
-                String uploadedFilename = tempDir.getAbsolutePath() + File.pathSeparator + UUID.randomUUID() + "_" + file.getName();
+                String uploadedFilename = tempDir.getAbsolutePath() + File.separator + UUID.randomUUID() + "_" + file.getName();
 
                 logger.debug("tempFilePath: " + uploadedFilename);
 

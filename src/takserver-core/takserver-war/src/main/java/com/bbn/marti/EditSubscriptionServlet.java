@@ -10,6 +10,10 @@ import java.rmi.RemoteException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
+
+import org.owasp.esapi.ESAPI;
 
 import com.bbn.marti.remote.SubscriptionManagerLite;
 
@@ -42,11 +46,17 @@ public class EditSubscriptionServlet extends EsapiServlet {
 		String uid = request.getParameter(UID_KEY);
 		String xpath = request.getParameter(XPATH_KEY);
 		if (uid == null || xpath == null || uid.isEmpty() || xpath.isEmpty()) {
-			response.sendError(HttpServletResponse.SC_BAD_REQUEST, 
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST,
 					"Missing HTTP parameter. \"" + UID_KEY + "\" and \"" + XPATH_KEY + "\" are required.");
+			return;
 		}
-		
+
 		try {
+			 // Validate XPath against blacklist and compile to verify it's well-formed
+			 xpath = ESAPI.validator().getValidInput("EditSubscriptionServlet", xpath, "XpathBlackList", 2048, true);
+			 XPath xpathValidator = XPathFactory.newInstance().newXPath();
+			 xpathValidator.compile(xpath);
+
 	         SubscriptionManagerLite subMgr = (SubscriptionManagerLite) Naming
 	            .lookup("//127.0.0.1:3334/SubMgr");
 	         subMgr.setXpathForUid(uid, xpath);
