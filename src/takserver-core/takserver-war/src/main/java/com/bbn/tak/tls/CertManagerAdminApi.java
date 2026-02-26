@@ -238,9 +238,10 @@ public class CertManagerAdminApi extends BaseRestController {
                 throw new NotFoundException();
             }
 
+            String safeDn = cert.getUserDn().replaceAll("[\\r\\n\"\\\\]", "_");
             response.addHeader(
                     "Content-Disposition",
-                    "attachment; filename=" + cert.getUserDn() + "_ClientCert.pem");
+                    "attachment; filename=\"" + safeDn + "_ClientCert.pem\"");
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.TEXT_PLAIN);
@@ -283,22 +284,22 @@ public class CertManagerAdminApi extends BaseRestController {
             //
             // build up the call to revokeCert.sh
             //
-            StringBuilder revokeCmd = new StringBuilder("./revokeCert.sh  ");
-            revokeCmd.append(tempFile.getCanonicalPath().replace(".pem", ""));
-            revokeCmd.append(" ");
-            revokeCmd.append(takServerCAConfig.getCAkey());
-            revokeCmd.append(" ");
-            revokeCmd.append(takServerCAConfig.getCAcertificate());
+            List<String> revokeCmd = new ArrayList<>();
+            revokeCmd.add("./revokeCert.sh");
+            revokeCmd.add(tempFile.getCanonicalPath().replace(".pem", ""));
+            revokeCmd.add(takServerCAConfig.getCAkey());
+            revokeCmd.add(takServerCAConfig.getCAcertificate());
 
             if (logger.isDebugEnabled()) {
-                logger.debug("revoking certificate : " + revokeCmd.toString());
+                logger.debug("revoking certificate with {} args", revokeCmd.size());
             }
 
             //
             // execute the revoke call in /opt/tak/certs and wait for it to complete
             //
-            Process process = Runtime.getRuntime().exec(
-                    revokeCmd.toString(), null, new File("/opt/tak/certs/"));
+            ProcessBuilder pb = new ProcessBuilder(revokeCmd);
+            pb.directory(new File("/opt/tak/certs/"));
+            Process process = pb.start();
             process.waitFor();
 
             //

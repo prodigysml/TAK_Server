@@ -18,21 +18,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.bbn.marti.util.CommonUtil;
+
 /**
  * Servlet implementation class WriteImageServlet
  */
 //@WebServlet("/GetCotData")
 public class GetCotDataServlet extends EsapiServlet {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(GetCotDataServlet.class);
 
 	private static final long serialVersionUID = -1643155275297691951L;
-	
+
 	@Autowired
 	private JDBCQueryAuditLogHelper queryWrapper;
-	
+
 	@Autowired
 	private DataSource ds;
+
+	@Autowired
+	private CommonUtil martiUtil;
 
 	/**
 	 * @see HttpServlet#HttpServlet()
@@ -87,15 +92,23 @@ public class GetCotDataServlet extends EsapiServlet {
 			return;
 		}
 		
+		// get the group vector for the requesting user
+		String groupVector = martiUtil.getGroupBitVector(request);
+		if (groupVector == null || groupVector.isEmpty()) {
+			response.sendError(HttpServletResponse.SC_FORBIDDEN, "Unable to determine group vector");
+			return;
+		}
+
 		Document doc = null;
 
 		// query by cot uid
 		if (cotUid != null) {
-		    // get latest cot event by uid
-		    String cotQuery = "SELECT id, uid, cot_type, access, qos, opex, start, time, stale, how, point_hae, point_ce, point_le, detail, servertime, caveat, releaseableto, event_pt, ST_AsText(event_pt) FROM cot_router WHERE uid = ? ORDER BY id DESC LIMIT 1";
+		    // get latest cot event by uid, filtered by group vector
+		    String cotQuery = "SELECT id, uid, cot_type, access, qos, opex, start, time, stale, how, point_hae, point_ce, point_le, detail, servertime, caveat, releaseableto, event_pt, ST_AsText(event_pt) FROM cot_router WHERE uid = ? AND ?::bit(32768) & lpad(groups::character varying, 32768, '0')::bit(32768)::bit varying <> 0::bit(32768)::bit varying ORDER BY id DESC LIMIT 1";
 		    try {
 		    	try (Connection connection = ds.getConnection(); PreparedStatement stmt = queryWrapper.prepareStatement(cotQuery, connection)) {
 		    		stmt.setString(1, cotUid);
+		    		stmt.setString(2, groupVector);
 
 		    		try (ResultSet results = queryWrapper.doQuery(stmt)) {
 
@@ -112,11 +125,12 @@ public class GetCotDataServlet extends EsapiServlet {
 		    }
 
 		} else if (cotId >= 0) {
-		    // query DB for CoT meta-data on cotId
-		    String cotQuery = "SELECT id, uid, cot_type, access, qos, opex, start, time, stale, how, point_hae, point_ce, point_le, detail, servertime, caveat, releaseableto, event_pt, ST_AsText(event_pt) FROM cot_router WHERE id = ?";
+		    // query DB for CoT meta-data on cotId, filtered by group vector
+		    String cotQuery = "SELECT id, uid, cot_type, access, qos, opex, start, time, stale, how, point_hae, point_ce, point_le, detail, servertime, caveat, releaseableto, event_pt, ST_AsText(event_pt) FROM cot_router WHERE id = ? AND ?::bit(32768) & lpad(groups::character varying, 32768, '0')::bit(32768)::bit varying <> 0::bit(32768)::bit varying";
 		    try (Connection connection = ds.getConnection(); PreparedStatement stmt = queryWrapper.prepareStatement(cotQuery, connection)) {
 		        stmt.setInt(1, cotId);
-		        
+		        stmt.setString(2, groupVector);
+
 		        try (ResultSet results = queryWrapper.doQuery(stmt)) {
 
 		        	if (results.next() == false) {

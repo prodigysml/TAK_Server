@@ -98,7 +98,7 @@ public class CertManager {
         info.set(X509CertInfo.VALIDITY, new CertificateValidity(
                 notBefore, notAfter));
         info.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber(
-                new java.util.Random().nextInt() & 0x7fffffff));
+                new java.security.SecureRandom().nextInt() & 0x7fffffff));
         info.set(X509CertInfo.VERSION,
                 new CertificateVersion(CertificateVersion.V3));
         info.set(X509CertInfo.ALGORITHM_ID,

@@ -6,6 +6,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputFilter;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.HashMap;
@@ -154,6 +155,8 @@ public final class MetadataUtils {
 		oos.writeObject(object);
 		ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
 		ObjectInputStream ois = new ObjectInputStream(bais);
+		ois.setObjectInputFilter(ObjectInputFilter.Config.createFilter(
+				"java.base/*;java.util.*;!*"));
 		return ois.readObject();
 	 }
 

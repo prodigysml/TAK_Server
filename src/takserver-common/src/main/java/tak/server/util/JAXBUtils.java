@@ -8,6 +8,9 @@ import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.transform.sax.SAXSource;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -16,6 +19,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.xml.sax.InputSource;
 
 public class JAXBUtils {
 
@@ -33,9 +37,21 @@ public class JAXBUtils {
      * @throws JAXBException         If a parsing exception occurs
      */
     public static <T> T loadJAXifiedXML(InputStream xmlInputStream, String packageName) throws FileNotFoundException, JAXBException {
-        JAXBContext jc = JAXBContext.newInstance(packageName);
-        Unmarshaller u = jc.createUnmarshaller();
-        return (T) u.unmarshal(xmlInputStream);
+        try {
+            SAXParserFactory spf = SAXParserFactory.newInstance();
+            spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            spf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            SAXSource source = new SAXSource(spf.newSAXParser().getXMLReader(), new InputSource(xmlInputStream));
+            JAXBContext jc = JAXBContext.newInstance(packageName);
+            Unmarshaller u = jc.createUnmarshaller();
+            return (T) u.unmarshal(source);
+        } catch (JAXBException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new JAXBException("Error creating secure XML parser", e);
+        }
     }
 
     /**
@@ -55,9 +71,15 @@ public class JAXBUtils {
 
         try {
             InputStream is = new FileInputStream(f);
+            SAXParserFactory spf = SAXParserFactory.newInstance();
+            spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            spf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            SAXSource source = new SAXSource(spf.newSAXParser().getXMLReader(), new InputSource(is));
             JAXBContext jc = JAXBContext.newInstance(packageName);
             Unmarshaller u = jc.createUnmarshaller();
-            Object result = u.unmarshal(is);
+            Object result = u.unmarshal(source);
             is.close();
             return (T) result;
         } catch (FileNotFoundException ex) {

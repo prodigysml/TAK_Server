@@ -307,9 +307,10 @@ public class ProfileAdminAPI extends BaseRestController {
             throw new NotFoundException();
         }
 
+        String safeName = profileFile.getName().replaceAll("[\\r\\n\"\\\\]", "_");
         response.addHeader(
                 "Content-Disposition",
-                "attachment; filename=" + profileFile.getName());
+                "attachment; filename=\"" + safeName + "\"");
 
         return profileFile.getData();
     }
