@@ -283,7 +283,7 @@ public class MissionApi extends BaseRestController {
 					missionService.validatePassword(mission, password);
 
 					String token = missionService.generateToken(
-							UUID.randomUUID().toString(), mission.getGuidAsUUID(), mission.getName(), MissionTokenUtils.TokenType.ACCESS, -1);
+							UUID.randomUUID().toString(), mission.getGuidAsUUID(), mission.getName(), MissionTokenUtils.TokenType.ACCESS, 48 * 60 * 60 * 1000L);
 					mission.setToken(token);
 
 				} else if (!missionService.validatePermission(MissionPermission.Permission.MISSION_READ, request)) {
@@ -377,7 +377,7 @@ public class MissionApi extends BaseRestController {
 
 						// using guid instead of mission name in token claim
 						String token = missionService.generateToken(
-								UUID.randomUUID().toString(), missionGuid,  mission.getName(), MissionTokenUtils.TokenType.ACCESS, -1);
+								UUID.randomUUID().toString(), missionGuid,  mission.getName(), MissionTokenUtils.TokenType.ACCESS, 48 * 60 * 60 * 1000L);
 						mission.setToken(token);
 
 					} else if (!missionService.validatePermission(MissionPermission.Permission.MISSION_READ, request)) {
@@ -2290,7 +2290,7 @@ public class MissionApi extends BaseRestController {
 		missionService.validatePassword(mission, password);
 
 		String token = missionService.generateToken(
-				UUID.randomUUID().toString(), mission.getGuidAsUUID(),  mission.getName(), MissionTokenUtils.TokenType.ACCESS, -1);
+				UUID.randomUUID().toString(), mission.getGuidAsUUID(),  mission.getName(), MissionTokenUtils.TokenType.ACCESS, 48 * 60 * 60 * 1000L);
 
 		return new ApiResponse<String>(
 				Constants.API_VERSION, String.class.getName(), token);
@@ -3637,7 +3637,7 @@ public class MissionApi extends BaseRestController {
 				}
 
 				String token = missionService.generateToken(
-						UUID.randomUUID().toString(), mission.getGuidAsUUID(),  mission.getName(), MissionTokenUtils.TokenType.INVITATION, -1);
+						UUID.randomUUID().toString(), mission.getGuidAsUUID(),  mission.getName(), MissionTokenUtils.TokenType.INVITATION, 7 * 24 * 60 * 60 * 1000L);
 				missionInvitation.setToken(token);
 
 				missionInvitation.setRole(role);
@@ -3759,7 +3759,7 @@ public class MissionApi extends BaseRestController {
 				}
 
 				String token = missionService.generateToken(
-						UUID.randomUUID().toString(), mission.getGuidAsUUID(),  mission.getName(), MissionTokenUtils.TokenType.INVITATION, -1);
+						UUID.randomUUID().toString(), mission.getGuidAsUUID(),  mission.getName(), MissionTokenUtils.TokenType.INVITATION, 7 * 24 * 60 * 60 * 1000L);
 				missionInvitation.setToken(token);
 
 				missionInvitation.setRole(role);
