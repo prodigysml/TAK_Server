@@ -1939,12 +1939,12 @@ public class MissionApi extends BaseRestController {
 		missionRepository.removeAllKeywordsForMissionUid(mission.getId(), uid);
 
 		StringWriter changes = new StringWriter();
-		changes.append("<uidKeywords uid=\"" + uid + "\">");
+		changes.append("<uidKeywords uid=\"" + escapeXmlAttr(uid) + "\">");
 
 		for (String keyword : keywords) {
 			try {
 				missionRepository.addMissionUidKeyword(mission.getId(), uid, keyword);
-				changes.append("<uidKeyword keyword=\"" + keyword + "\" />");
+				changes.append("<uidKeyword keyword=\"" + escapeXmlAttr(keyword) + "\" />");
 			} catch (DataIntegrityViolationException e) {
 				logger.debug("can't add duplicate keyword " + keyword);
 			}
@@ -2010,12 +2010,12 @@ public class MissionApi extends BaseRestController {
 		missionRepository.removeAllKeywordsForMissionResource(mission.getId(), hash);
 
 		StringWriter changes = new StringWriter();
-		changes.append("<contentKeywords hash=\"" + hash + "\">");
+		changes.append("<contentKeywords hash=\"" + escapeXmlAttr(hash) + "\">");
 
 		for (String keyword : keywords) {
 			try {
 				missionRepository.addMissionResourceKeyword(mission.getId(), hash, keyword);
-				changes.append("<contentKeyword keyword=\"" + keyword + "\" />");
+				changes.append("<contentKeyword keyword=\"" + escapeXmlAttr(keyword) + "\" />");
 			} catch (DataIntegrityViolationException e) {
 				logger.debug("can't add duplicate keyword " + keyword);
 			}
@@ -4916,5 +4916,11 @@ public class MissionApi extends BaseRestController {
 		return () -> {
 			return new ApiResponse<Integer>(Constants.API_VERSION, Mission.class.getSimpleName(), missions);
 		};
+	}
+
+	private static String escapeXmlAttr(String value) {
+		if (value == null) return "";
+		return value.replace("&", "&amp;").replace("'", "&apos;")
+				.replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 }
