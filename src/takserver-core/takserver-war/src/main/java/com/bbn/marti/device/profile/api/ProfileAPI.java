@@ -36,8 +36,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.bbn.marti.remote.exception.ForbiddenException;
 
 @RestController
 public class ProfileAPI extends BaseRestController {
@@ -72,10 +74,25 @@ public class ProfileAPI extends BaseRestController {
 
 
 
+    private void validateClientUidOwnership(String clientUid) {
+        String authenticatedUser = SecurityContextHolder.getContext().getAuthentication().getName();
+        RemoteSubscription subscription = subscriptionManager.getRemoteSubscriptionByClientUid(clientUid);
+        if (subscription != null && subscription.getUsername() != null
+                && !subscription.getUsername().equals(authenticatedUser)) {
+            // also check User.getId() in case username field isn't populated
+            if (subscription.getUser() == null || subscription.getUser().getId() == null
+                    || !subscription.getUser().getId().equals(authenticatedUser)) {
+                throw new ForbiddenException("Not authorized to access profile for clientUid: " + clientUid);
+            }
+        }
+    }
+
     private String getGroupVectorFromStreamingClient(String clientUid, String groupVector) {
         try {
             if (CoreConfigFacade.getInstance().getRemoteConfiguration().getProfile() != null &&
                     CoreConfigFacade.getInstance().getRemoteConfiguration().getProfile().isUseStreamingGroup()) {
+                validateClientUidOwnership(clientUid);
+
                 RemoteSubscription subscription = subscriptionManager.getRemoteSubscriptionByClientUid(clientUid);
                 if (subscription != null) {
                     String groupVectorTmp = groupManager.getCachedOutboundGroupVectorByConnectionId(
@@ -85,6 +102,8 @@ public class ProfileAPI extends BaseRestController {
                     }
                 }
             }
+        } catch (ForbiddenException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("exception getting groupVector from streaming user", e);
         }
