@@ -574,8 +574,20 @@ public class ExCheckAPI extends BaseRestController {
      * @throws IOException
      *             if a read error occurs
      */
-    private byte[] readByteArray(InputStream in) throws IOException {
+    private static final int MAX_XML_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10 MB
 
-        return ByteStreams.toByteArray(in);
+    private byte[] readByteArray(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int totalRead = 0;
+        int n;
+        while ((n = in.read(buf)) != -1) {
+            totalRead += n;
+            if (totalRead > MAX_XML_PAYLOAD_SIZE) {
+                throw new IOException("XML payload exceeds maximum allowed size of " + MAX_XML_PAYLOAD_SIZE + " bytes");
+            }
+            out.write(buf, 0, n);
+        }
+        return out.toByteArray();
     }
 }
