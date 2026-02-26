@@ -144,6 +144,12 @@ public class GetCotDataServlet extends EsapiServlet {
 		response.getWriter().write(buildJson(doc));
 	}
 
+	private static String escapeJson(String value) {
+		if (value == null) return "";
+		return value.replace("\\", "\\\\").replace("\"", "\\\"")
+				.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+	}
+
 	private String buildJson(Document doc) {
 		String ret = "{ ";
 		if (doc.getRootElement().element("detail") != null
@@ -151,24 +157,24 @@ public class GetCotDataServlet extends EsapiServlet {
 				&& doc.getRootElement().element("detail").element("remarks")
 						.getText() != null) {
 			ret += " \"remarks\" : \""
-					+ doc.getRootElement().element("detail").element("remarks")
-							.getText() + "\",";
+					+ escapeJson(doc.getRootElement().element("detail").element("remarks")
+							.getText()) + "\",";
 		}
-		ret += " \"uid\" : \"" + doc.getRootElement().attributeValue("uid")
+		ret += " \"uid\" : \"" + escapeJson(doc.getRootElement().attributeValue("uid"))
 				+ "\",";
-		ret += " \"type\" : \"" + doc.getRootElement().attributeValue("type")
+		ret += " \"type\" : \"" + escapeJson(doc.getRootElement().attributeValue("type"))
 				+ "\",";
-		ret += " \"how\" : \"" + doc.getRootElement().attributeValue("how")
+		ret += " \"how\" : \"" + escapeJson(doc.getRootElement().attributeValue("how"))
 				+ "\",";
-		ret += " \"lat\" : \"" + doc.getRootElement().element("point").attributeValue("lat")
+		ret += " \"lat\" : \"" + escapeJson(doc.getRootElement().element("point").attributeValue("lat"))
 				+ "\",";
-		ret += " \"lon\" : \"" + doc.getRootElement().element("point").attributeValue("lon")
+		ret += " \"lon\" : \"" + escapeJson(doc.getRootElement().element("point").attributeValue("lon"))
 				+ "\",";
-		ret += " \"hae\" : \"" + doc.getRootElement().element("point").attributeValue("hae")
+		ret += " \"hae\" : \"" + escapeJson(doc.getRootElement().element("point").attributeValue("hae"))
 				+ "\",";
-		ret += " \"le\" : \"" + doc.getRootElement().element("point").attributeValue("le")
+		ret += " \"le\" : \"" + escapeJson(doc.getRootElement().element("point").attributeValue("le"))
 				+ "\",";
-		ret += " \"ce\" : \"" + doc.getRootElement().element("point").attributeValue("ce")
+		ret += " \"ce\" : \"" + escapeJson(doc.getRootElement().element("point").attributeValue("ce"))
 				+ "\" }";
 		return ret;
 	}
