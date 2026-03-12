@@ -240,7 +240,7 @@ public class KmlUtils {
 
         } catch (Exception e) { }
 
-        return "Type: " + StringEscapeUtils.escapeHtml4(qr.cottype) + "<br> Time: " + StringEscapeUtils.escapeHtml4(qr.prettytime) + " (" + StringEscapeUtils.escapeHtml4(qr.servertime) + ")<br> " + location + remarks;
+        return "Type: " + StringEscapeUtils.escapeHtml4(qr.cottype) + "<br> Time: " + StringEscapeUtils.escapeHtml4(qr.prettytime) + " (" + StringEscapeUtils.escapeHtml4(String.valueOf(qr.servertime)) + ")<br> " + location + remarks;
     }
 
     public static void getImageUrlList(List<CotElement> events, Map<String, byte[]> images, int maxImages, String baseUrl, KMLDao kmlDao, Set<String> uids) {

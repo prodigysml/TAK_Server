@@ -265,7 +265,7 @@ public class CotImageBean implements Serializable {
 
 
 	public static Document buildCot(ResultSet results) throws SQLException,
-	DocumentException {
+	DocumentException, org.xml.sax.SAXException {
 		SimpleDateFormat dateFormat = new SimpleDateFormat(Constants.COT_DATE_FORMAT);
 		dateFormat.setTimeZone(new SimpleTimeZone(0, "UTC"));
 
