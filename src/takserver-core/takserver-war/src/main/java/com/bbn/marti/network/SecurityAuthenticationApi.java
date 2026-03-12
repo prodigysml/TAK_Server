@@ -96,10 +96,30 @@ public class SecurityAuthenticationApi extends BaseRestController {
             "Auth config testing " + (result == HttpStatus.OK ? "passed" : "failed")), result);
     }
 
+    private static final String PASSWORD_REDACTED = "********";
+
     @RequestMapping(value = "/security/config", method = RequestMethod.GET)
     public ResponseEntity<ApiResponse<SecurityConfigInfo>> getSecConfig() {
         try {
             SecurityConfigInfo info = securityManager.getSecurityConfig();
+            if (info != null) {
+                // Redact passwords - never send them to the client
+                if (info.getKeystorePass() != null && !info.getKeystorePass().isEmpty()) {
+                    info.setKeystorePass(PASSWORD_REDACTED);
+                }
+                if (info.getTruststorePass() != null && !info.getTruststorePass().isEmpty()) {
+                    info.setTruststorePass(PASSWORD_REDACTED);
+                }
+                if (info.getSigningKeystorePass() != null && !info.getSigningKeystorePass().isEmpty()) {
+                    info.setSigningKeystorePass(PASSWORD_REDACTED);
+                }
+                if (info.getMscaPassword() != null && !info.getMscaPassword().isEmpty()) {
+                    info.setMscaPassword(PASSWORD_REDACTED);
+                }
+                if (info.getMscaTruststorePass() != null && !info.getMscaTruststorePass().isEmpty()) {
+                    info.setMscaTruststorePass(PASSWORD_REDACTED);
+                }
+            }
             return new ResponseEntity<ApiResponse<SecurityConfigInfo>>(new ApiResponse<SecurityConfigInfo>(Constants.API_VERSION, SecurityConfigInfo.class.getName(), info), HttpStatus.OK);
         } catch (Exception e) {
             logger.error("Error getting security config: " + e.toString());
@@ -110,6 +130,26 @@ public class SecurityAuthenticationApi extends BaseRestController {
     @RequestMapping(value = "/security/config", method = RequestMethod.PUT)
     public ResponseEntity<ApiResponse<String>> modifySecConfig(@RequestBody SecurityConfigInfo info) {
         try {
+            // If passwords were not changed (still the redacted sentinel), preserve the existing values
+            SecurityConfigInfo existingConfig = securityManager.getSecurityConfig();
+            if (existingConfig != null) {
+                if (PASSWORD_REDACTED.equals(info.getKeystorePass())) {
+                    info.setKeystorePass(existingConfig.getKeystorePass());
+                }
+                if (PASSWORD_REDACTED.equals(info.getTruststorePass())) {
+                    info.setTruststorePass(existingConfig.getTruststorePass());
+                }
+                if (PASSWORD_REDACTED.equals(info.getSigningKeystorePass())) {
+                    info.setSigningKeystorePass(existingConfig.getSigningKeystorePass());
+                }
+                if (PASSWORD_REDACTED.equals(info.getMscaPassword())) {
+                    info.setMscaPassword(existingConfig.getMscaPassword());
+                }
+                if (PASSWORD_REDACTED.equals(info.getMscaTruststorePass())) {
+                    info.setMscaTruststorePass(existingConfig.getMscaTruststorePass());
+                }
+            }
+
             File keystoreFileObj = new File(info.getKeystoreFile());
             File truststoreFileObj = new File(info.getTruststoreFile());
             if (!keystoreFileObj.exists()) {
