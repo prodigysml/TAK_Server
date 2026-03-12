@@ -98,6 +98,7 @@ dependencies {
     exclude group: 'log4j', module: 'log4j'
     exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
   }
+  implementation group: 'io.micrometer', name: 'micrometer-core', version: micrometer_version
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: spring_boot_version
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-jetty', version: spring_boot_version
   implementation group: 'org.springframework.boot', name: 'spring-boot-starter-security', version: spring_boot_version
