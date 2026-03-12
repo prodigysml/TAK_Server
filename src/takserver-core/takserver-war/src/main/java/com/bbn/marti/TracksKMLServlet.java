@@ -259,7 +259,7 @@ public class TracksKMLServlet extends EsapiServlet {
 				logger.error("exception in insertCotTrack", e);
 				return false;
 			} 
-		} catch (DocumentException ex) {
+		} catch (DocumentException | org.xml.sax.SAXException ex) {
 			logger.warn("document exception", ex);
 		}
 		
