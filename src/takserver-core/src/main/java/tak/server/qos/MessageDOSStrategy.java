@@ -136,7 +136,9 @@ public class MessageDOSStrategy extends MessageBaseStrategy<CotEventContainer> {
 	@Override
 	public void enable() {
 		enabled.set(true);
-		changeRateLimitIfRequired((int) metrics.getMetrics().getNumClients());
+		if (subscriptionManager != null) {
+			changeRateLimitIfRequired(subscriptionManager.getLocalSubscriptionCount());
+		}
 		log.info(getClass().getSimpleName() + " enabled");
 	}
 

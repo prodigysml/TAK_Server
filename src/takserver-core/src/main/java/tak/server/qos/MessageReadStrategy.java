@@ -72,8 +72,8 @@ public class MessageReadStrategy extends MessageBaseStrategy<CotEventContainer> 
 
 		// sort rate threshold in descending order, because we will use the first rate that matches client count
 		rateThresholds.sort(Collections.reverseOrder());
-		if (enabled.get() && metrics != null && metrics.getMetrics() != null) {
-			changeRateLimitIfRequired((int) metrics.getMetrics().getNumClients());
+		if (enabled.get() && subscriptionManager != null) {
+			changeRateLimitIfRequired(subscriptionManager.getLocalSubscriptionCount());
 		}
 
 	}
@@ -130,7 +130,9 @@ public class MessageReadStrategy extends MessageBaseStrategy<CotEventContainer> 
 	@Override
 	public void enable() {
 		enabled.set(true);
-		changeRateLimitIfRequired((int) metrics.getMetrics().getNumClients());
+		if (subscriptionManager != null) {
+			changeRateLimitIfRequired(subscriptionManager.getLocalSubscriptionCount());
+		}
 		log.info(getClass().getSimpleName() + " enabled");
 	}
 
