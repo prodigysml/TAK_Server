@@ -1973,12 +1973,6 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
             if (entry.getValue().getFederateIdentity().equals(dest)) {
                 Message filteredMessage = message;
 
-                // Fail closed: if a subscription filter is configured, block delivery since the filter engine is not implemented
-                if (!Strings.isNullOrEmpty(entry.getValue().getSubscription().getFilter())) {
-                    logger.warn("Dropping V1 message to {} - subscription filter is configured but filter engine is not implemented", dest.getFedId());
-                    continue;
-                }
-
                 if (logger.isTraceEnabled()) {
                     logger.trace("Sending message {} from {} to {}", message.toString(), src, dest);
                 }
