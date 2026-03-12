@@ -88,6 +88,8 @@ public class JAXBUtils {
         } catch (IOException ex) {
             logger.error("Error loading XML from " + xmlFile, ex);
             return null;
+        } catch (Exception ex) {
+            throw new JAXBException("Error creating secure XML parser for " + xmlFile, ex);
         }
     }
 
