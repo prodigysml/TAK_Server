@@ -39,6 +39,7 @@ public class JAXBUtils {
     public static <T> T loadJAXifiedXML(InputStream xmlInputStream, String packageName) throws FileNotFoundException, JAXBException {
         try {
             SAXParserFactory spf = SAXParserFactory.newInstance();
+            spf.setNamespaceAware(true);
             spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
             spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
@@ -72,6 +73,7 @@ public class JAXBUtils {
         try {
             InputStream is = new FileInputStream(f);
             SAXParserFactory spf = SAXParserFactory.newInstance();
+            spf.setNamespaceAware(true);
             spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
             spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
