@@ -61,7 +61,7 @@ public class EditSubscriptionServlet extends EsapiServlet {
 	            .lookup("//127.0.0.1:3334/SubMgr");
 	         subMgr.setXpathForUid(uid, xpath);
 	         response.setStatus(HttpServletResponse.SC_OK);
-		} catch (IllegalArgumentException iae) {
+		} catch (IllegalArgumentException | org.owasp.esapi.errors.ValidationException | javax.xml.xpath.XPathExpressionException iae) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "XPath argument failed validation check.");
 		} catch (RemoteException ri) {
 			response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Runtime error executing RMI call.");
