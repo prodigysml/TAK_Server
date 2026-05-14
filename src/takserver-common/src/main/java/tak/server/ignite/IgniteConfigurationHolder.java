@@ -2,14 +2,17 @@ package tak.server.ignite;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.ignite.IgniteCheckedException;
@@ -314,16 +317,51 @@ public class IgniteConfigurationHolder {
 
 				TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
 
-				String address = takIgniteConfiguration.getIgniteHost() + ":" + takIgniteConfiguration.getIgniteNonMulticastDiscoveryPort() +
-						".." + (takIgniteConfiguration.getIgniteNonMulticastDiscoveryPort() + takIgniteConfiguration.getIgniteNonMulticastDiscoveryPortCount());
-				ipFinder.setAddresses(Arrays.asList(address));
-				
-				logger.trace("ignite grid discovery address: {}", address);
+				int discoveryPort = takIgniteConfiguration.getIgniteNonMulticastDiscoveryPort();
+				int discoveryPortCount = takIgniteConfiguration.getIgniteNonMulticastDiscoveryPortCount();
+				String portRange = ":" + discoveryPort + ".." + (discoveryPort + discoveryPortCount);
+
+				List<String> addresses = new ArrayList<>();
+
+				// IGNITE_DISCOVERY_PEERS env var: comma-separated list of
+				// DNS names or IP addresses. Each is DNS-resolved to all A
+				// records and added to the IpFinder seed list. Lets Ignite
+				// nodes discover peers via a Cloud Map / DNS service name
+				// (e.g. tak.<namespace>.local resolving to all task IPs)
+				// without coupling discovery to the bind host.
+				//
+				// When set, this REPLACES the default single-host seed
+				// (igniteHost:port). Otherwise the original single-host
+				// behavior is preserved for backwards compatibility.
+				String extraPeersEnv = System.getenv("IGNITE_DISCOVERY_PEERS");
+				if (extraPeersEnv != null && !extraPeersEnv.trim().isEmpty()) {
+					for (String peer : extraPeersEnv.split(",")) {
+						String trimmed = peer.trim();
+						if (trimmed.isEmpty()) continue;
+						try {
+							for (InetAddress addr : InetAddress.getAllByName(trimmed)) {
+								String peerAddr = addr.getHostAddress() + portRange;
+								addresses.add(peerAddr);
+								logger.info("Added ignite discovery peer from IGNITE_DISCOVERY_PEERS: {}", peerAddr);
+							}
+						} catch (Exception e) {
+							logger.warn("Failed to resolve ignite discovery peer '{}': {}", trimmed, e.getMessage());
+						}
+					}
+				}
+
+				if (addresses.isEmpty()) {
+					addresses.add(takIgniteConfiguration.getIgniteHost() + portRange);
+				}
+
+				ipFinder.setAddresses(addresses);
+
+				logger.info("ignite grid discovery addresses: {}", addresses);
 
 				spi.setIpFinder(ipFinder);
 
-				spi.setLocalPort(takIgniteConfiguration.getIgniteNonMulticastDiscoveryPort());
-				spi.setLocalPortRange(takIgniteConfiguration.getIgniteNonMulticastDiscoveryPortCount());
+				spi.setLocalPort(discoveryPort);
+				spi.setLocalPortRange(discoveryPortCount);
 			}
 			
 			standaloneConf.setDiscoverySpi(spi);
