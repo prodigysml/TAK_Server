@@ -250,7 +250,7 @@ public class ProtoBufHelper {
 
 				rootE.add(detailE);
 
-			} catch (DocumentException | org.xml.sax.SAXException e) {
+			} catch (DocumentException e) {
 				logger.warn("exception converting proto to CoT", e);
 			}
 		}
