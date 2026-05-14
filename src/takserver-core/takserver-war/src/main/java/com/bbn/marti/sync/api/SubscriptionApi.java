@@ -1046,7 +1046,7 @@ public class SubscriptionApi extends BaseRestController {
         }
     }
 
-    @RequestMapping(value = "/groups/update/{username:.+}", method = RequestMethod.GET)
+    @RequestMapping(value = "/groups/update/{username:.+}", method = RequestMethod.POST)
     public ResponseEntity groupsUpdated(@PathVariable(value = "username") String username) {
         try {
             // reauthenticate currently connected streaming clients for this username

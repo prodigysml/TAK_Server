@@ -97,7 +97,7 @@ services.factory('FederateRemoteGroupsService', function($resource) {
 
 services.factory('FederationClearEventsService', function($resource) {
     return $resource('/Marti/api/clearFederationEvents/', {}, {
-	'clear': {method: "GET", isArray: false}
+	'clear': {method: "DELETE", isArray: false}
     })
 });
 

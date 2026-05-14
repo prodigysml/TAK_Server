@@ -1374,10 +1374,10 @@ public class FederationApi extends BaseRestController {
 		return federationInterface.incrementAndGetCounter();
 	}
 	
-	@RequestMapping(value = "/clearFederationEvents", method = RequestMethod.GET)
+	@RequestMapping(value = "/clearFederationEvents", method = RequestMethod.DELETE)
 	public void clearDisruptionData() {
 		fedEventRepository.clearFederationEvents();
-		
+
 		logger.info("Federation events cleared");
 	}
 	

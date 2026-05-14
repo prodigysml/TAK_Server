@@ -122,7 +122,7 @@
 		  for(var i = 0; i < count; i++) {
 			  if(document.getElementById("repeatable_" + i).checked) {
 				  var uid = document.getElementById("repeatable_" + i).dataset.uid;
-				  $http.get('../api/repeater/remove/' + uid).then(
+				  $http.delete('../api/repeater/remove/' + uid).then(
 						  function(data, status, headers, config) {
 							  //$scope.retrieveList();
 						  },

@@ -79,7 +79,7 @@ public class RepeaterApi extends BaseRestController {
 		}
 	}
 	
-	@RequestMapping(value = "/remove/{uid:.+}", method = RequestMethod.GET)
+	@RequestMapping(value = "/remove/{uid:.+}", method = RequestMethod.DELETE)
     public ResponseEntity<ApiResponse<Boolean>> remove(@PathVariable("uid") String uid) {
 		HttpStatus responseCode = HttpStatus.OK;
 		boolean messageRemoved = false;
