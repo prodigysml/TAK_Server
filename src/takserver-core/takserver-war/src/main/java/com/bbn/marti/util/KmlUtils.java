@@ -386,10 +386,7 @@ public class KmlUtils {
     public static Feature buildRangeAndBearing(CotElement qr, Document kmlDoc) {
         try {
 
-            SAXReader reader = new SAXReader();
-            reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
             org.dom4j.Document doc = reader.read(new java.io.StringReader(qr.detailtext));
             if (doc == null) {
                 return null;

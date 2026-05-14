@@ -188,7 +188,7 @@ public class StreamingProtoBufProtocol extends AbstractBroadcastingProtocol<CotE
                     data.getUid() + ".cot", url, dataXml.length(), new String[]{});
 
             // convert the fileTransfer message to protobuf
-            SAXReader reader = new SAXReader();
+            SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
             Document doc = reader.read(new ByteArrayInputStream(fileTransferXml.getBytes()));
             CotEventContainer container = new CotEventContainer(doc);
             TakMessage takMessage = StreamingProtoBufHelper.cot2protoBuf(container);

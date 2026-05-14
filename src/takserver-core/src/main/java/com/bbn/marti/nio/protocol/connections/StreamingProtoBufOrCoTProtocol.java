@@ -187,7 +187,7 @@ public class StreamingProtoBufOrCoTProtocol extends AbstractBroadcastingProtocol
                 "</TakControl></detail>" +
 		        "</event>";
 
-		SAXReader reader = new SAXReader();
+		SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 		Document doc = reader.read(new ByteArrayInputStream(announcement.getBytes()));
 		CotEventContainer cotEventContainer = new CotEventContainer(doc);
 		return cotEventContainer;
@@ -255,7 +255,7 @@ public class StreamingProtoBufOrCoTProtocol extends AbstractBroadcastingProtocol
 		        "<detail><TakControl><TakResponse status='" + status + "'/></TakControl></detail>" +
 		        "</event>";
 
-		SAXReader reader = new SAXReader();
+		SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 		Document doc = reader.read(new ByteArrayInputStream(response.getBytes()));
 		CotEventContainer cotEventContainer = new CotEventContainer(doc);
 		return cotEventContainer;

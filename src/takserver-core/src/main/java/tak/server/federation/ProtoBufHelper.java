@@ -231,10 +231,7 @@ public class ProtoBufHelper {
 		.addAttribute("le", Double.toString(geo.getLe()));
 		if (!Strings.isNullOrEmpty(geo.getOther())) {
 			try {
-				SAXReader reader = new SAXReader();
-				reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-				reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-				reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+				SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 				Document otherDoc = reader.read(new StringReader(geo.getOther()));
 				Element detailE = otherDoc.getRootElement();
 				detailE.addElement("track")

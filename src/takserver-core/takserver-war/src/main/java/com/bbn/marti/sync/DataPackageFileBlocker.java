@@ -248,7 +248,7 @@ public class DataPackageFileBlocker {
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
             StreamResult result = new StreamResult(bout);
 
-            SAXReader reader = new SAXReader();
+            SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 
             Document doc = null;
 

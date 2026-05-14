@@ -176,10 +176,7 @@ public class TracksKMLServlet extends EsapiServlet {
 			}			
 
 			XPath geoPointSrcExpression = DocumentHelper.createXPath("/detail/precisionlocation/@geopointsrc");
-			SAXReader saxReader = new SAXReader();
-			saxReader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-			saxReader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-			saxReader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			SAXReader saxReader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 			Document doc = saxReader.read(new java.io.StringReader(cotTrack.detailtext));
 			String geopointsrc = (String) geoPointSrcExpression.valueOf(doc);
 

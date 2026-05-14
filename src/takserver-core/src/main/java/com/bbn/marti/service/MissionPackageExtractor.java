@@ -239,7 +239,7 @@ public class MissionPackageExtractor {
 	}
 
 	private void setRealMissionPackageFlag(byte[] data)  {
-		SAXReader reader = new SAXReader();
+		SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 		Document doc = null;
 		try {
 			doc = reader.read(new ByteArrayInputStream(data));

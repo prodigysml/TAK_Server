@@ -825,8 +825,7 @@ public class SubmissionService extends BaseService implements MessagingConfigura
         // lazy initialization slowdowns
         String dummySA = "<event version=\"2.0\" uid=\"dummy\" type=\"a-f-G-U-C\" how=\"m-g\" time=\"2020-02-12T13:16:07Z\" start=\"2020-02-12T13:16:05Z\" stale=\"2020-02-12T13:16:50Z\"><point lat=\"40\" lon=\"-72\" hae=\"-22\" ce=\"4.9\" le=\"9999999.0\"/><detail><contact endpoint=\"*:-1:stcp\" callsign=\"dummy\"/><uid Droid=\"dummy\"/></detail></event>";
         try {
-        	SAXReader reader = new SAXReader();
-			reader.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        	SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 			Document doc = reader.read(new ByteArrayInputStream(dummySA.getBytes()));
 			CotEventContainer cotEventContainer = new CotEventContainer(doc);
 	        MessagingDependencyInjectionProxy.getInstance().cotMessenger().send(cotEventContainer);

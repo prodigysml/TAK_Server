@@ -197,10 +197,7 @@ public class CotImageBean implements Serializable {
 
 	private boolean hasSubElementNamed(String detailText, String elementName) {
 		try {
-			SAXReader saxReader = new SAXReader();
-			saxReader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-			saxReader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-			saxReader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			SAXReader saxReader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 			Document cotDoc = saxReader.read(new java.io.StringReader(detailText));
 			Element detailElement = cotDoc.getRootElement();
 			return detailElement.element(elementName) != null;
@@ -319,10 +316,7 @@ public class CotImageBean implements Serializable {
 		pointE.addAttribute("lon", Double.toString(lon));
 
 		String detailStr = results.getString("detail");
-		SAXReader detailReader = new SAXReader();
-		detailReader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-		detailReader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-		detailReader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+		SAXReader detailReader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 		Document detailDoc = detailReader.read(new java.io.StringReader(detailStr));
 		eventE.add(detailDoc.getRootElement());
 

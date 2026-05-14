@@ -119,7 +119,7 @@ public class DistributedSubmissionService implements SubmissionInterface {
 			
 			// insert mission-guid dest that is more specific, instead
 			String dest = "<dest mission-guid=\"" + missionGuid.toString() + "\"/>";
-			SAXReader reader = new SAXReader();
+			SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 			Document doc = reader.read(new ByteArrayInputStream(dest.getBytes(StandardCharsets.UTF_8)));
 			Element missionDestElem = DocumentHelper.makeElement(cot.getDocument(), "/event/detail/marti/");
 			missionDestElem.add(doc.getRootElement());

@@ -148,7 +148,7 @@ public class LocalConfiguration {
 			try {
 
 				File xmlFile = new File(CONFIG_FILE);
-				SAXReader reader = new SAXReader();
+				SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 				Document doc = reader.read(xmlFile);
 				Element root = doc.getRootElement();
 				Namespace namespace = root.getNamespace();

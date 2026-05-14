@@ -211,7 +211,7 @@ public class MissionArchiveHelper {
 			
 			MissionPackageManifest manifest = null;
 			try {
-				SAXReader reader = new SAXReader();
+				SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 				Document doc = reader.read(new ByteArrayInputStream(files.get("MANIFEST/manifest.xml")));
 				
 				if (doc == null) {

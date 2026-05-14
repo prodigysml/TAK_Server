@@ -1,5 +1,6 @@
 package com.bbn.marti.remote.util;
 
+import org.dom4j.io.SAXReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -72,5 +73,21 @@ public final class SecureXmlParser {
 			logger.debug("XML isn't encoded with UTF-8" + e);
 		}
 		return doc;
+	}
+
+	public static SAXReader newSecureSAXReader() {
+		SAXReader reader = new SAXReader();
+		try {
+			reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			reader.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+			reader.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+		} catch (SAXException e) {
+			logger.debug("Unable to harden SAXReader against XXE: " + e);
+		}
+		reader.setIncludeExternalDTDDeclarations(false);
+		reader.setIncludeInternalDTDDeclarations(false);
+		return reader;
 	}
 }

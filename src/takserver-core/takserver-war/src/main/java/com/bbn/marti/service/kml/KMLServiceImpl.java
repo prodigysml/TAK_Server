@@ -182,10 +182,7 @@ public class KMLServiceImpl implements KMLService {
 		org.dom4j.Document doc = null;
 
 		try {
-			SAXReader reader = new SAXReader();
-			reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-			reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-			reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			SAXReader reader = com.bbn.marti.remote.util.SecureXmlParser.newSecureSAXReader();
 			doc = reader.read(new java.io.StringReader(detailText));
 		} catch (Exception e) {
 			logger.warn("exception parsing detail field from CoT data", e);

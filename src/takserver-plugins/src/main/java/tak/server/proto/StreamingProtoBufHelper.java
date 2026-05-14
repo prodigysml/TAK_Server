@@ -433,7 +433,19 @@ public class StreamingProtoBufHelper {
 	private static ThreadLocal<SAXReader> reader =
 		    new ThreadLocal<SAXReader>() {
 		        @Override public SAXReader initialValue() {
-		            return new SAXReader();
+		            SAXReader r = new SAXReader();
+		            try {
+		                r.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+		                r.setFeature("http://xml.org/sax/features/external-general-entities", false);
+		                r.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+		                r.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+		                r.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+		            } catch (org.xml.sax.SAXException e) {
+		                logger.debug("Unable to harden SAXReader against XXE: " + e);
+		            }
+		            r.setIncludeExternalDTDDeclarations(false);
+		            r.setIncludeInternalDTDDeclarations(false);
+		            return r;
 		        }
 		    };
 
