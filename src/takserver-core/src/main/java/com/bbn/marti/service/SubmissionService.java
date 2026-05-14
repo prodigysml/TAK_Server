@@ -829,7 +829,7 @@ public class SubmissionService extends BaseService implements MessagingConfigura
 			Document doc = reader.read(new ByteArrayInputStream(dummySA.getBytes()));
 			CotEventContainer cotEventContainer = new CotEventContainer(doc);
 	        MessagingDependencyInjectionProxy.getInstance().cotMessenger().send(cotEventContainer);
-		} catch (SAXException e) {
+		} catch (org.dom4j.DocumentException e) {
 			logger.error("Could not push dummy message into pipeline", e);
 		}
     }
