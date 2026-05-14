@@ -256,7 +256,10 @@ public class TracksKMLServlet extends EsapiServlet {
 				logger.error("exception in insertCotTrack", e);
 				return false;
 			} 
-		} catch (DocumentException | org.xml.sax.SAXException ex) {
+		} catch (DocumentException ex) {
+			// SAXException removed from catch - SecureXmlParser-based SAXReader.read()
+			// throws DocumentException only, so the SAXException branch is dead code
+			// (rejected by javac as "never thrown in body").
 			logger.warn("document exception", ex);
 		}
 		
