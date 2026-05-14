@@ -1043,6 +1043,34 @@ public class RepositoryService extends BaseService {
 		return result;
 	}
 
+	public byte[] getContentByHash(String hash, String groupVector) throws SQLException, NamingException {
+		if (Strings.isNullOrEmpty(groupVector)) {
+			throw new IllegalArgumentException("empty group vector");
+		}
+
+		byte[] result = null;
+		try (Connection conn = getConnection();
+				PreparedStatement query = conn.prepareStatement(
+						"SELECT data FROM resource WHERE hash = ? "
+								+ RemoteUtil.getInstance().getGroupAndClause()
+								+ " LIMIT 1")) {
+
+			query.setString(1, hash);
+			query.setString(2, groupVector);
+
+			if (log.isDebugEnabled()) {
+				log.debug("Executing SQL: " + query);
+			}
+
+			try (ResultSet queryResults = query.executeQuery()) {
+				if (queryResults.next()) {
+					result = queryResults.getBytes(1);
+				}
+			}
+		}
+		return result;
+	}
+
 	public QueueMetric getQueueMetrics() {
 		return inputQueue.getQueueMetrics();
 	}

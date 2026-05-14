@@ -6,11 +6,16 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.sql.SQLException;
 import java.util.HashSet;
+import java.util.NavigableSet;
 import java.util.Set;
 
 import javax.naming.NamingException;
 
 import com.bbn.marti.remote.config.CoreConfigFacade;
+import com.bbn.marti.remote.groups.Direction;
+import com.bbn.marti.remote.groups.Group;
+import com.bbn.marti.remote.util.RemoteUtil;
+import com.bbn.marti.util.MessagingDependencyInjectionProxy;
 import com.google.common.base.Strings;
 import com.google.common.io.ByteStreams;
 
@@ -229,7 +234,15 @@ public class FederateSubscription extends Subscription {
 
                                     try {
                                         // access the local database directly to get the mission package contents
-                                        data = RepositoryService.getInstance().getContentByHash(hash);
+                                        // restricted to groups the federate is entitled to receive (Direction.OUT)
+                                        NavigableSet<Group> userGroups = MessagingDependencyInjectionProxy.getInstance()
+                                                .groupManager().getGroups(FederateSubscription.this.getUser());
+                                        String groupVector = RemoteUtil.getInstance().bitVectorToString(
+                                                RemoteUtil.getInstance().getBitVectorForGroups(userGroups, Direction.OUT));
+                                        if (Strings.isNullOrEmpty(groupVector) || groupVector.indexOf('1') < 0) {
+                                            throw new TakException("federate has no outbound group authorization for hash " + hash);
+                                        }
+                                        data = RepositoryService.getInstance().getContentByHash(hash, groupVector);
                                     } catch (SQLException | NamingException e) {
                                     	if (logger.isDebugEnabled()) {
                                     		logger.debug("exception mission package from local database " + e.getMessage(), e);

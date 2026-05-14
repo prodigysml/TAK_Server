@@ -1514,7 +1514,42 @@ public class TakFigClient implements Serializable {
 
 				try {
 
-					byte[] pbytes = RepositoryService.getInstance().getContentByHash(dt.getSha256());
+					NavigableSet<Group> outGroups = null;
+
+					if (getFederate().isFederatedGroupMapping()) {
+						if (federateSubscription.getIsAutoMapped()) {
+							outGroups = groupFederationUtil.autoMapGroups(rol.getFederateGroupsList());
+						} else {
+							outGroups = groupFederationUtil.addFederateGroupMapping(
+									fedManager.getInboundGroupMap(getFederate().getId()),
+									rol.getFederateGroupsList());
+						}
+
+						if ((outGroups == null || outGroups.isEmpty()) && getFederate().isFallbackWhenNoGroupMappings()) {
+							NavigableSet<Group> allGroups = groupManager.getGroups(federateSubscription.getUser());
+							outGroups = groupFederationUtil.filterGroupDirection(Direction.OUT, allGroups);
+						}
+					} else {
+						NavigableSet<Group> allGroups = groupManager.getGroups(federateSubscription.getUser());
+						outGroups = groupFederationUtil.filterGroupDirection(Direction.OUT, allGroups);
+					}
+
+					if (outGroups == null || outGroups.isEmpty()) {
+						logger.warn("'request package' ROL for hash " + dt.getSha256()
+								+ " from federate has no authorized groups - ignoring.");
+						return;
+					}
+
+					String groupVector = RemoteUtil.getInstance().bitVectorToString(
+							RemoteUtil.getInstance().getBitVectorForGroups(outGroups, Direction.OUT));
+
+					if (Strings.isNullOrEmpty(groupVector) || groupVector.indexOf('1') < 0) {
+						logger.warn("'request package' ROL for hash " + dt.getSha256()
+								+ " from federate yielded empty outbound group vector - ignoring.");
+						return;
+					}
+
+					byte[] pbytes = RepositoryService.getInstance().getContentByHash(dt.getSha256(), groupVector);
 
 					if (pbytes != null && pbytes.length > 0) {
 						if (logger.isDebugEnabled()) {
