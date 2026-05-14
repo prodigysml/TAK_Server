@@ -74,8 +74,8 @@
 			<sec:filter-security-metadata-source request-matcher="ant" use-expressions="false">
 
 			  <!-- plugin data API -->
-			  <sec:intercept-url pattern="/Marti/api/plugins/*/submit" access="ROLE_ANONYMOUS"/>
-			  <sec:intercept-url pattern="/Marti/api/plugins/*/submit/result" access="ROLE_ANONYMOUS"/>
+			  <sec:intercept-url pattern="/Marti/api/plugins/*/submit" access="ROLE_NON_ADMIN_UI"/>
+			  <sec:intercept-url pattern="/Marti/api/plugins/*/submit/result" access="ROLE_NON_ADMIN_UI"/>
 
 			  <!-- require admin access for user manager -->
 	  	      <sec:intercept-url pattern="/users/**" access="ROLE_ADMIN" />
