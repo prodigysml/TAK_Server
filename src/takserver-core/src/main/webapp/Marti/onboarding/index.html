@@ -72,7 +72,8 @@
         <thead>
           <tr>
             <th>Username</th>
-            <th style="width:130px;">Cert on EFS</th>
+            <th style="width:140px;">Cert on EFS</th>
+            <th style="width:140px;">In auth file</th>
             <th style="width:380px;">Actions</th>
           </tr>
         </thead>
@@ -82,6 +83,11 @@
             <td>
               <span class="label" ng-class="u.hasCert ? 'label-success' : 'label-default'">
                 {{u.hasCert ? 'yes' : 'no'}}
+              </span>
+            </td>
+            <td>
+              <span class="label" ng-class="u.inAuthFile ? 'label-info' : 'label-warning'">
+                {{u.inAuthFile ? 'yes' : 'no'}}
               </span>
             </td>
             <td class="actions-col">
