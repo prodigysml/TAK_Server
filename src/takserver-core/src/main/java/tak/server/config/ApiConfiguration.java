@@ -69,6 +69,7 @@ import com.bbn.marti.logs.LogServlet;
 import com.bbn.marti.maplayer.MapLayerService;
 import com.bbn.marti.maplayer.api.MapLayersApi;
 import com.bbn.marti.network.ContactManagerApi;
+import com.bbn.marti.network.OnboardingApi;
 import com.bbn.marti.network.ContactManagerService;
 import com.bbn.marti.network.FederationApi;
 import com.bbn.marti.network.FederationConfigApi;
@@ -634,6 +635,11 @@ public class ApiConfiguration implements WebMvcConfigurer {
 	@Bean
 	public ContactManagerApi contactManagerApi() {
 		return new ContactManagerApi();
+	}
+
+	@Bean
+	public OnboardingApi onboardingApi() {
+		return new OnboardingApi();
 	}
 
 	@Bean
