@@ -79,8 +79,7 @@ import tak.server.Constants;
  *   - All actions logged with admin remote IP + target username for audit.
  */
 @RestController
-@RequestMapping("/Marti/api/onboarding")
-public class OnboardingApi {
+public class OnboardingApi extends BaseRestController {
 
 	private static final Logger logger = LoggerFactory.getLogger(OnboardingApi.class);
 
@@ -128,7 +127,7 @@ public class OnboardingApi {
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
 	}
 
-	@GetMapping("/users")
+	@GetMapping("/onboarding/users")
 	public ResponseEntity<ApiResponse<List<OnboardingUser>>> listUsers(HttpServletRequest request) throws IOException {
 		requireAdmin(request, "list", "*");
 		List<OnboardingUser> users = new ArrayList<>();
@@ -147,7 +146,7 @@ public class OnboardingApi {
 				OnboardingUser.class.getName(), users), HttpStatus.OK);
 	}
 
-	@PostMapping("/users")
+	@PostMapping("/onboarding/users")
 	public ResponseEntity<ApiResponse<OnboardingResult>> createUser(
 			@RequestBody CreateUserRequest body,
 			HttpServletRequest request) throws Exception {
@@ -197,7 +196,7 @@ public class OnboardingApi {
 				OnboardingResult.class.getName(), result), HttpStatus.OK);
 	}
 
-	@PostMapping("/users/{username}/datapackage/{platform}")
+	@PostMapping("/onboarding/users/{username}/datapackage/{platform}")
 	public ResponseEntity<byte[]> downloadDatapackage(
 			@PathVariable("username") String username,
 			@PathVariable("platform") String platform,
@@ -255,7 +254,7 @@ public class OnboardingApi {
 		return new ResponseEntity<>(zipBytes.toByteArray(), headers, HttpStatus.OK);
 	}
 
-	@DeleteMapping("/users/{username}")
+	@DeleteMapping("/onboarding/users/{username}")
 	public ResponseEntity<ApiResponse<String>> revokeUser(
 			@PathVariable("username") String username,
 			HttpServletRequest request) throws Exception {
