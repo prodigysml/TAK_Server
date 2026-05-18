@@ -102,6 +102,9 @@
 	  	      
 	  	      <!-- injector API -->
 	  	      <sec:intercept-url pattern="/Marti/api/injectors/cot/uid/**" method="DELETE" access="ROLE_ADMIN" />
+
+	  	      <!-- Contact cache invalidation: admin-only DELETE; must precede the blanket DELETE deny -->
+	  	      <sec:intercept-url pattern="/Marti/api/clientEndPoints/cache" method="DELETE" access="ROLE_ADMIN" />
 	  	      
 	  	      <!--  set federate groups security -->
 	  	      <sec:intercept-url pattern="/Marti/api/federategroups/**" access="ROLE_ADMIN" />
