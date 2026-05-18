@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bbn.marti.cot.search.model.ApiResponse;
+import com.bbn.marti.logging.AuditLogUtil;
 import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.util.CommonUtil;
 
@@ -98,13 +99,22 @@ public class OnboardingApi extends BaseRestController {
 	private final SecureRandom random = new SecureRandom();
 
 	private void requireAdmin(HttpServletRequest request, String action, String targetUser) {
+		String remote = request.getRemoteAddr();
 		if (!martiUtil.isAdmin()) {
-			logger.warn("Onboarding {} denied for non-admin from {} (target user={})",
-					action, request.getRemoteAddr(), targetUser);
+			String msg = "onboarding DENIED action=" + action
+					+ " target=" + targetUser + " remote=" + remote;
+			logger.warn(msg);
+			AuditLogUtil.auditLog(msg);
 			throw new ForbiddenException("Admin role required");
 		}
-		logger.info("Onboarding {} by admin from {} (target user={})",
-				action, request.getRemoteAddr(), targetUser);
+		String msg = "onboarding action=" + action
+				+ " target=" + targetUser + " remote=" + remote;
+		logger.info(msg);
+		// Route to TAK's audit log appender so the action ends up in
+		// logs/takserver-db-audit.log alongside other admin-driven writes.
+		// The current authenticated admin DN is captured by the audit log
+		// MDC (set per-request by initAuditLog elsewhere in the stack).
+		AuditLogUtil.auditLog(msg);
 	}
 
 	private void validateUsername(String username) {
@@ -313,12 +323,31 @@ public class OnboardingApi extends BaseRestController {
 		up.getInputStream().readAllBytes();
 		up.waitFor();
 
-		for (String ext : new String[]{".pem", ".key", ".csr", ".jks", ".p12"}) {
-			File f = new File(CERTS_FILES_DIR, username + ext);
-			if (f.exists()) {
-				if (!f.delete()) {
-					logger.warn("Failed to delete {} on EFS for offboarded user", f.getAbsolutePath());
+		// Clean every artifact makeCert.sh produces. The script writes the
+		// primary credentials at the literal SNAME, and a -trusted variant
+		// plus truststore-<sname>.p12 + config-<sname>.cfg. SNAME is the
+		// raw arg, so usually matches our username case-for-case, but the
+		// underlying openssl pieces sometimes leave lowercased filenames.
+		// Cover both casings so an offboarded user never lingers on EFS.
+		String[] casings = username.equals(username.toLowerCase())
+				? new String[]{username}
+				: new String[]{username, username.toLowerCase()};
+		String[] suffixes = {".pem", ".key", ".csr", ".jks", ".p12", "-trusted.pem"};
+		for (String cas : casings) {
+			for (String ext : suffixes) {
+				File f = new File(CERTS_FILES_DIR, cas + ext);
+				if (f.exists() && !f.delete()) {
+					logger.warn("Failed to delete {} on EFS for offboarded user",
+							f.getAbsolutePath());
 				}
+			}
+			File ts = new File(CERTS_FILES_DIR, "truststore-" + cas + ".p12");
+			if (ts.exists() && !ts.delete()) {
+				logger.warn("Failed to delete {} on EFS for offboarded user", ts.getAbsolutePath());
+			}
+			File cfg = new File(CERTS_DIR, "config-" + cas + ".cfg");
+			if (cfg.exists() && !cfg.delete()) {
+				logger.warn("Failed to delete {} on EFS for offboarded user", cfg.getAbsolutePath());
 			}
 		}
 
