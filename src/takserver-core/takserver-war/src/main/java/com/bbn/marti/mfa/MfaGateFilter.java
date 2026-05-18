@@ -86,6 +86,17 @@ public class MfaGateFilter implements Filter {
 			return;
 		}
 
+		// Fail-open if the MFA service wasn't injected (early boot,
+		// misconfiguration). Better to let admins through than to brick the
+		// admin portal because of an MFA wiring bug. Operators get an alert
+		// from the WARN line and the gate is still effective in the steady
+		// state once injection completes.
+		if (mfaService == null) {
+			logger.warn("mfa gate disabled: MfaService not injected (will fail-open)");
+			chain.doFilter(req, resp);
+			return;
+		}
+
 		// Skip the gate for client-cert principals. Their cert is the
 		// "something you have" factor already.
 		Object certs = http.getAttribute("jakarta.servlet.request.X509Certificate");
