@@ -55,6 +55,29 @@ public class ContactManagerApi extends BaseRestController {
 	private GroupManager groupManager;
 
 
+    /**
+     * Admin-only: invalidate the in-memory Caffeine contact cache so the next
+     * GET /clientEndPoints requeries the database. Use after manually removing
+     * rows from client_endpoint / client_endpoint_event to flush stale entries
+     * without restarting the JVM. Idempotent and safe to call repeatedly —
+     * worst case a single cache rebuild from the DB on the next read.
+     *
+     * Returns 403 for non-admin principals. Authorization is enforced via
+     * CommonUtil.isAdmin() which checks ROLE_ADMIN against the authenticated
+     * principal (cert or password). The endpoint is also logged so admin use
+     * is auditable.
+     */
+    @RequestMapping(value = "/clientEndPoints/cache", method = RequestMethod.DELETE)
+    public ResponseEntity<ApiResponse<String>> clearClientEndpointCache(HttpServletRequest request) {
+        if (!martiUtil.isAdmin()) {
+            logger.warn("Non-admin attempted to clear clientEndPoints cache from " + request.getRemoteAddr());
+            throw new ForbiddenException("Admin role required");
+        }
+        logger.info("Admin cleared clientEndPoints cache from " + request.getRemoteAddr());
+        contactManagerService.clearCache();
+        return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION, String.class.getName(), "cleared"), HttpStatus.OK);
+    }
+
     @RequestMapping(value = "/clientEndPoints", method = RequestMethod.GET)
     public Callable<ResponseEntity<ApiResponse<List<ClientEndpoint>>>> getClientEndpoints(HttpServletRequest request, HttpServletResponse response,
     		@RequestParam(value="secAgo", required=false, defaultValue="0") long secAgo,
