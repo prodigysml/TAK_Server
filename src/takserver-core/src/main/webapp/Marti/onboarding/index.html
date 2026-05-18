@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="../favicon.ico" />
+  <meta charset="utf-8">
+  <title>User Onboarding</title>
+  <link rel="stylesheet" href="../jquery/jquery-ui.css" type="text/css" />
+  <link rel="stylesheet" href="../css/bootstrap-theme.min.css" />
+  <link rel="stylesheet" href="../css/bootstrap.min.css" />
+  <script type="text/javascript" src="../jquery/jquery-3.5.0.js"></script>
+  <style>
+    body { font: 14px arial, sans-serif; }
+    .content { padding: 20px; }
+    h2 { margin-top: 0; }
+    table { border-collapse: collapse; margin-top: 12px; min-width: 600px; }
+    th, td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+    th { background: #f3f3f3; }
+    button { margin-right: 6px; padding: 5px 12px; cursor: pointer; }
+    .btn-primary { background: #337ab7; color: #fff; border: none; }
+    .btn-primary:hover { background: #286090; }
+    .btn-danger  { background: #c9302c; color: #fff; border: none; }
+    .btn-danger:hover  { background: #a52623; }
+    .btn-secondary { background: #5cb85c; color: #fff; border: none; }
+    .btn-secondary:hover { background: #449d44; }
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: inline-block; min-width: 120px; }
+    input[type=text], input[type=password] { padding: 5px; min-width: 250px; }
+    #pass-banner {
+      background: #fff8c4; border: 1px solid #d4c862; padding: 10px;
+      margin-top: 12px; font-family: monospace; word-break: break-all;
+      display: none;
+    }
+    #status { margin-top: 8px; color: #888; }
+    .error { color: #c00; }
+    .small { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div data-ng-include></div>
+  <iframe src="../menubar.html" style="border:0;width:200px;height:100vh;float:left;"></iframe>
+  <div class="content" style="margin-left:220px;">
+    <h2>User Onboarding</h2>
+    <p class="small">
+      Admin-only. Generates a TAK client certificate, registers the user,
+      and provides ATAK/iTAK data packages on demand. Cert password is shown
+      ONCE on creation — capture it for the operator. Offboarding revokes the
+      cert (CRL), removes the user, and deletes cert files on EFS.
+    </p>
+
+    <h3>Add User</h3>
+    <div class="form-row">
+      <label for="new-username">Username</label>
+      <input type="text" id="new-username" maxlength="32" placeholder="alice" />
+    </div>
+    <div class="form-row">
+      <label for="server-host">Server host</label>
+      <input type="text" id="server-host" value="server.aevogrid.com" />
+      <span class="small">used for ATAK/iTAK pack download</span>
+    </div>
+    <button class="btn-primary" id="btn-create">Create user + cert</button>
+    <div id="pass-banner"></div>
+    <div id="status"></div>
+
+    <h3>Users</h3>
+    <button id="btn-refresh" class="btn-secondary">Refresh</button>
+    <table id="users-table">
+      <thead>
+        <tr><th>Username</th><th>Cert on EFS</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="users-tbody"></tbody>
+    </table>
+  </div>
+
+  <script>
+  // Per-session cache of cert passwords keyed by username so admin can
+  // download a pack without re-typing the password each click. Lives in
+  // sessionStorage only; cleared when admin closes the tab. NEVER sent
+  // anywhere except via the secure POST body to the same origin.
+  function rememberPass(user, pass) {
+    try { sessionStorage.setItem('certPass:' + user, pass); } catch (e) {}
+  }
+  function recallPass(user) {
+    try { return sessionStorage.getItem('certPass:' + user) || ''; } catch (e) { return ''; }
+  }
+  function forgetPass(user) {
+    try { sessionStorage.removeItem('certPass:' + user); } catch (e) {}
+  }
+
+  function setStatus(msg, isError) {
+    var el = document.getElementById('status');
+    el.textContent = msg || '';
+    el.className = isError ? 'error' : '';
+  }
+
+  function refreshUsers() {
+    setStatus('Loading...');
+    $.ajax({
+      url: '/Marti/api/onboarding/users',
+      method: 'GET',
+      success: function(resp) {
+        setStatus('');
+        var tbody = $('#users-tbody').empty();
+        var users = (resp && resp.data) ? resp.data : [];
+        users.forEach(function(u) {
+          var tr = $('<tr></tr>');
+          tr.append($('<td></td>').text(u.username));
+          tr.append($('<td></td>').text(u.hasCert ? 'yes' : 'no'));
+          var actions = $('<td></td>');
+          if (u.hasCert) {
+            actions.append(
+              $('<button class="btn-secondary">ATAK pack</button>')
+                .click(function() { downloadPack(u.username, 'atak'); })
+            );
+            actions.append(
+              $('<button class="btn-secondary">iTAK pack</button>')
+                .click(function() { downloadPack(u.username, 'itak'); })
+            );
+          }
+          actions.append(
+            $('<button class="btn-danger">Revoke</button>')
+              .click(function() { revoke(u.username); })
+          );
+          tr.append(actions);
+          tbody.append(tr);
+        });
+      },
+      error: function(xhr) {
+        setStatus('Failed to load users (HTTP ' + xhr.status + ')', true);
+      }
+    });
+  }
+
+  function createUser() {
+    var username = $('#new-username').val().trim();
+    if (!username.match(/^[A-Za-z0-9_-]{1,32}$/)) {
+      setStatus('Username must match ^[A-Za-z0-9_-]{1,32}$', true);
+      return;
+    }
+    setStatus('Creating cert for ' + username + ' (takes ~10s)...');
+    $('#pass-banner').hide().text('');
+    $.ajax({
+      url: '/Marti/api/onboarding/users',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ username: username }),
+      success: function(resp) {
+        var d = resp && resp.data;
+        if (!d) { setStatus('Empty response', true); return; }
+        rememberPass(d.username, d.certPass);
+        $('#pass-banner')
+          .text('User ' + d.username + ' created. Cert password (SHOWN ONCE — copy now): ' + d.certPass)
+          .show();
+        setStatus('');
+        $('#new-username').val('');
+        refreshUsers();
+      },
+      error: function(xhr) {
+        setStatus('Create failed: ' + (xhr.responseText || 'HTTP ' + xhr.status), true);
+      }
+    });
+  }
+
+  function downloadPack(username, platform) {
+    var certPass = recallPass(username);
+    if (!certPass) {
+      certPass = prompt('Cert password for ' + username + ' (from when it was created):');
+      if (!certPass) return;
+      rememberPass(username, certPass);
+    }
+    var host = $('#server-host').val().trim();
+    if (!host) { setStatus('Server host required', true); return; }
+    setStatus('Building ' + platform + ' pack for ' + username + '...');
+    $.ajax({
+      url: '/Marti/api/onboarding/users/' + encodeURIComponent(username) + '/datapackage/' + platform,
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ certPass: certPass, host: host }),
+      xhrFields: { responseType: 'blob' },
+      success: function(blob) {
+        setStatus('');
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = username + '-' + platform + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+      },
+      error: function(xhr) {
+        setStatus('Download failed (HTTP ' + xhr.status + '). Wrong cert password?', true);
+      }
+    });
+  }
+
+  function revoke(username) {
+    if (!confirm('Revoke ' + username + '? Cert goes on CRL, user removed, EFS cert files deleted. Cannot be undone.')) return;
+    setStatus('Revoking ' + username + '...');
+    $.ajax({
+      url: '/Marti/api/onboarding/users/' + encodeURIComponent(username),
+      method: 'DELETE',
+      success: function() {
+        setStatus(username + ' revoked.');
+        forgetPass(username);
+        refreshUsers();
+      },
+      error: function(xhr) {
+        setStatus('Revoke failed (HTTP ' + xhr.status + ')', true);
+      }
+    });
+  }
+
+  $(function() {
+    $('#btn-create').click(createUser);
+    $('#btn-refresh').click(refreshUsers);
+    refreshUsers();
+  });
+  </script>
+</body>
+</html>

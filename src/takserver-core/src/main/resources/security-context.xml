@@ -105,6 +105,11 @@
 
 	  	      <!-- Contact cache invalidation: admin-only DELETE; must precede the blanket DELETE deny -->
 	  	      <sec:intercept-url pattern="/Marti/api/clientEndPoints/cache" method="DELETE" access="ROLE_ADMIN" />
+
+	  	      <!-- Onboarding/offboarding admin endpoints: admin-only; must precede the blanket DELETE deny -->
+	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" method="DELETE" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" method="POST" access="ROLE_ADMIN" />
 	  	      
 	  	      <!--  set federate groups security -->
 	  	      <sec:intercept-url pattern="/Marti/api/federategroups/**" access="ROLE_ADMIN" />
