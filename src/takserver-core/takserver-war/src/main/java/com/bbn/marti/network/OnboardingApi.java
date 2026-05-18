@@ -130,7 +130,13 @@ public class OnboardingApi extends BaseRestController {
 	@GetMapping("/onboarding/users")
 	public ResponseEntity<ApiResponse<List<OnboardingUser>>> listUsers(HttpServletRequest request) throws IOException {
 		requireAdmin(request, "list", "*");
-		List<OnboardingUser> users = new ArrayList<>();
+		// Union of two sources of truth so the panel surfaces users that
+		// were created out-of-band (e.g. makeCert.sh without certmod) and
+		// users that exist only as password-based admins with no .p12:
+		//   1. <User identifier="..."> entries in UserAuthenticationFile.xml
+		//   2. *.p12 files in /opt/tak/certs/files matching SAFE_USERNAME
+		// Server/CA/truststore p12s and other infra files are filtered out.
+		java.util.Map<String, OnboardingUser> byName = new java.util.LinkedHashMap<>();
 		File authFile = new File(USER_AUTH_FILE);
 		if (authFile.exists()) {
 			String xml = new String(Files.readAllBytes(authFile.toPath()), StandardCharsets.UTF_8);
@@ -138,10 +144,25 @@ public class OnboardingApi extends BaseRestController {
 			java.util.regex.Matcher m = entry.matcher(xml);
 			while (m.find()) {
 				String name = m.group(1);
-				boolean hasCert = new File(CERTS_FILES_DIR, name + ".p12").exists();
-				users.add(new OnboardingUser(name, hasCert));
+				byName.computeIfAbsent(name, n -> new OnboardingUser(n, false))
+						.inAuthFile = true;
 			}
 		}
+		File certsDir = new File(CERTS_FILES_DIR);
+		File[] p12s = certsDir.exists() ? certsDir.listFiles((dir, fn) -> fn.endsWith(".p12")) : null;
+		java.util.Set<String> infraCerts = new java.util.HashSet<>(java.util.Arrays.asList(
+				"intermediate-signing", "takserver", "truststore-intermediate", "truststore-root"));
+		if (p12s != null) {
+			for (File p12 : p12s) {
+				String name = p12.getName().substring(0, p12.getName().length() - 4);
+				if (infraCerts.contains(name)) continue;
+				if (!SAFE_USERNAME.matcher(name).matches()) continue;
+				byName.computeIfAbsent(name, n -> new OnboardingUser(n, true))
+						.hasCert = true;
+			}
+		}
+		List<OnboardingUser> users = new ArrayList<>(byName.values());
+		users.sort(java.util.Comparator.comparing(u -> u.username));
 		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
 				OnboardingUser.class.getName(), users), HttpStatus.OK);
 	}
@@ -408,10 +429,12 @@ public class OnboardingApi extends BaseRestController {
 	public static class OnboardingUser {
 		public String username;
 		public boolean hasCert;
+		public boolean inAuthFile;
 		public OnboardingUser() {}
 		public OnboardingUser(String username, boolean hasCert) {
 			this.username = username;
 			this.hasCert = hasCert;
+			this.inAuthFile = false;
 		}
 	}
 
