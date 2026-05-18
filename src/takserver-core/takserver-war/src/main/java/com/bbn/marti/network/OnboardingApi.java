@@ -36,8 +36,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
+
 import com.bbn.marti.cot.search.model.ApiResponse;
-import com.bbn.marti.logging.AuditLogUtil;
 import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.util.CommonUtil;
 
@@ -97,24 +99,25 @@ public class OnboardingApi extends BaseRestController {
 	private CommonUtil martiUtil;
 
 	private final SecureRandom random = new SecureRandom();
+	// Routes audit messages to the dedicated takserver-db-audit.log appender
+	// via the marker filter wired up in logback-spring.xml. Regular SLF4J
+	// log calls without this marker only land in the application log.
+	private static final Marker AUDIT = MarkerFactory.getMarker(Constants.AUDIT_LOG_MARKER);
 
 	private void requireAdmin(HttpServletRequest request, String action, String targetUser) {
 		String remote = request.getRemoteAddr();
 		if (!martiUtil.isAdmin()) {
 			String msg = "onboarding DENIED action=" + action
 					+ " target=" + targetUser + " remote=" + remote;
-			logger.warn(msg);
-			AuditLogUtil.auditLog(msg);
+			logger.warn(AUDIT, msg);
 			throw new ForbiddenException("Admin role required");
 		}
 		String msg = "onboarding action=" + action
 				+ " target=" + targetUser + " remote=" + remote;
-		logger.info(msg);
-		// Route to TAK's audit log appender so the action ends up in
-		// logs/takserver-db-audit.log alongside other admin-driven writes.
-		// The current authenticated admin DN is captured by the audit log
-		// MDC (set per-request by initAuditLog elsewhere in the stack).
-		AuditLogUtil.auditLog(msg);
+		// Marker routes the entry to logs/takserver-db-audit.log via the
+		// AuditLogMarkerThresholdFilter wired up in logback-spring.xml.
+		// Without the marker the message only lands in the application log.
+		logger.info(AUDIT, msg);
 	}
 
 	private void validateUsername(String username) {
