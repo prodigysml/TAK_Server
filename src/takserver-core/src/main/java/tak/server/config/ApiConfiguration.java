@@ -68,6 +68,8 @@ import com.bbn.marti.kml.icon.service.IconsetUploadProcessorImpl;
 import com.bbn.marti.logs.LogServlet;
 import com.bbn.marti.maplayer.MapLayerService;
 import com.bbn.marti.maplayer.api.MapLayersApi;
+import com.bbn.marti.mfa.MfaApi;
+import com.bbn.marti.mfa.MfaService;
 import com.bbn.marti.network.ContactManagerApi;
 import com.bbn.marti.network.OnboardingApi;
 import com.bbn.marti.network.ContactManagerService;
@@ -640,6 +642,16 @@ public class ApiConfiguration implements WebMvcConfigurer {
 	@Bean
 	public OnboardingApi onboardingApi() {
 		return new OnboardingApi();
+	}
+
+	@Bean
+	public MfaService mfaService() {
+		return new MfaService();
+	}
+
+	@Bean
+	public MfaApi mfaApi() {
+		return new MfaApi();
 	}
 
 	@Bean
