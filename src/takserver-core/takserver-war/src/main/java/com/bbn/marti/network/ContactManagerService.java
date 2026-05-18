@@ -40,6 +40,19 @@ public class ContactManagerService {
 	@Autowired
 	private ContactCacheHelper contactCache;
 
+	/**
+	 * Invalidate all entries in the in-memory Caffeine contact cache. Subsequent
+	 * calls to getCachedClientEndpointData repopulate from the database. Safe to
+	 * call repeatedly; effect is bounded to a single cache rebuild from
+	 * client_endpoint / client_endpoint_event. Authorization is enforced by the
+	 * caller (see ContactManagerApi).
+	 */
+	public void clearCache() {
+		contactCache.clearContactCache();
+		lastUpdateMillis.set(-1);
+		result = null;
+	}
+
 	private AtomicLong lastUpdateMillis = new AtomicLong(-1);
 	
 	private volatile List<ClientEndpoint> result = null;
