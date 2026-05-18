@@ -1,222 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-ng-app="onboardingManager">
 <head>
   <link rel="icon" type="image/x-icon" href="../favicon.ico" />
   <meta charset="utf-8">
   <title>User Onboarding</title>
-  <link rel="stylesheet" href="../jquery/jquery-ui.css" type="text/css" />
+  <link rel="stylesheet" href="../tablesorter/style.css" type="text/css" media="print, projection, screen" />
+  <link rel="stylesheet" href="../jquery/jquery-ui.css" type="text/css" media="print, projection, screen" />
   <link rel="stylesheet" href="../css/bootstrap-theme.min.css" />
-  <link rel="stylesheet" href="../css/bootstrap.min.css" />
+  <link rel="stylesheet" href="../css/bootstrap.min.css">
+  <link rel="stylesheet" href="../clientcerts/css/main.css">
   <script type="text/javascript" src="../jquery/jquery-3.5.0.js"></script>
+  <script type="text/javascript" src="../jquery/jquery-ui.min.js"></script>
+  <script type="text/javascript" src="../lib/angular/angular.min.js"></script>
+  <script src="js/app.js"></script>
   <style>
-    body { font: 14px arial, sans-serif; }
-    .content { padding: 20px; }
-    h2 { margin-top: 0; }
-    table { border-collapse: collapse; margin-top: 12px; min-width: 600px; }
-    th, td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
-    th { background: #f3f3f3; }
-    button { margin-right: 6px; padding: 5px 12px; cursor: pointer; }
-    .btn-primary { background: #337ab7; color: #fff; border: none; }
-    .btn-primary:hover { background: #286090; }
-    .btn-danger  { background: #c9302c; color: #fff; border: none; }
-    .btn-danger:hover  { background: #a52623; }
-    .btn-secondary { background: #5cb85c; color: #fff; border: none; }
-    .btn-secondary:hover { background: #449d44; }
-    .form-row { margin-bottom: 12px; }
-    .form-row label { display: inline-block; min-width: 120px; }
-    input[type=text], input[type=password] { padding: 5px; min-width: 250px; }
-    #pass-banner {
-      background: #fff8c4; border: 1px solid #d4c862; padding: 10px;
-      margin-top: 12px; font-family: monospace; word-break: break-all;
-      display: none;
+    .onboarding-container { max-width: 1100px; margin-top: 16px; }
+    .onboarding-intro { color: #555; font-size: 14px; margin-bottom: 18px; }
+    .form-inline .form-group { margin-right: 12px; margin-bottom: 8px; }
+    .form-inline label { margin-right: 6px; font-weight: 600; }
+    .form-inline input.form-control { display: inline-block; width: 280px; }
+    .pass-banner {
+      background: #fff3cd; border: 1px solid #ffeeba; color: #856404;
+      padding: 12px 16px; margin: 16px 0; border-radius: 4px;
+      font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+      word-break: break-all;
     }
-    #status { margin-top: 8px; color: #888; }
-    .error { color: #c00; }
-    .small { font-size: 12px; color: #666; }
+    .pass-banner strong { font-family: "Open Sans", Arial, sans-serif; }
+    .status-line { margin: 8px 0; min-height: 20px; color: #666; font-size: 13px; }
+    .status-line.error { color: #a94442; }
+    .actions-col .btn { margin-right: 6px; margin-bottom: 4px; }
+    .table-onboarding { margin-top: 12px; }
+    .table-onboarding th { background: #f5f5f5; }
+    h3 { margin-top: 24px; border-bottom: 1px solid #eee; padding-bottom: 6px; }
   </style>
 </head>
-<body>
-  <div data-ng-include></div>
-  <iframe src="../menubar.html" style="border:0;width:200px;height:100vh;float:left;"></iframe>
-  <div class="content" style="margin-left:220px;">
-    <h2>User Onboarding</h2>
-    <p class="small">
-      Admin-only. Generates a TAK client certificate, registers the user,
-      and provides ATAK/iTAK data packages on demand. Cert password is shown
-      ONCE on creation — capture it for the operator. Offboarding revokes the
-      cert (CRL), removes the user, and deletes cert files on EFS.
-    </p>
+<body style="font:14px 'Open Sans', Arial, sans-serif;">
+  <div data-ng-include="'../menubar.html'"></div>
+  <div class="content" id="rightViewContainer">
+    <div class="onboarding-container" data-ng-controller="OnboardingController">
 
-    <h3>Add User</h3>
-    <div class="form-row">
-      <label for="new-username">Username</label>
-      <input type="text" id="new-username" maxlength="32" placeholder="alice" />
-    </div>
-    <div class="form-row">
-      <label for="server-host">Server host</label>
-      <input type="text" id="server-host" value="server.aevogrid.com" />
-      <span class="small">used for ATAK/iTAK pack download</span>
-    </div>
-    <button class="btn-primary" id="btn-create">Create user + cert</button>
-    <div id="pass-banner"></div>
-    <div id="status"></div>
+      <header><h1 style="font-size:32px;color:#666;margin-bottom:8px;">User Onboarding</h1></header>
+      <p class="onboarding-intro">
+        Admin-only. Generates a TAK client certificate, registers the user, and provides
+        ATAK/iTAK data packages on demand. The cert password is shown <strong>once</strong>
+        on creation — capture it for the operator. Offboarding revokes the cert (CRL),
+        removes the user, and deletes cert files on EFS.
+      </p>
 
-    <h3>Users</h3>
-    <button id="btn-refresh" class="btn-secondary">Refresh</button>
-    <table id="users-table">
-      <thead>
-        <tr><th>Username</th><th>Cert on EFS</th><th>Actions</th></tr>
-      </thead>
-      <tbody id="users-tbody"></tbody>
-    </table>
+      <h3>Add User</h3>
+      <form class="form-inline" ng-submit="createUser()">
+        <div class="form-group">
+          <label for="new-username">Username</label>
+          <input type="text" class="form-control" id="new-username" maxlength="32"
+                 placeholder="alice" ng-model="newUsername" />
+        </div>
+        <div class="form-group">
+          <label for="server-host">Server host</label>
+          <input type="text" class="form-control" id="server-host" ng-model="serverHost" />
+        </div>
+        <button type="submit" class="btn btn-primary">Create user + cert</button>
+      </form>
+      <div class="pass-banner" ng-show="lastCreated">
+        <strong>User created: {{lastCreated.username}}</strong><br>
+        Cert password (shown ONCE — copy now): {{lastCreated.certPass}}
+      </div>
+      <div class="status-line" ng-class="{error: statusError}">{{status}}</div>
+
+      <h3>Users</h3>
+      <button class="btn btn-success btn-sm" ng-click="refresh()">Refresh</button>
+      <table class="table table-bordered table-striped table-onboarding" ng-show="users.length > 0">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th style="width:130px;">Cert on EFS</th>
+            <th style="width:380px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr ng-repeat="u in users | orderBy: 'username'">
+            <td>{{u.username}}</td>
+            <td>
+              <span class="label" ng-class="u.hasCert ? 'label-success' : 'label-default'">
+                {{u.hasCert ? 'yes' : 'no'}}
+              </span>
+            </td>
+            <td class="actions-col">
+              <button class="btn btn-success btn-sm" ng-show="u.hasCert"
+                      ng-click="downloadPack(u.username, 'atak')">ATAK pack</button>
+              <button class="btn btn-success btn-sm" ng-show="u.hasCert"
+                      ng-click="downloadPack(u.username, 'itak')">iTAK pack</button>
+              <button class="btn btn-danger btn-sm" ng-click="revoke(u.username)">Revoke</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div ng-show="users.length === 0" class="status-line">No users found.</div>
+
+    </div>
   </div>
-
-  <script>
-  // Per-session cache of cert passwords keyed by username so admin can
-  // download a pack without re-typing the password each click. Lives in
-  // sessionStorage only; cleared when admin closes the tab. NEVER sent
-  // anywhere except via the secure POST body to the same origin.
-  function rememberPass(user, pass) {
-    try { sessionStorage.setItem('certPass:' + user, pass); } catch (e) {}
-  }
-  function recallPass(user) {
-    try { return sessionStorage.getItem('certPass:' + user) || ''; } catch (e) { return ''; }
-  }
-  function forgetPass(user) {
-    try { sessionStorage.removeItem('certPass:' + user); } catch (e) {}
-  }
-
-  function setStatus(msg, isError) {
-    var el = document.getElementById('status');
-    el.textContent = msg || '';
-    el.className = isError ? 'error' : '';
-  }
-
-  function refreshUsers() {
-    setStatus('Loading...');
-    $.ajax({
-      url: '/Marti/api/onboarding/users',
-      method: 'GET',
-      success: function(resp) {
-        setStatus('');
-        var tbody = $('#users-tbody').empty();
-        var users = (resp && resp.data) ? resp.data : [];
-        users.forEach(function(u) {
-          var tr = $('<tr></tr>');
-          tr.append($('<td></td>').text(u.username));
-          tr.append($('<td></td>').text(u.hasCert ? 'yes' : 'no'));
-          var actions = $('<td></td>');
-          if (u.hasCert) {
-            actions.append(
-              $('<button class="btn-secondary">ATAK pack</button>')
-                .click(function() { downloadPack(u.username, 'atak'); })
-            );
-            actions.append(
-              $('<button class="btn-secondary">iTAK pack</button>')
-                .click(function() { downloadPack(u.username, 'itak'); })
-            );
-          }
-          actions.append(
-            $('<button class="btn-danger">Revoke</button>')
-              .click(function() { revoke(u.username); })
-          );
-          tr.append(actions);
-          tbody.append(tr);
-        });
-      },
-      error: function(xhr) {
-        setStatus('Failed to load users (HTTP ' + xhr.status + ')', true);
-      }
-    });
-  }
-
-  function createUser() {
-    var username = $('#new-username').val().trim();
-    if (!username.match(/^[A-Za-z0-9_-]{1,32}$/)) {
-      setStatus('Username must match ^[A-Za-z0-9_-]{1,32}$', true);
-      return;
-    }
-    setStatus('Creating cert for ' + username + ' (takes ~10s)...');
-    $('#pass-banner').hide().text('');
-    $.ajax({
-      url: '/Marti/api/onboarding/users',
-      method: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({ username: username }),
-      success: function(resp) {
-        var d = resp && resp.data;
-        if (!d) { setStatus('Empty response', true); return; }
-        rememberPass(d.username, d.certPass);
-        $('#pass-banner')
-          .text('User ' + d.username + ' created. Cert password (SHOWN ONCE — copy now): ' + d.certPass)
-          .show();
-        setStatus('');
-        $('#new-username').val('');
-        refreshUsers();
-      },
-      error: function(xhr) {
-        setStatus('Create failed: ' + (xhr.responseText || 'HTTP ' + xhr.status), true);
-      }
-    });
-  }
-
-  function downloadPack(username, platform) {
-    var certPass = recallPass(username);
-    if (!certPass) {
-      certPass = prompt('Cert password for ' + username + ' (from when it was created):');
-      if (!certPass) return;
-      rememberPass(username, certPass);
-    }
-    var host = $('#server-host').val().trim();
-    if (!host) { setStatus('Server host required', true); return; }
-    setStatus('Building ' + platform + ' pack for ' + username + '...');
-    $.ajax({
-      url: '/Marti/api/onboarding/users/' + encodeURIComponent(username) + '/datapackage/' + platform,
-      method: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({ certPass: certPass, host: host }),
-      xhrFields: { responseType: 'blob' },
-      success: function(blob) {
-        setStatus('');
-        var url = window.URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = username + '-' + platform + '.zip';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function() {
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-        }, 100);
-      },
-      error: function(xhr) {
-        setStatus('Download failed (HTTP ' + xhr.status + '). Wrong cert password?', true);
-      }
-    });
-  }
-
-  function revoke(username) {
-    if (!confirm('Revoke ' + username + '? Cert goes on CRL, user removed, EFS cert files deleted. Cannot be undone.')) return;
-    setStatus('Revoking ' + username + '...');
-    $.ajax({
-      url: '/Marti/api/onboarding/users/' + encodeURIComponent(username),
-      method: 'DELETE',
-      success: function() {
-        setStatus(username + ' revoked.');
-        forgetPass(username);
-        refreshUsers();
-      },
-      error: function(xhr) {
-        setStatus('Revoke failed (HTTP ' + xhr.status + ')', true);
-      }
-    });
-  }
-
-  $(function() {
-    $('#btn-create').click(createUser);
-    $('#btn-refresh').click(refreshUsers);
-    refreshUsers();
-  });
-  </script>
+  <div data-ng-include="'../footer.jsp'"></div>
 </body>
 </html>
