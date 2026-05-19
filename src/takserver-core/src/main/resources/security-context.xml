@@ -44,7 +44,8 @@
 				CorsProcessingFilter,
 				oAuth2TokenEndpointFilter,
 				oAuth2BearerTokenAuthenticationFilter,
-				FilterSecurityInterceptor" />
+				FilterSecurityInterceptor,
+				mfaGateFilter" />
 		</sec:filter-chain-map>
 	</bean>
 
@@ -110,6 +111,12 @@
 	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" method="DELETE" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" method="POST" access="ROLE_ADMIN" />
+
+	  	      <!-- MFA pages and API: reachable by any authenticated admin so the gate is satisfiable.
+	  	           Anonymous access is blocked because the password login must run first. -->
+	  	      <sec:intercept-url pattern="/Marti/mfa/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/mfa/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/mfa/**" method="POST" access="ROLE_ADMIN" />
 	  	      
 	  	      <!--  set federate groups security -->
 	  	      <sec:intercept-url pattern="/Marti/api/federategroups/**" access="ROLE_ADMIN" />
