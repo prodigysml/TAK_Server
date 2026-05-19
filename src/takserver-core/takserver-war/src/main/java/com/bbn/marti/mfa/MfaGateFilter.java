@@ -119,6 +119,21 @@ public class MfaGateFilter implements Filter {
 			return;
 		}
 
+		// Only intercept HTML page navigations. XHR/API/JSON requests
+		// follow 302s transparently and would get HTML body returned as
+		// their response payload, breaking client-side flows like
+		// /index.html -> $.get("/Marti/api/home") -> window.location.
+		// The next real page nav still hits the gate and lands the user
+		// on the enroll/verify screen.
+		String accept = http.getHeader("Accept");
+		String requestedWith = http.getHeader("X-Requested-With");
+		boolean htmlNav = (accept != null && accept.contains("text/html"))
+				&& !"XMLHttpRequest".equalsIgnoreCase(requestedWith);
+		if (!htmlNav) {
+			chain.doFilter(req, resp);
+			return;
+		}
+
 		String username = auth.getName();
 		try {
 			var row = mfaService.findByUsername(username);
