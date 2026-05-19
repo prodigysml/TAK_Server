@@ -91,6 +91,14 @@ public class MfaGateFilter implements Filter {
 			chain.doFilter(req, resp);
 			return;
 		}
+
+		// No-cache for every admin page response so the browser back button
+		// cannot redisplay an authenticated screen after logout. Pair with
+		// the cookie wipe in OnboardingApi.logout: without cache headers,
+		// some browsers serve the cached HTML even with no session cookie.
+		hresp.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0, private");
+		hresp.setHeader("Pragma", "no-cache");
+		hresp.setHeader("Expires", "0");
 		for (String wl : WHITELIST_PREFIXES) {
 			if (path.startsWith(wl) || path.equals(wl)) {
 				chain.doFilter(req, resp);
