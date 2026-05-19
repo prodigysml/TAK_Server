@@ -1,8 +1,11 @@
 package com.bbn.marti.mfa;
 
 import java.io.IOException;
-import java.security.Principal;
 import java.util.Set;
+
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -72,14 +75,16 @@ public class MfaGateFilter implements Filter {
 		HttpServletResponse hresp = (HttpServletResponse) resp;
 		String path = http.getRequestURI();
 
-		// Diagnostic: confirms the filter is reached on every request that
-		// makes it past Spring Security. Remove once the gate has been
-		// observed working in production.
-		Principal diag = http.getUserPrincipal();
-		logger.info("MFA gate entered path={} principal={} method={}",
-				path,
-				diag != null ? diag.getName() : "anonymous",
-				http.getMethod());
+		// TAK uses OAuth2 bearer tokens, so request.getUserPrincipal()
+		// returns null/anonymous even when the user is authenticated. The
+		// real Authentication lives in SecurityContextHolder, populated
+		// upstream by oAuth2BearerTokenAuthenticationFilter.
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		boolean isAuthd = auth != null && auth.isAuthenticated()
+				&& !(auth instanceof AnonymousAuthenticationToken);
+		logger.info("MFA gate entered path={} authPrincipal={} authd={} method={}",
+				path, auth != null ? auth.getName() : "null",
+				isAuthd, http.getMethod());
 
 		// Only gate /Marti/** — federation, oauth and sync APIs are out of scope.
 		if (path == null || !path.startsWith("/Marti")) {
@@ -93,8 +98,7 @@ public class MfaGateFilter implements Filter {
 			}
 		}
 
-		Principal principal = http.getUserPrincipal();
-		if (principal == null) {
+		if (!isAuthd) {
 			chain.doFilter(req, resp);
 			return;
 		}
@@ -115,7 +119,7 @@ public class MfaGateFilter implements Filter {
 			return;
 		}
 
-		String username = principal.getName();
+		String username = auth.getName();
 		try {
 			var row = mfaService.findByUsername(username);
 			String next = http.getRequestURI();
