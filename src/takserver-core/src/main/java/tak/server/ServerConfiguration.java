@@ -178,6 +178,7 @@ import tak.server.cluster.ClusterManager;
 import tak.server.cluster.DistributedSubmissionService;
 import tak.server.config.ApiConfiguration;
 import tak.server.config.ApiOnlyConfiguration;
+import tak.server.config.MfaConfiguration;
 import tak.server.config.ConfigServiceConfiguration;
 import tak.server.config.MessagingConfiguration;
 import tak.server.config.MessagingOnlyConfiguration;
