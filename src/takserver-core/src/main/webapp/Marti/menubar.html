@@ -182,32 +182,29 @@
 
 		<li class='adminOnly'><a target="_blank" href="/Marti/documentation/index.html"><span>Documentation</span></a></li>
 
-		<li><a href="#" id="tak-logout-link"><span>Log Out</span></a></li>
+		<li><a href="#" onclick="takLogout(event)"><span>Log Out</span></a></li>
     </ul>
 
     <script type="text/javascript">
       // Sign-out: POST to the admin onboarding logout endpoint to invalidate
       // the server-side session (and the MFA verified flag with it), then
-      // bounce the user back to /Marti/ which forces a fresh login.
-      document.addEventListener('DOMContentLoaded', function () {
-        var link = document.getElementById('tak-logout-link');
-        if (!link) return;
-        link.addEventListener('click', function (ev) {
-          ev.preventDefault();
-          fetch('/Marti/api/onboarding/logout', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Accept': 'application/json' }
-          }).then(function () {
-            // Drop any client-side MFA hint and force the browser to ask
-            // for credentials again on the next navigation.
-            try { sessionStorage.clear(); } catch (e) {}
-            window.location.href = '/Marti/login/login.html';
-          }).catch(function () {
-            window.location.href = '/Marti/login/login.html';
-          });
+      // bounce the user back to the login page. menubar.html is injected
+      // by Angular's ng-include AFTER the host page's DOMContentLoaded, so
+      // an inline onclick is the simplest way to bind the handler.
+      window.takLogout = function (ev) {
+        if (ev && ev.preventDefault) { ev.preventDefault(); }
+        fetch('/Marti/api/onboarding/logout', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        }).then(function () {
+          try { sessionStorage.clear(); } catch (e) {}
+          window.location.href = '/';
+        }).catch(function () {
+          window.location.href = '/';
         });
-      });
+        return false;
+      };
     </script>
   </div>
 
