@@ -30,6 +30,7 @@ import com.bbn.marti.cot.search.model.ApiResponse;
 public class MfaApiTest {
 
 	private MfaService mfaService;
+	private LoginAttemptService attempts;
 	private MfaApi api;
 	private HttpServletRequest request;
 	private HttpSession session;
@@ -37,7 +38,8 @@ public class MfaApiTest {
 	@Before
 	public void setUp() {
 		mfaService = mock(MfaService.class);
-		api = new MfaApi(mfaService);
+		attempts = new LoginAttemptService();
+		api = new MfaApi(mfaService, attempts);
 		request = mock(HttpServletRequest.class);
 		session = mock(HttpSession.class);
 		Principal principal = mock(Principal.class);

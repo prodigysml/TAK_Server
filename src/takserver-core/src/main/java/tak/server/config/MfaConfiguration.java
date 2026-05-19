@@ -7,6 +7,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.bbn.marti.mfa.LoginAttemptService;
 import com.bbn.marti.mfa.MfaGateFilter;
 import com.bbn.marti.mfa.MfaService;
 
@@ -29,6 +30,11 @@ public class MfaConfiguration {
 	@Bean
 	public MfaService mfaService(ObjectProvider<DataSource> dataSourceProvider) {
 		return new MfaService(dataSourceProvider);
+	}
+
+	@Bean
+	public LoginAttemptService loginAttemptService() {
+		return new LoginAttemptService();
 	}
 
 	@Bean(name = "mfaGateFilter")

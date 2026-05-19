@@ -481,18 +481,44 @@ public class OnboardingApi extends BaseRestController {
 	}
 
 	@PostMapping("/onboarding/logout")
-	public ResponseEntity<ApiResponse<String>> logout(HttpServletRequest request) {
-		String user = (request.getUserPrincipal() != null)
-				? request.getUserPrincipal().getName() : "unknown";
+	public ResponseEntity<ApiResponse<String>> logout(
+			HttpServletRequest request, HttpServletResponse response) {
+		// Username from the Spring Security context — OAuth2 bearer auth
+		// does not set request.getUserPrincipal() on TAK.
+		org.springframework.security.core.Authentication auth =
+				org.springframework.security.core.context.SecurityContextHolder
+						.getContext().getAuthentication();
+		String user = (auth != null) ? auth.getName() : "unknown";
 		String remote = request.getRemoteAddr();
+
+		// Drop the server-side session (including SESSION_MFA_VERIFIED).
 		jakarta.servlet.http.HttpSession session = request.getSession(false);
 		if (session != null) {
 			session.invalidate();
 		}
-		// Spring Security holds the auth in a thread-local — clear it so
-		// any further work on this request doesn't keep the user appearing
-		// authenticated.
+
+		// Clear the SecurityContext on this thread so any downstream work
+		// doesn't keep treating the request as authenticated.
 		org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+		// Expire every cookie the browser sent us — JSESSIONID, XSRF-TOKEN,
+		// OAuth2 access-token cookies, anything else TAK installs. Without
+		// this the browser keeps re-presenting a valid token on the next
+		// page load and the user lands back on the MFA verify screen as if
+		// nothing happened.
+		jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+		if (cookies != null) {
+			for (jakarta.servlet.http.Cookie c : cookies) {
+				jakarta.servlet.http.Cookie kill =
+						new jakarta.servlet.http.Cookie(c.getName(), "");
+				kill.setPath("/");
+				kill.setMaxAge(0);
+				kill.setHttpOnly(true);
+				kill.setSecure(true);
+				response.addCookie(kill);
+			}
+		}
+
 		logger.info(AUDIT, "onboarding action=logout target={} remote={}", user, remote);
 		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
 				String.class.getName(), "logged out"), HttpStatus.OK);

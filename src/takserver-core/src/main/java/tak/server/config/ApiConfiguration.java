@@ -70,6 +70,7 @@ import com.bbn.marti.maplayer.MapLayerService;
 import com.bbn.marti.maplayer.api.MapLayersApi;
 import com.bbn.marti.network.ContactManagerApi;
 import com.bbn.marti.network.OnboardingApi;
+import com.bbn.marti.mfa.LoginAttemptService;
 import com.bbn.marti.mfa.MfaApi;
 import com.bbn.marti.mfa.MfaService;
 import com.bbn.marti.network.ContactManagerService;
@@ -645,8 +646,8 @@ public class ApiConfiguration implements WebMvcConfigurer {
 	}
 
 	@Bean
-	public MfaApi mfaApi(MfaService mfaService) {
-		return new MfaApi(mfaService);
+	public MfaApi mfaApi(MfaService mfaService, LoginAttemptService attempts) {
+		return new MfaApi(mfaService, attempts);
 	}
 
 	@Bean
