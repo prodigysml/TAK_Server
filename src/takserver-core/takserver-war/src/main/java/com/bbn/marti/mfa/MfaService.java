@@ -10,6 +10,7 @@ import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 /**
  * Per-user TOTP secret persistence. One row per username keyed by exact
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * straight SQL via the Taskfile so a compromised admin session cannot
  * trigger a reset by reaching this code.
  */
+@Service
 public class MfaService {
 
 	private static final Logger logger = LoggerFactory.getLogger(MfaService.class);
