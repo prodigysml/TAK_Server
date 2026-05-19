@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.AbstractUserDetailsAuthenticationProvider;
@@ -57,6 +58,12 @@ public class TakAuthenticationProvider extends AbstractUserDetailsAuthentication
     
     @Autowired
     private RolePortUserServiceWrapper rpusw;
+
+    // Lazy injection so a bootstrap-order issue with the MFA wiring can't
+    // brick the auth provider. If the bean isn't available yet, lockout
+    // is simply not enforced.
+    @Autowired(required = false)
+    private com.bbn.marti.mfa.LoginAttemptService loginAttempts;
 
     private String httpsAndBasicRole;
     
@@ -236,7 +243,25 @@ public class TakAuthenticationProvider extends AbstractUserDetailsAuthentication
     	if (logger.isDebugEnabled()) {
     		logger.debug("martiAuth authentication: " + authentication);
     	}
-        
+
+        // Username/password lockout: 3 failed attempts -> 30-minute lock.
+        // Applies only to password-based requests (UsernamePasswordAuth).
+        // Cert and bearer-token paths use other credentials and have their
+        // own rate-limit story upstream of this code.
+        String submittedUser = null;
+        boolean isPasswordFlow = !(PreAuthenticatedAuthenticationToken.class.isAssignableFrom(authentication.getClass()))
+                && !(BearerTokenAuthenticationToken.class.isAssignableFrom(authentication.getClass()));
+        if (isPasswordFlow && loginAttempts != null && authentication.getPrincipal() != null) {
+            submittedUser = String.valueOf(authentication.getPrincipal());
+            if (loginAttempts.isLocked(submittedUser)) {
+                logger.warn("password login blocked, user {} is locked until {}",
+                        submittedUser, loginAttempts.lockedUntil(submittedUser));
+                throw new LockedException(
+                        "Too many failed login attempts. Try again after "
+                                + loginAttempts.lockedUntil(submittedUser));
+            }
+        }
+
         try {
             User coreUser = null;
 
@@ -250,6 +275,11 @@ public class TakAuthenticationProvider extends AbstractUserDetailsAuthentication
                 } catch (RemoteLookupFailureException e) {
                     return super.authenticate(authentication);
                 } catch (BadCredentialsException | UsernameNotFoundException | SessionAuthenticationException | InvalidBearerTokenException e) {
+                    if (submittedUser != null && loginAttempts != null) {
+                        com.bbn.marti.mfa.LoginAttemptService.State st = loginAttempts.recordFailure(submittedUser);
+                        logger.warn("password login fail user={} attempts={} locked={}",
+                                submittedUser, st.count, st.lockedUntil);
+                    }
                     throw e;
                 } catch (Exception e) {
                     throw new RuntimeException(e);
@@ -260,7 +290,9 @@ public class TakAuthenticationProvider extends AbstractUserDetailsAuthentication
             	if (logger.isDebugEnabled()) {
             		logger.debug("auth success - core user: " + coreUser);
             	}
-
+                if (submittedUser != null && loginAttempts != null) {
+                    loginAttempts.recordSuccess(submittedUser);
+                }
                 UserDetails userDetails = new MartiSocketUserDetailsImpl(coreUser);
                 return createSuccessAuthentication(userDetails, authentication, userDetails);
             }
@@ -281,7 +313,19 @@ public class TakAuthenticationProvider extends AbstractUserDetailsAuthentication
 
         
         // since user is null, we know that TAK auth was not successful. Try marti-users.xml next.
-        return super.authenticate(authentication);
-        
+        try {
+            Authentication result = super.authenticate(authentication);
+            if (submittedUser != null && loginAttempts != null && result != null && result.isAuthenticated()) {
+                loginAttempts.recordSuccess(submittedUser);
+            }
+            return result;
+        } catch (AuthenticationException e) {
+            if (submittedUser != null && loginAttempts != null) {
+                com.bbn.marti.mfa.LoginAttemptService.State st = loginAttempts.recordFailure(submittedUser);
+                logger.warn("password login fail (xml) user={} attempts={} locked={}",
+                        submittedUser, st.count, st.lockedUntil);
+            }
+            throw e;
+        }
     }
 }

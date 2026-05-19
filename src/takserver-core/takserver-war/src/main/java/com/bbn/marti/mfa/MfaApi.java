@@ -52,9 +52,11 @@ public class MfaApi extends BaseRestController {
 	public static final String SESSION_MFA_VERIFIED = "mfa_verified";
 
 	private final MfaService mfaService;
+	private final LoginAttemptService attempts;
 
-	public MfaApi(MfaService mfaService) {
+	public MfaApi(MfaService mfaService, LoginAttemptService attempts) {
 		this.mfaService = mfaService;
+		this.attempts = attempts;
 	}
 
 	private String currentUsername(HttpServletRequest request) {
@@ -85,23 +87,51 @@ public class MfaApi extends BaseRestController {
 	public ResponseEntity<ApiResponse<String>> finishEnroll(
 			@RequestBody CodeRequest body, HttpServletRequest request) {
 		String user = currentUsername(request);
+		ResponseEntity<ApiResponse<String>> locked = lockedResponse(user, request, "enroll");
+		if (locked != null) return locked;
 		MfaService.MfaRow row = mfaService.findByUsername(user)
 				.orElseThrow(() -> new IllegalStateException("enroll not started"));
 		if (row.enrolled) {
 			return verifyCommon(user, body, request, "finishEnroll(already-enrolled)");
 		}
 		if (!TotpUtil.verify(row.secretB32, body == null ? null : body.code)) {
-			logger.warn(AUDIT, "mfa enroll-FAIL user={} remote={}",
-					user, request.getRemoteAddr());
+			LoginAttemptService.State st = attempts.recordFailure(user);
+			logger.warn(AUDIT, "mfa enroll-FAIL user={} attempts={} remote={}",
+					user, st.count, request.getRemoteAddr());
+			if (st.lockedUntil != null) {
+				return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
+						String.class.getName(), "account locked until " + st.lockedUntil),
+						HttpStatus.LOCKED);
+			}
 			return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
 					String.class.getName(), "invalid code"), HttpStatus.UNAUTHORIZED);
 		}
+		attempts.recordSuccess(user);
 		mfaService.markEnrolled(user);
 		HttpSession session = request.getSession(true);
 		session.setAttribute(SESSION_MFA_VERIFIED, Boolean.TRUE);
 		logger.info(AUDIT, "mfa enroll-OK user={} remote={}", user, request.getRemoteAddr());
 		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
 				String.class.getName(), "enrolled"), HttpStatus.OK);
+	}
+
+	/**
+	 * If the user has been locked out by repeated failed attempts, emit a
+	 * 423 Locked with the unlock time. Returning a body that names the
+	 * unlock time gives the frontend a chance to show a useful message
+	 * instead of repeatedly prompting for a code.
+	 */
+	private ResponseEntity<ApiResponse<String>> lockedResponse(
+			String user, HttpServletRequest request, String action) {
+		if (!attempts.isLocked(user)) {
+			return null;
+		}
+		java.time.Instant until = attempts.lockedUntil(user);
+		logger.warn(AUDIT, "mfa {}-LOCKED user={} until={} remote={}",
+				action, user, until, request.getRemoteAddr());
+		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
+				String.class.getName(), "account locked until " + until),
+				HttpStatus.LOCKED);
 	}
 
 	@PostMapping("/mfa/verify")
@@ -113,17 +143,26 @@ public class MfaApi extends BaseRestController {
 
 	private ResponseEntity<ApiResponse<String>> verifyCommon(
 			String user, CodeRequest body, HttpServletRequest request, String action) {
+		ResponseEntity<ApiResponse<String>> locked = lockedResponse(user, request, action);
+		if (locked != null) return locked;
 		MfaService.MfaRow row = mfaService.findByUsername(user)
 				.orElseThrow(() -> new IllegalStateException("user not enrolled"));
 		if (!row.enrolled) {
 			throw new IllegalStateException("user not enrolled");
 		}
 		if (!TotpUtil.verify(row.secretB32, body == null ? null : body.code)) {
-			logger.warn(AUDIT, "mfa {}-FAIL user={} remote={}",
-					action, user, request.getRemoteAddr());
+			LoginAttemptService.State st = attempts.recordFailure(user);
+			logger.warn(AUDIT, "mfa {}-FAIL user={} attempts={} remote={}",
+					action, user, st.count, request.getRemoteAddr());
+			if (st.lockedUntil != null) {
+				return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
+						String.class.getName(), "account locked until " + st.lockedUntil),
+						HttpStatus.LOCKED);
+			}
 			return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
 					String.class.getName(), "invalid code"), HttpStatus.UNAUTHORIZED);
 		}
+		attempts.recordSuccess(user);
 		mfaService.touchLastUsed(user);
 		HttpSession session = request.getSession(true);
 		session.setAttribute(SESSION_MFA_VERIFIED, Boolean.TRUE);
