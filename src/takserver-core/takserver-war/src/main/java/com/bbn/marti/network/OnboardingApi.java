@@ -479,4 +479,22 @@ public class OnboardingApi extends BaseRestController {
 			this.certPass = certPass;
 		}
 	}
+
+	@PostMapping("/onboarding/logout")
+	public ResponseEntity<ApiResponse<String>> logout(HttpServletRequest request) {
+		String user = (request.getUserPrincipal() != null)
+				? request.getUserPrincipal().getName() : "unknown";
+		String remote = request.getRemoteAddr();
+		jakarta.servlet.http.HttpSession session = request.getSession(false);
+		if (session != null) {
+			session.invalidate();
+		}
+		// Spring Security holds the auth in a thread-local — clear it so
+		// any further work on this request doesn't keep the user appearing
+		// authenticated.
+		org.springframework.security.core.context.SecurityContextHolder.clearContext();
+		logger.info(AUDIT, "onboarding action=logout target={} remote={}", user, remote);
+		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
+				String.class.getName(), "logged out"), HttpStatus.OK);
+	}
 }

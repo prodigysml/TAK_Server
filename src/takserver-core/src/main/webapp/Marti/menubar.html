@@ -181,7 +181,34 @@
       <li class='adminOnly'><a href="/Marti/plugins/index.html"><span>Plugins</span></a></li>
 
 		<li class='adminOnly'><a target="_blank" href="/Marti/documentation/index.html"><span>Documentation</span></a></li>
+
+		<li><a href="#" id="tak-logout-link"><span>Log Out</span></a></li>
     </ul>
+
+    <script type="text/javascript">
+      // Sign-out: POST to the admin onboarding logout endpoint to invalidate
+      // the server-side session (and the MFA verified flag with it), then
+      // bounce the user back to /Marti/ which forces a fresh login.
+      document.addEventListener('DOMContentLoaded', function () {
+        var link = document.getElementById('tak-logout-link');
+        if (!link) return;
+        link.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          fetch('/Marti/api/onboarding/logout', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+          }).then(function () {
+            // Drop any client-side MFA hint and force the browser to ask
+            // for credentials again on the next navigation.
+            try { sessionStorage.clear(); } catch (e) {}
+            window.location.href = '/Marti/login/login.html';
+          }).catch(function () {
+            window.location.href = '/Marti/login/login.html';
+          });
+        });
+      });
+    </script>
   </div>
 
 
