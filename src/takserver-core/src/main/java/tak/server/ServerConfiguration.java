@@ -194,7 +194,7 @@ import tak.server.util.JavaVersionChecker;
 
 @org.springframework.context.annotation.Configuration
 @ImportResource({"classpath:security-context.xml"})
-@Import({ApiConfiguration.class, ApiOnlyConfiguration.class, MessagingConfiguration.class, MessagingOnlyConfiguration.class})
+@Import({ApiConfiguration.class, ApiOnlyConfiguration.class, MessagingConfiguration.class, MessagingOnlyConfiguration.class, MfaConfiguration.class})
 @EnableCaching
 @EnableAsync
 @EnableGlobalMethodSecurity(prePostEnabled = true)

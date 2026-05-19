@@ -71,11 +71,7 @@ import com.bbn.marti.maplayer.api.MapLayersApi;
 import com.bbn.marti.network.ContactManagerApi;
 import com.bbn.marti.network.OnboardingApi;
 import com.bbn.marti.mfa.MfaApi;
-import com.bbn.marti.mfa.MfaGateFilter;
 import com.bbn.marti.mfa.MfaService;
-import javax.sql.DataSource;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import com.bbn.marti.network.ContactManagerService;
 import com.bbn.marti.network.FederationApi;
 import com.bbn.marti.network.FederationConfigApi;
@@ -649,31 +645,8 @@ public class ApiConfiguration implements WebMvcConfigurer {
 	}
 
 	@Bean
-	public MfaService mfaService(ObjectProvider<DataSource> dataSourceProvider) {
-		return new MfaService(dataSourceProvider);
-	}
-
-	@Bean
 	public MfaApi mfaApi(MfaService mfaService) {
 		return new MfaApi(mfaService);
-	}
-
-	@Bean(name = "mfaGateFilter")
-	public MfaGateFilter mfaGateFilter(MfaService mfaService) {
-		return new MfaGateFilter(mfaService);
-	}
-
-	/**
-	 * Prevent Spring Boot from auto-registering MfaGateFilter with the servlet
-	 * container. The filter is invoked from within Spring Security's chain via
-	 * security-context.xml &lt;sec:custom-filter ref="mfaGateFilter" .../&gt;.
-	 * Registering it twice would block on bean init during servlet startup.
-	 */
-	@Bean
-	public FilterRegistrationBean<MfaGateFilter> mfaGateFilterRegistration(MfaGateFilter mfaGateFilter) {
-		FilterRegistrationBean<MfaGateFilter> reg = new FilterRegistrationBean<>(mfaGateFilter);
-		reg.setEnabled(false);
-		return reg;
 	}
 
 	@Bean
