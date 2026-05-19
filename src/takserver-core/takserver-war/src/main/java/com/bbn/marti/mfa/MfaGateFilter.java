@@ -89,16 +89,15 @@ public class MfaGateFilter implements Filter {
 			return;
 		}
 
-		// Skip the gate for client-cert principals. Their cert is the
-		// "something you have" factor already.
-		Object certs = http.getAttribute("jakarta.servlet.request.X509Certificate");
-		if (certs == null) {
-			certs = http.getAttribute("javax.servlet.request.X509Certificate");
-		}
-		if (certs != null) {
-			chain.doFilter(req, resp);
-			return;
-		}
+		// Note: an earlier version skipped the gate when an X.509 attribute
+		// was present, on the theory that the cert was already the second
+		// factor. That broke admin web logins — the admin-proxy nginx
+		// sidecar presents its own service cert to the API on port 8446,
+		// so every password-authenticated browser session also carries the
+		// X.509 attribute. The skip caused MFA to be bypassed for every
+		// real admin user. Pure-cert clients hit the data APIs on 8443 and
+		// don't reach /Marti/** admin URLs, so always enforcing the gate
+		// here is safe.
 
 		HttpSession session = http.getSession(false);
 		if (session != null && Boolean.TRUE.equals(session.getAttribute(MfaApi.SESSION_MFA_VERIFIED))) {
