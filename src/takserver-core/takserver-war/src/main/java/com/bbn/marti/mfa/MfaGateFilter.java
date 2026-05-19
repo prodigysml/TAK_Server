@@ -62,6 +62,7 @@ public class MfaGateFilter implements Filter {
 
 	public MfaGateFilter(MfaService mfaService) {
 		this.mfaService = mfaService;
+		logger.info("MfaGateFilter constructed; gate active on /Marti/** for password-auth users");
 	}
 
 	@Override
@@ -70,6 +71,15 @@ public class MfaGateFilter implements Filter {
 		HttpServletRequest http = (HttpServletRequest) req;
 		HttpServletResponse hresp = (HttpServletResponse) resp;
 		String path = http.getRequestURI();
+
+		// Diagnostic: confirms the filter is reached on every request that
+		// makes it past Spring Security. Remove once the gate has been
+		// observed working in production.
+		Principal diag = http.getUserPrincipal();
+		logger.info("MFA gate entered path={} principal={} method={}",
+				path,
+				diag != null ? diag.getName() : "anonymous",
+				http.getMethod());
 
 		// Only gate /Marti/** — federation, oauth and sync APIs are out of scope.
 		if (path == null || !path.startsWith("/Marti")) {
