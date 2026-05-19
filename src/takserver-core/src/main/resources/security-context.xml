@@ -110,12 +110,6 @@
 	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" method="DELETE" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/onboarding/**" method="POST" access="ROLE_ADMIN" />
-
-	  	      <!-- MFA enroll/verify endpoints: any authenticated user, so password-based
-	  	           admins can complete TOTP setup. The gate filter still forces MFA on
-	  	           every other /Marti/** path. -->
-	  	      <sec:intercept-url pattern="/Marti/api/mfa/**" access="isAuthenticated()" />
-	  	      <sec:intercept-url pattern="/Marti/mfa/**" access="isAuthenticated()" />
 	  	      
 	  	      <!--  set federate groups security -->
 	  	      <sec:intercept-url pattern="/Marti/api/federategroups/**" access="ROLE_ADMIN" />
@@ -400,17 +394,6 @@
 	<bean id="swaggerFilterRegistrationBean" class="org.springframework.boot.web.servlet.FilterRegistrationBean">
 		<property name="filter" ref="SwaggerAuthorizationFilter"/>
 		<property name="urlPatterns" value="/swagger-resources/**, /swagger-ui/index.html, /swagger-ui.html, /v3/api-docs"/>
-	</bean>
-
-	<!-- TOTP gate: forces password-authenticated /Marti/** requests to complete
-	     MFA before any admin endpoint responds. Order=20 runs after Spring
-	     Security has populated the principal but before controller dispatch.
-	     Cert-authenticated requests are skipped inside the filter. -->
-	<bean id="mfaGateFilter" class="com.bbn.marti.mfa.MfaGateFilter"/>
-	<bean id="mfaGateFilterRegistrationBean" class="org.springframework.boot.web.servlet.FilterRegistrationBean">
-		<property name="filter" ref="mfaGateFilter"/>
-		<property name="urlPatterns" value="/Marti/*"/>
-		<property name="order" value="20"/>
 	</bean>
 
 	<bean id="martiPreAuthenticationFilter" class="com.bbn.marti.util.spring.TakPreAuthenticatedProcessingFilter">
