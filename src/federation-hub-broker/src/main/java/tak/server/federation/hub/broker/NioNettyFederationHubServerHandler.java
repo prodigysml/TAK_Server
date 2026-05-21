@@ -35,6 +35,16 @@ public class NioNettyFederationHubServerHandler extends SimpleChannelInboundHand
     private final static Logger logger = LoggerFactory.getLogger(NioNettyFederationHubServerHandler.class);
     private static final int INTBYTES = Integer.SIZE / Byte.SIZE;
     private static final int MAX_FEDERATION_MESSAGE_SIZE = 67108864; // 64 MB
+
+    // SECURITY: cap concurrent inbound federate connections. Without this,
+    // an attacker can open TLS connections faster than they finish and force
+    // the broker to repeatedly cert-fingerprint + update the policy graph
+    // (CWE-400). Cap is intentionally generous; legitimate federations rarely
+    // exceed a few hundred concurrent sessions.
+    private static final int MAX_ACTIVE_FEDERATE_CONNECTIONS = Integer.parseInt(
+        System.getProperty("tak.federationHub.maxActiveConnections", "10000"));
+    private static final java.util.concurrent.atomic.AtomicInteger ACTIVE_FEDERATE_CONNECTIONS =
+        new java.util.concurrent.atomic.AtomicInteger(0);
     private AtomicBoolean alreadyClosed = new AtomicBoolean(true);
     private ByteBuffer leftovers = null;
     private int nextSize = -1;
@@ -83,6 +93,13 @@ public class NioNettyFederationHubServerHandler extends SimpleChannelInboundHand
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
+        if (ACTIVE_FEDERATE_CONNECTIONS.get() >= MAX_ACTIVE_FEDERATE_CONNECTIONS) {
+            logger.warn("Federation hub rejecting connection: active connections at cap {}", MAX_ACTIVE_FEDERATE_CONNECTIONS);
+            ctx.close();
+            return;
+        }
+        ACTIVE_FEDERATE_CONNECTIONS.incrementAndGet();
+        ctx.channel().closeFuture().addListener(f -> ACTIVE_FEDERATE_CONNECTIONS.decrementAndGet());
         ctx.pipeline()
             .get(SslHandler.class)
             .handshakeFuture()

@@ -1912,6 +1912,34 @@ public class SubmissionService extends BaseService implements MessagingConfigura
                 InetAddress address = InetAddress.getByName(tokens[1]);
                 int port = Integer.parseInt(tokens[2]);
 
+                // SECURITY: attacker XML can set publish=<transport>:<host>:<port>
+                // which makes the server open an outbound to an arbitrary host
+                // (CWE-918 SSRF). Reject loopback, link-local, multicast, any-local,
+                // site-local, and any address outside the operator-configured
+                // allow-list (tak.subscription.publishAllowedHosts CSV). Reject
+                // privileged-port (<1024) destinations and the broker's own port.
+                if (port < 1024 || port > 65535) {
+                    logger.warn("processSubscriptionMessage: rejecting privileged/invalid publish port {}", port);
+                    return;
+                }
+                if (address.isLoopbackAddress() || address.isLinkLocalAddress()
+                        || address.isMulticastAddress() || address.isAnyLocalAddress()
+                        || address.isSiteLocalAddress()) {
+                    logger.warn("processSubscriptionMessage: rejecting publish target in private/loopback/link-local/multicast range: {}", address);
+                    return;
+                }
+                String allowList = System.getProperty("tak.subscription.publishAllowedHosts", "");
+                if (!allowList.isEmpty()) {
+                    boolean allowed = false;
+                    for (String h : allowList.split(",")) {
+                        if (h.trim().equalsIgnoreCase(tokens[1].trim())) { allowed = true; break; }
+                    }
+                    if (!allowed) {
+                        logger.warn("processSubscriptionMessage: publish target {} not in tak.subscription.publishAllowedHosts", tokens[1]);
+                        return;
+                    }
+                }
+
                 handlerAndProtocol = transportType.client(
                         address,
                         port,

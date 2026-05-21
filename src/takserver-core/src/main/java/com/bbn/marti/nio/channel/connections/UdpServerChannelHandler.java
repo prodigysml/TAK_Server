@@ -33,6 +33,18 @@ public class UdpServerChannelHandler extends AbstractBroadcastingChannelHandler 
 	private static final Logger log = Logger.getLogger(UdpServerChannelHandler.class);
 	private final static int READ_ALLOC = 20480;
 	private Executor executor = null;
+
+// SECURITY: UDP has no handshake or per-connection auth, so an external sender
+// can flood the port with packets and drive unbounded Runnable submissions to
+// the shared executor (CWE-400). Cap in-flight processing tasks; drop datagrams
+// once the in-flight count exceeds the limit. Cap is intentionally generous;
+// legitimate UDP CoT traffic rarely exceeds a few thousand outstanding tasks.
+private static final int MAX_IN_FLIGHT_TASKS = Integer.parseInt(
+    System.getProperty("tak.udp.maxInFlightTasks", "10000"));
+private static final java.util.concurrent.atomic.AtomicInteger IN_FLIGHT_TASKS =
+    new java.util.concurrent.atomic.AtomicInteger(0);
+private static final java.util.concurrent.atomic.AtomicLong DROPPED_DATAGRAMS =
+    new java.util.concurrent.atomic.AtomicLong(0);
 	private DatagramChannel channel;
 
 	public final UdpServerChannelHandler withChannel(DatagramChannel channel) {
@@ -92,13 +104,34 @@ public class UdpServerChannelHandler extends AbstractBroadcastingChannelHandler 
             if (clientAddress != null && buffer.remaining() > 0) {
                 log.trace(this + " read " + buffer.remaining() + " bytes of data from the wire");
                 totalBytesWritten.addAndGet(buffer.remaining());
-                // copy data into local buffer
-                ByteBuffer copy = ByteUtils.copy(buffer);
-                
-            	// build + submit IO processing job to executor
-                Runnable dataCarryingRunnable = buildDataCarryingRunnable(copy, clientAddress, localPort());
-                
-            	executor.execute(dataCarryingRunnable);
+
+                // SECURITY: bound in-flight processing to mitigate UDP flood (CWE-400).
+                if (IN_FLIGHT_TASKS.get() >= MAX_IN_FLIGHT_TASKS) {
+                    long dropped = DROPPED_DATAGRAMS.incrementAndGet();
+                    if ((dropped & 0xFFFL) == 0L) {
+                        log.warn("UDP datagram dropped due to in-flight task cap {}; total dropped={}",
+                                MAX_IN_FLIGHT_TASKS, dropped);
+                    }
+                } else {
+                    // copy data into local buffer
+                    ByteBuffer copy = ByteUtils.copy(buffer);
+
+                    // build + submit IO processing job to executor
+                    Runnable dataCarryingRunnable = buildDataCarryingRunnable(copy, clientAddress, localPort());
+                    IN_FLIGHT_TASKS.incrementAndGet();
+                    try {
+                        executor.execute(() -> {
+                            try {
+                                dataCarryingRunnable.run();
+                            } finally {
+                                IN_FLIGHT_TASKS.decrementAndGet();
+                            }
+                        });
+                    } catch (Throwable t) {
+                        IN_FLIGHT_TASKS.decrementAndGet();
+                        throw t;
+                    }
+                }
             } else if (buffer.remaining() == 0) {
             	log.warn("handleRead receives spurious read call");
             } else {

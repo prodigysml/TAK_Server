@@ -1661,6 +1661,15 @@ public class MissionApi extends BaseRestController {
 		Mission mission = missionService.getMissionByNameCheckGroups(name, martiUtil.getGroupVectorBitString(request));
 		missionService.validateMission(mission, name);
 
+		// SECURITY: server-wide MISSION_WRITE permission is not enough — verify
+		// the caller's role on THIS mission allows writes. Previously any user
+		// with the MISSION_WRITE permission could replace any mission's package
+		// regardless of mission ownership (CWE-862/IDOR).
+		MissionRole writeRole = missionService.getRoleForRequest(mission, request);
+		if (writeRole == null || !writeRole.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
+			throw new ForbiddenException("Caller lacks MISSION_WRITE permission on mission " + name);
+		}
+
 		List<MissionChange> conflicts = new ArrayList<>();
 
 		boolean success = missionService.addMissionPackage(

@@ -51,6 +51,24 @@ public class X509AuthCodec extends AbstractAuthCodec implements ByteCodec {
     private long updateIntervalMilliseconds = -1L;
     private final long updateIntervalMillisecondsDefault = 300000L;
 
+    // SECURITY: doTlsAuth performs synchronous DB + LDAP work. Running that
+    // on the Netty I/O thread (where decode/encode/onConnect are invoked)
+    // lets a flood of new TLS connections exhaust the I/O thread pool and
+    // amplify into backend pressure (CWE-400). Offload to a bounded pool.
+    private static final int AUTH_THREADS = Integer.parseInt(
+        System.getProperty("tak.x509Auth.threads", "16"));
+    private static final int AUTH_QUEUE = Integer.parseInt(
+        System.getProperty("tak.x509Auth.queue", "1024"));
+    private static final java.util.concurrent.ExecutorService AUTH_EXECUTOR =
+        new java.util.concurrent.ThreadPoolExecutor(
+            AUTH_THREADS, AUTH_THREADS,
+            60L, java.util.concurrent.TimeUnit.SECONDS,
+            new java.util.concurrent.LinkedBlockingQueue<>(AUTH_QUEUE),
+            r -> { Thread t = new Thread(r, "tak-x509-auth"); t.setDaemon(true); return t; },
+            new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
+    private final java.util.concurrent.atomic.AtomicBoolean authInFlight =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+
     /**
      * Receives incoming, network side traffic and decodes it into another byte buffer
      */
@@ -198,7 +216,7 @@ public class X509AuthCodec extends AbstractAuthCodec implements ByteCodec {
         return updateIntervalMilliseconds;
     }
 
-    protected synchronized void doTlsAuth() {
+    protected void doTlsAuth() {
 
         // reauthenticate the connection if we've passed the update interval
         long now = (new Date()).getTime();
@@ -206,6 +224,23 @@ public class X509AuthCodec extends AbstractAuthCodec implements ByteCodec {
             return;
         }
         lastAuthTime = now;
+
+        // Submit the synchronous DB/LDAP work to a bounded executor so the
+        // Netty I/O thread that invoked decode/encode/onConnect returns
+        // immediately. authStatus is set asynchronously and consumed later.
+        if (!authInFlight.compareAndSet(false, true)) {
+            return; // an authentication is already in-flight for this connection
+        }
+        AUTH_EXECUTOR.execute(() -> {
+            try {
+                doTlsAuthSync();
+            } finally {
+                authInFlight.set(false);
+            }
+        });
+    }
+
+    private synchronized void doTlsAuthSync() {
 
         logger.debug("doTlsAuth");
 
