@@ -66,8 +66,26 @@ import tak.server.ignite.cache.IgniteCacheHolder;
  * 
  */
 public class DistributedPersistentGroupManager implements GroupManager, Service {
-    
+
     private static final long serialVersionUID = 8868582877314994961L;
+
+    // Defense-in-depth cap on findGroups(List<String>): each unresolved name
+    // triggers hydrateGroup which can write through groupDao().save(), turning
+    // a list of attacker-controlled names into write amplification against
+    // the group table (CWE-400, CWE-770). Individual callers (ProfileAdminAPI
+    // updateProfile/createProfile, SubmissionApi, etc.) also enforce their
+    // own caps, but this guard protects every other call site we have not
+    // yet audited. Tune via -Dtak.groups.maxNamesPerFindGroups.
+    public static final int MAX_FIND_GROUPS_NAMES = Integer.getInteger(
+            "tak.groups.maxNamesPerFindGroups", 1024);
+
+    /**
+     * Returns true if a group-name list passed to findGroups must be
+     * rejected. Extracted for unit testing.
+     */
+    public static boolean shouldRejectFindGroupsList(int size, int cap) {
+        return size > cap;
+    }
 
 	private static final String CN_ATTR_NM = "cn";
     private static final String DESCRIPTION_ATTR_NM = "description";
@@ -461,6 +479,14 @@ public class DistributedPersistentGroupManager implements GroupManager, Service 
 
     @Override
     public Set<Group> findGroups(List<String> groupNames) {
+
+        if (groupNames != null
+                && shouldRejectFindGroupsList(groupNames.size(), MAX_FIND_GROUPS_NAMES)) {
+            logger.warn("findGroups rejecting {} names (cap {})",
+                    groupNames.size(), MAX_FIND_GROUPS_NAMES);
+            throw new IllegalArgumentException(
+                    "too many group names (cap " + MAX_FIND_GROUPS_NAMES + ")");
+        }
 
         NavigableSet<Group> groups = new ConcurrentSkipListSet<>();
         for (String groupName : groupNames) {
