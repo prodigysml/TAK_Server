@@ -104,6 +104,10 @@
 	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="POST" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="PUT" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="GET" access="ROLE_ANONYMOUS" />
+	  	      <!-- Belt-and-suspenders on the collection POST/PUT (ant `/**` does not
+	  	           universally match the bare path). -->
+	  	      <sec:intercept-url pattern="/Marti/api/maplayers" method="POST" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/maplayers" method="PUT" access="ROLE_ADMIN" />
 	  	      
 	  	      <!-- injector API -->
 	  	      <!-- Belt-and-suspenders: cover both the bare collection path and the wildcard. -->
@@ -235,6 +239,9 @@
 			  <sec:intercept-url pattern="/Marti/api/cops/**" access="ROLE_ANONYMOUS" />
 
               <!--  properties API -->
+              <!-- Enumeration of every UID with stored properties is admin-only;
+                   other property GETs remain open for authenticated readers. -->
+              <sec:intercept-url pattern="/Marti/api/properties/uids" method="GET" access="ROLE_ADMIN" />
               <sec:intercept-url pattern="/Marti/api/properties/**" method="GET" access="ROLE_ANONYMOUS" />
               
               <!--  files API -->

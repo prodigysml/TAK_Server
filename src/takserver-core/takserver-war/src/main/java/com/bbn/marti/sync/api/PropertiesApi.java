@@ -8,6 +8,7 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,9 +44,12 @@ public class PropertiesApi extends BaseRestController {
     /*
      * get all uids containing properties
      */
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/properties/uids", method = RequestMethod.GET)
     public ApiResponse<Collection<String>> getAllPropertyKeys() throws RemoteException {
-
+        // SECURITY: enumerating every UID that has stored properties is a
+        // recon primitive (device/mission identifiers leak to any
+        // authenticated caller). Restrict to operators (CWE-862, CWE-200).
         return new ApiResponse<Collection<String>>(serverInfo.getServerId(), Constants.API_VERSION, "UIDs", propertiesService.findAllUids());
     }
     
