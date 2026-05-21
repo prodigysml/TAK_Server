@@ -104,10 +104,21 @@ public class TakProtoWebSocketHandler extends BinaryWebSocketHandler {
 		});
 	}
 
+	// SECURITY: reject WebSocket binary frames larger than the configured cap
+	// to stop a remote client from driving JVM OOM by sending huge payloads
+	// (CWE-400). Default 4 MB; override with tak.websocket.maxBinaryBytes.
+	private static final int MAX_BINARY_BYTES = Integer.parseInt(
+		System.getProperty("tak.websocket.maxBinaryBytes", String.valueOf(4 * 1024 * 1024)));
+
 	@Override
 	public void handleBinaryMessage(WebSocketSession session, BinaryMessage message) throws Exception {
 
-		try {		
+		try {
+			if (message.getPayloadLength() > MAX_BINARY_BYTES) {
+				logger.warn("WebSocket binary frame rejected: size {} exceeds cap {}", message.getPayloadLength(), MAX_BINARY_BYTES);
+				try { session.close(org.springframework.web.socket.CloseStatus.TOO_BIG_TO_PROCESS); } catch (Exception ignore) {}
+				return;
+			}
 			Metrics.counter(Constants.METRIC_MESSAGE_READ_COUNT, "takserver", "messaging").increment();
 			
 			String inVector = RemoteUtil.getInstance()

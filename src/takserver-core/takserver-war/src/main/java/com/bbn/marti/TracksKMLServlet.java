@@ -321,30 +321,54 @@ public class TracksKMLServlet extends EsapiServlet {
 	      	String groupName = getParameterValue(httpParameters, QueryParameter.groupName.name());
 	      	String groupRole = getParameterValue(httpParameters, QueryParameter.groupRole.name());
 	      	
-	      	String input = IOUtils.toString(request.getInputStream());
+	      	// SECURITY: cap KML POST body and resulting track count so a single
+	      	// authenticated request cannot drive memory / DB exhaustion (CWE-400).
+	      	final int MAX_BODY_BYTES = Integer.parseInt(
+	      		System.getProperty("tak.tracksKml.maxBodyBytes", String.valueOf(10 * 1024 * 1024)));
+	      	final int MAX_TRACKS = Integer.parseInt(
+	      		System.getProperty("tak.tracksKml.maxTracks", "10000"));
+	      	long contentLength = request.getContentLengthLong();
+	      	if (contentLength > MAX_BODY_BYTES) {
+	      		logger.warn("tracksKml POST rejected: content-length {} exceeds cap {}", contentLength, MAX_BODY_BYTES);
+	      		response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+	      		return;
+	      	}
+	      	String input = org.apache.commons.io.IOUtils.toString(
+	      		new org.apache.commons.io.input.BoundedInputStream(request.getInputStream(), MAX_BODY_BYTES + 1L),
+	      		java.nio.charset.StandardCharsets.UTF_8);
+	      	if (input.length() > MAX_BODY_BYTES) {
+	      		logger.warn("tracksKml POST rejected: body exceeds cap {}", MAX_BODY_BYTES);
+	      		response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+	      		return;
+	      	}
 	    	try {
-				validator.getValidInput("tracksKml", input, 
+				validator.getValidInput("tracksKml", input,
 						MartiValidatorConstants.Regex.XmlBlackListWordOnly.name(), input.length(), true);
-			
+
 		    } catch (ValidationException e) {
-		        logger.error("EASPI ValiationException!", e);	    	
+		        logger.error("EASPI ValiationException!", e);
 	        	response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
 	      		return;
-		    }	      	
+		    }
 
 	      	// TODO support kmz too
 	      	Kml kmlTrack = KmlParser.unmarshal(input);
-	    	
+
 	      	// set default cot type if none supplied
 	      	if (cotType == null) {
 	      		cotType = "a-f-G-U-C-I";
 	      	}
-	      	
+
 	      	// parse the kml
 	      	List<CotElement> cotTracks = KmlUtils.trackKmlToCot(kmlTrack);
 	      	if (cotTracks == null) {
 	      		logger.error("error converting kml to cot");
 	        	response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+	      		return;
+	      	}
+	      	if (cotTracks.size() > MAX_TRACKS) {
+	      		logger.warn("tracksKml POST rejected: track count {} exceeds cap {}", cotTracks.size(), MAX_TRACKS);
+	      		response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
 	      		return;
 	      	}
 

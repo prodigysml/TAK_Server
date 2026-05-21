@@ -147,6 +147,18 @@ public class CotApi extends BaseRestController {
     		Date start = timeInterval.getKey();
     		Date end = timeInterval.getValue();
 
+    		// SECURITY: cap the time window the caller can request and the
+    		// number of events serialized into the XML response. Default 7 day
+    		// window, 100k event cap; override via system properties (CWE-400).
+    		long MAX_WINDOW_MS = Long.parseLong(
+    			System.getProperty("tak.cotApi.maxWindowMillis", String.valueOf(7L * 24 * 60 * 60 * 1000)));
+    		int MAX_RESULTS = Integer.parseInt(
+    			System.getProperty("tak.cotApi.maxResults", "100000"));
+    		if (start != null && end != null && (end.getTime() - start.getTime()) > MAX_WINDOW_MS) {
+    			logger.warn("getAllCotEvents window exceeds cap; truncating end to start+{}ms", MAX_WINDOW_MS);
+    			end = new Date(start.getTime() + MAX_WINDOW_MS);
+    		}
+
     		logger.debug("get all CoT for uid " + uid);
 
     		List<CotElement> cotElements;
@@ -165,9 +177,15 @@ public class CotApi extends BaseRestController {
     		result.append("<events>");
 
     		// Get mission uids, then the latest CoT for each
+    		int emitted = 0;
     		for (CotElement cotElement : cotElements) {
+    			if (emitted >= MAX_RESULTS) {
+    				logger.warn("getAllCotEvents truncating response at {} elements (uid={})", MAX_RESULTS, uid);
+    				break;
+    			}
     			result.append(cotElement.toCotXml());
     			result.append('\n');
+    			emitted++;
     		}
     		result.append("</events>");
 

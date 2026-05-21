@@ -225,7 +225,7 @@ public class GroupsApi extends BaseRestController {
                 String username = SecurityContextHolder.getContext().getAuthentication().getName();
                 groups = activeGroupCacheHelper.getActiveGroupsForUser(username);
 
-                if (sendLatestSA) {
+                if (sendLatestSA && allowSendLatestSA(username)) {
                     subscriptionManager.sendLatestReachableSA(username);
                 }
             }
@@ -305,6 +305,24 @@ public class GroupsApi extends BaseRestController {
     public static class UserGroups {
         public User user;
         public Set<Group> groups;
+    }
+
+    // SECURITY: throttle sendLatestSA so a single authenticated user cannot
+    // drive repeated full per-user SA broadcasts (CWE-400). Allows at most one
+    // call per SA_REPLAY_MIN_INTERVAL_MS per username.
+    private static final long SA_REPLAY_MIN_INTERVAL_MS = Long.parseLong(
+        System.getProperty("tak.groups.sendLatestSAMinIntervalMs", "30000"));
+    private static final java.util.concurrent.ConcurrentHashMap<String, Long> SA_REPLAY_LAST =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static boolean allowSendLatestSA(String username) {
+        long now = System.currentTimeMillis();
+        Long prev = SA_REPLAY_LAST.put(username, now);
+        if (prev != null && now - prev < SA_REPLAY_MIN_INTERVAL_MS) {
+            SA_REPLAY_LAST.put(username, prev);
+            return false;
+        }
+        return true;
     }
 
     @RequestMapping(value = "/groups/groupCacheEnabled", method = RequestMethod.GET)

@@ -268,10 +268,10 @@
               <sec:intercept-url pattern="/Marti/MissionEditor.jsp" access="ROLE_NON_ADMIN_UI"/>
               <sec:intercept-url pattern="/Marti/MissionInvite.jsp" access="ROLE_NON_ADMIN_UI"/>
               <sec:intercept-url pattern="/Marti/MissionSend.jsp" access="ROLE_NON_ADMIN_UI"/>
-              <sec:intercept-url pattern="/Marti/api/citrap/**" method="GET" access="ROLE_ANONYMOUS"/>
-              <sec:intercept-url pattern="/Marti/api/citrap/**" method="POST" access="ROLE_ANONYMOUS"/>
-              <sec:intercept-url pattern="/Marti/api/citrap/**" method="PUT" access="ROLE_ANONYMOUS"/>
-              <sec:intercept-url pattern="/Marti/api/citrap/**" method="DELETE" access="ROLE_ANONYMOUS"/>
+              <sec:intercept-url pattern="/Marti/api/citrap/**" method="GET" access="ROLE_NON_ADMIN_UI"/>
+              <sec:intercept-url pattern="/Marti/api/citrap/**" method="POST" access="ROLE_NON_ADMIN_UI"/>
+              <sec:intercept-url pattern="/Marti/api/citrap/**" method="PUT" access="ROLE_NON_ADMIN_UI"/>
+              <sec:intercept-url pattern="/Marti/api/citrap/**" method="DELETE" access="ROLE_NON_ADMIN_UI"/>
 
               <sec:intercept-url pattern="/Marti/api/excheck/**" method="GET" access="ROLE_ANONYMOUS"/>
               <sec:intercept-url pattern="/Marti/api/excheck/**" method="POST" access="ROLE_ADMIN"/>

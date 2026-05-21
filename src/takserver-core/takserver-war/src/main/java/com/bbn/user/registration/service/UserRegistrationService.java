@@ -38,6 +38,25 @@ public class UserRegistrationService {
 
     private static final Pattern VALID_HOSTNAME = Pattern.compile("^[a-zA-Z0-9.\\-]+$");
 
+    // SECURITY: bounded thread pool for registration emails. Previously every
+    // /register/user call started a fresh Thread, so a flood could exhaust
+    // process threads / memory (CWE-400).
+    private static final int EMAIL_THREADS = Integer.parseInt(
+        System.getProperty("tak.registration.emailThreads", "4"));
+    private static final int EMAIL_QUEUE = Integer.parseInt(
+        System.getProperty("tak.registration.emailQueue", "256"));
+    private static final java.util.concurrent.ExecutorService EMAIL_EXECUTOR =
+        new java.util.concurrent.ThreadPoolExecutor(
+            EMAIL_THREADS, EMAIL_THREADS,
+            60L, java.util.concurrent.TimeUnit.SECONDS,
+            new java.util.concurrent.LinkedBlockingQueue<>(EMAIL_QUEUE),
+            r -> {
+                Thread t = new Thread(r, "tak-registration-email");
+                t.setDaemon(true);
+                return t;
+            },
+            new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
+
     private final org.slf4j.Logger logger = LoggerFactory.getLogger(com.bbn.user.registration.service.UserRegistrationService.class);
 
     @Autowired
@@ -146,14 +165,9 @@ public class UserRegistrationService {
             final String html = text.toString();
             final String subject = invite ? "TAK Server Invitation" : "TAK Server Account Activation";
 
-            // send the validation email in a thread so the request can return quickly
-            Thread emailThread = new Thread(new Runnable() {
-                public void run() {
-                    sendEmail(emailAddress, subject, html);
-                }
-            });
-
-            emailThread.start();;
+            // SECURITY: submit to a bounded pool instead of spawning a fresh
+            // thread per request. Overflow drops oldest queued send.
+            EMAIL_EXECUTOR.execute(() -> sendEmail(emailAddress, subject, html));
             return true;
 
         } catch (Exception e) {

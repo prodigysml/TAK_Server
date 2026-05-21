@@ -1642,11 +1642,17 @@ public class JDBCEnterpriseSyncService implements EnterpriseSyncService {
 			// TODO bump back down to fine
 			updated = query.executeUpdate() > 0;
 			log.fine("Executing SQL: " + query.toString() + " updated:" + updated);
-			try {
-				log.info("trying to update expiration on resource " + hash);
-				retentionPolicyConfig.setResourceExpiryTask(hash, expiration);
-			} catch (Exception e) {
-				logger.error(" Exception getting Retention service, task not scheduled immediately " + hash);
+			// SECURITY: only schedule a retention task when the hash actually
+			// matched a resource row. Without this guard, repeated calls with
+			// attacker-chosen unknown hashes accumulate in the scheduler map
+			// (CWE-400).
+			if (updated) {
+				try {
+					log.info("trying to update expiration on resource " + hash);
+					retentionPolicyConfig.setResourceExpiryTask(hash, expiration);
+				} catch (Exception e) {
+					logger.error(" Exception getting Retention service, task not scheduled immediately " + hash);
+				}
 			}
 			return updated;
 		}

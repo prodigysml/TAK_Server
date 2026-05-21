@@ -46,6 +46,12 @@ public class QuicStreamingServer {
 		new SecureRandom().nextBytes(TOKEN_KEY);
 	}
 
+	// SECURITY: cap per-server connection state. A flood of fresh QUIC
+	// connections would otherwise grow these maps without bound until the
+	// JVM exhausts heap (CWE-400).
+	private static final int MAX_CLIENT_CONNECTIONS = Integer.parseInt(
+		System.getProperty("tak.quic.maxConnections", "50000"));
+
 	private final Map<String, InetSocketAddress> clientAddressMap = new ConcurrentHashMap<>();
 	private final Map<String, NioNettyQuicServerHandler> clientHandlerMap = new ConcurrentHashMap<>();
 
@@ -134,6 +140,11 @@ public class QuicStreamingServer {
 								super.userEventTriggered(ctx, evt);
 								// save the client address
 								if (evt instanceof QuicConnectionEvent) {
+									if (clientAddressMap.size() >= MAX_CLIENT_CONNECTIONS) {
+										log.warn("QUIC connection rejected: client state map at cap {}", MAX_CLIENT_CONNECTIONS);
+										ctx.close();
+										return;
+									}
 									QuicConnectionEvent event = (QuicConnectionEvent) evt;
 									clientAddressMap.put(ctx.channel().id().asLongText(), (InetSocketAddress) event.newAddress());
 								}
@@ -173,10 +184,15 @@ public class QuicStreamingServer {
 						.streamHandler(new ChannelInitializer<QuicStreamChannel>() {
 							@Override
 		                    protected void initChannel(QuicStreamChannel ch)  {
+								if (clientHandlerMap.size() >= MAX_CLIENT_CONNECTIONS) {
+									log.warn("QUIC stream rejected: handler map at cap {}", MAX_CLIENT_CONNECTIONS);
+									ch.close();
+									return;
+								}
 								NioNettyQuicServerHandler quicHandler = new NioNettyQuicServerHandler(input, clientAddressMap);
-								
+
 								clientHandlerMap.put(ch.parent().id().asLongText(), quicHandler);
-								
+
 		                        ch.pipeline()
 		                        	.addLast(new ByteArrayDecoder())
 		                        	.addLast(new ByteArrayEncoder())
