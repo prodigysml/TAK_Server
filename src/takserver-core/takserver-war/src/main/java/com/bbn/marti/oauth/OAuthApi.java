@@ -61,6 +61,21 @@ public class OAuthApi {
 
     protected static final Logger logger = LoggerFactory.getLogger(OAuthApi.class);
 
+    // SECURITY: bound how long the OAuth callback may wait on the IDP and
+    // how large the token-endpoint response may grow before JSON parsing.
+    // All operator-tunable via system properties.
+    static final long OAUTH_CONNECT_TIMEOUT_SECONDS = Long.parseLong(
+            System.getProperty("tak.oauth.connectTimeoutSeconds", "10"));
+    static final long OAUTH_READ_TIMEOUT_SECONDS = Long.parseLong(
+            System.getProperty("tak.oauth.readTimeoutSeconds", "30"));
+    static final long OAUTH_WRITE_TIMEOUT_SECONDS = Long.parseLong(
+            System.getProperty("tak.oauth.writeTimeoutSeconds", "30"));
+    static final long OAUTH_CALL_TIMEOUT_SECONDS = Long.parseLong(
+            System.getProperty("tak.oauth.callTimeoutSeconds", "60"));
+    static final int OAUTH_RESPONSE_MAX_BYTES = Integer.parseInt(
+            System.getProperty("tak.oauth.responseMaxBytes",
+                    Integer.toString(1024 * 1024))); // 1 MiB
+
     @Autowired
     private Validator validator;
 
@@ -144,11 +159,25 @@ public class OAuthApi {
             }
 
             OkHttpClient.Builder builder = new OkHttpClient.Builder()
-                    .sslSocketFactory(sslContext.getSocketFactory(), trustManager);
+                    .sslSocketFactory(sslContext.getSocketFactory(), trustManager)
+                    // SECURITY: bound the time spent waiting on the IDP. A
+                    // slow or malicious token endpoint must not pin servlet
+                    // threads or consume unbounded memory while we wait
+                    // (CWE-400).
+                    .connectTimeout(OAUTH_CONNECT_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(OAUTH_READ_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(OAUTH_WRITE_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .callTimeout(OAUTH_CALL_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
             restTemplate = new RestTemplate(new OkHttp3ClientHttpRequestFactory(builder.build()));
 
         } else {
-            restTemplate = new RestTemplate(new OkHttp3ClientHttpRequestFactory());
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(OAUTH_CONNECT_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(OAUTH_READ_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(OAUTH_WRITE_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .callTimeout(OAUTH_CALL_TIMEOUT_SECONDS, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+            restTemplate = new RestTemplate(new OkHttp3ClientHttpRequestFactory(client));
         }
 
         HttpHeaders headers = new HttpHeaders();
@@ -163,8 +192,19 @@ public class OAuthApi {
             throw new IllegalStateException("token endpoint returned " + tokenResponse.getStatusCodeValue());
         }
 
+        // SECURITY: cap the response body size before JSON parsing so a
+        // slow or malicious IDP cannot force unbounded heap usage.
+        String body = tokenResponse.getBody();
+        if (body == null) {
+            throw new IllegalStateException("token endpoint returned empty body");
+        }
+        if (body.length() > OAUTH_RESPONSE_MAX_BYTES) {
+            throw new IllegalStateException("token endpoint response exceeds cap ("
+                    + body.length() + " > " + OAUTH_RESPONSE_MAX_BYTES + ")");
+        }
+
         // extract the token
-        JSONObject tokenJson = (JSONObject) new JSONParser().parse(tokenResponse.getBody());
+        JSONObject tokenJson = (JSONObject) new JSONParser().parse(body);
 
         if (!tokenJson.containsKey(authServer.getAccessTokenName())) {
             throw new IllegalStateException("missing access_token in response");
