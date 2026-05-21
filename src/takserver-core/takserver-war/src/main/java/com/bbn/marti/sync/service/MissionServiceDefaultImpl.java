@@ -2444,7 +2444,10 @@ public class MissionServiceDefaultImpl implements MissionService {
 			mp.addParameter("uid", UUID.randomUUID().toString());
 			mp.addParameter("name", mission.getName());
 			mp.addParameter("mission_guid", mission.getGuid());
-			mp.addParameter("password_hash", mission.getPasswordHash());
+			// SECURITY: do not export the mission's stored password hash to
+			// archive consumers. The hash is server-side authentication
+			// material; including it in a downloadable ZIP exposes it to
+			// offline cracking or replay (CWE-200).
 			mp.addParameter("creatorUid", mission.getCreatorUid());
 			mp.addParameter("create_time", String.valueOf(mission.getCreateTime().getTime()));
 			mp.addParameter("expiration", mission.getExpiration().toString());

@@ -74,9 +74,14 @@ public class PluginDataApi extends BaseRestController {
 
 			String requestBodyString = new String(requestBodyBytes, Charsets.UTF_8);
 
-			logger.info("submit " + pluginClassName);
-			logger.info("body string: " + requestBodyString);
-			logger.info("content type: " + contentType);
+			// SECURITY: do not log the full request body at INFO. Plugin
+			// submissions can contain secrets, tokens, or PII; INFO is
+			// retained in production logs. Log only metadata and size.
+			logger.info("submit " + pluginClassName + " ("
+					+ requestBodyBytes.length + " bytes, content-type=" + contentType + ")");
+			if (logger.isDebugEnabled()) {
+				logger.debug("body string: " + requestBodyString);
+			}
 
 			try {
 				pluginManager.submitDataToPlugin(pluginClassName, allRequestParams, requestBodyString, contentType);
@@ -116,9 +121,14 @@ public class PluginDataApi extends BaseRestController {
 
 			String requestBodyString = new String(requestBodyBytes, Charsets.UTF_8);
 
-			logger.info("submit " + pluginClassName);
-			logger.info("body string: " + requestBodyString);
-			logger.info("content type: " + contentType);
+			// SECURITY: do not log the full request body at INFO. Plugin
+			// submissions can contain secrets, tokens, or PII; INFO is
+			// retained in production logs. Log only metadata and size.
+			logger.info("submit " + pluginClassName + " ("
+					+ requestBodyBytes.length + " bytes, content-type=" + contentType + ")");
+			if (logger.isDebugEnabled()) {
+				logger.debug("body string: " + requestBodyString);
+			}
 
 			try {
 				result = pluginManager.submitDataToPluginWithResult(pluginClassName, allRequestParams, requestBodyString, contentType);
@@ -164,9 +174,14 @@ public class PluginDataApi extends BaseRestController {
 
 			String requestBodyString = new String(requestBodyBytes, Charsets.UTF_8);
 
-			logger.info("submit " + pluginClassName);
-			logger.info("body string: " + requestBodyString);
-			logger.info("content type: " + contentType);
+			// SECURITY: do not log the full request body at INFO. Plugin
+			// submissions can contain secrets, tokens, or PII; INFO is
+			// retained in production logs. Log only metadata and size.
+			logger.info("submit " + pluginClassName + " ("
+					+ requestBodyBytes.length + " bytes, content-type=" + contentType + ")");
+			if (logger.isDebugEnabled()) {
+				logger.debug("body string: " + requestBodyString);
+			}
 
 			try {
 				pluginManager.updateDataInPlugin(pluginClassName, allRequestParams, requestBodyString, contentType);
