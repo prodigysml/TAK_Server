@@ -46,6 +46,42 @@ import jakarta.servlet.http.HttpServletResponse;
 @RestController
 public class CITrapReportAPI extends BaseRestController {
 
+    // Cap on caller-controlled report-query inputs. /citrap GET + /citrap/subscribe
+    // are operator-tier; an unbounded maxReportCount feeds straight into the SQL
+    // LIMIT clause, and comma-separated keywords/type/callsign expand into OR
+    // predicates that grow query cost linearly (CWE-400, CWE-770).
+    public static final int MAX_CITRAP_REPORT_COUNT = Integer.getInteger(
+            "tak.citrap.maxReportCount", 1000);
+    public static final int MAX_CITRAP_FILTER_TERMS = Integer.getInteger(
+            "tak.citrap.maxFilterTerms", 64);
+
+    /** Clamp caller-supplied maxReportCount string to [0, cap]. Returns cap on null/invalid. */
+    public static String clampMaxReportCount(String requested, int cap) {
+        if (requested == null || requested.isEmpty()) {
+            return Integer.toString(cap);
+        }
+        try {
+            int parsed = Integer.parseInt(requested);
+            if (parsed < 0) return "0";
+            return Integer.toString(Math.min(parsed, cap));
+        } catch (NumberFormatException e) {
+            return Integer.toString(cap);
+        }
+    }
+
+    /** Returns true if a comma-separated filter list has too many terms. */
+    public static boolean shouldRejectFilterTerms(String commaSeparated, int cap) {
+        if (commaSeparated == null || commaSeparated.isEmpty()) return false;
+        int commas = 0;
+        for (int i = 0; i < commaSeparated.length(); i++) {
+            if (commaSeparated.charAt(i) == ',') {
+                commas++;
+                if (commas + 1 > cap) return true;
+            }
+        }
+        return false;
+    }
+
 	@Autowired
     private Validator validator = new MartiValidator();
     private static final Logger logger = LoggerFactory.getLogger(CITrapReportAPI.class);
@@ -232,6 +268,17 @@ public class CITrapReportAPI extends BaseRestController {
 
     private List<ReportType> searchReportsInternal(String groupVector, String keywords, String bbox,
             String startTime, String endTime, String maxReportCount, String type, String callsign) throws Exception {
+
+        // Bound caller-controlled query cost before persistenceStore.getReports
+        // expands these into SQL.
+        if (shouldRejectFilterTerms(keywords, MAX_CITRAP_FILTER_TERMS)
+                || shouldRejectFilterTerms(type, MAX_CITRAP_FILTER_TERMS)
+                || shouldRejectFilterTerms(callsign, MAX_CITRAP_FILTER_TERMS)) {
+            logger.warn("CITrap searchReports rejecting oversized filter list (cap {})",
+                    MAX_CITRAP_FILTER_TERMS);
+            throw new IllegalArgumentException("filter term count exceeds cap");
+        }
+        maxReportCount = clampMaxReportCount(maxReportCount, MAX_CITRAP_REPORT_COUNT);
 
         PGbox spatialConstraint = null;
         Timestamp startTimestamp = null;
