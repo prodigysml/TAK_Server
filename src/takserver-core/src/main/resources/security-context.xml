@@ -172,6 +172,10 @@
 	  	      <sec:intercept-url pattern="/Marti/api/activeconnections/**" access="ROLE_ADMIN" />
 
 			  <sec:intercept-url pattern="/Marti/api/device/profile/**" method="DELETE" access="ROLE_ADMIN" />
+			  <!-- Profile distribution (sendProfile) and other admin-only mutations
+			       are not write-restricted by the device/profile/tool/** anonymous
+			       rules below; pin POST/PUT on /device/profile/** to admin. -->
+			  <sec:intercept-url pattern="/Marti/api/device/profile/*/send" method="POST" access="ROLE_ADMIN" />
 
 			  <sec:intercept-url pattern="/Marti/api/config" method="GET" access="ROLE_ADMIN" />
 			  
