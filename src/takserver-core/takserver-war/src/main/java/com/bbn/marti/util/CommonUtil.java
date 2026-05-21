@@ -85,8 +85,14 @@ public class CommonUtil {
 
 
 	public NavigableSet<Group> getAllInOutGroups() {
-		ConcurrentSkipListSet<Group> allInOutGroups = new ConcurrentSkipListSet<>(groupManager.getAllGroups());
-		for (Group group : allInOutGroups) {
+		// Iterate over a snapshot to avoid mutating-while-iterating on
+		// ConcurrentSkipListSet (CWE-833). Adding the IN-direction copies
+		// back into the live set could let the weakly-consistent iterator
+		// re-visit them and loop unboundedly when Group equality / order
+		// includes direction.
+		java.util.List<Group> snapshot = new java.util.ArrayList<>(groupManager.getAllGroups());
+		ConcurrentSkipListSet<Group> allInOutGroups = new ConcurrentSkipListSet<>(snapshot);
+		for (Group group : snapshot) {
 			Group incp = group.getCopy();
 			incp.setDirection(Direction.IN);
 			allInOutGroups.add(incp);

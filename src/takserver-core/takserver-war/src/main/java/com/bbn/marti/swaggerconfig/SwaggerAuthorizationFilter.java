@@ -29,8 +29,12 @@ public class SwaggerAuthorizationFilter extends OncePerRequestFilter {
         chain.doFilter(req, res);
     }
 
-    public synchronized boolean adminOnly() {
-
+    public boolean adminOnly() {
+        // Removed `synchronized` — method only reads from CoreConfigFacade
+        // singleton + Docs view, so the per-instance monitor previously
+        // serialized every Swagger filter request through one lock and
+        // threatened worker-thread exhaustion under concurrent load
+        // (CWE-400).
         if (CoreConfigFacade.getInstance() == null) {
             return true;
         }
