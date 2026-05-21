@@ -83,7 +83,11 @@
 	  	      
 			  <!--  set data feed security -->
 			  <sec:intercept-url pattern="/Marti/api/datafeeds/stats" method="GET" access="ROLE_ADMIN" />
-	  	      <sec:intercept-url pattern="/Marti/api/datafeeds/**" method="POST" access="ROLE_ADMIN" />
+	  	      <!-- Explicit rule for the collection POST in addition to the wildcard pattern;
+  	           guards against ant-matcher interpretations where /datafeeds/** does not
+  	           match the bare /datafeeds path. -->
+  	      <sec:intercept-url pattern="/Marti/api/datafeeds" method="POST" access="ROLE_ADMIN" />
+  	      <sec:intercept-url pattern="/Marti/api/datafeeds/**" method="POST" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/datafeeds/**" method="PUT" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/datafeeds/**" method="DELETE" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/datafeeds/**" method="GET" access="ROLE_ANONYMOUS" />
@@ -276,7 +280,7 @@
               <sec:intercept-url pattern="/Marti/api/citrap/**" method="GET" access="ROLE_NON_ADMIN_UI"/>
               <sec:intercept-url pattern="/Marti/api/citrap/**" method="POST" access="ROLE_NON_ADMIN_UI"/>
               <sec:intercept-url pattern="/Marti/api/citrap/**" method="PUT" access="ROLE_NON_ADMIN_UI"/>
-              <sec:intercept-url pattern="/Marti/api/citrap/**" method="DELETE" access="ROLE_NON_ADMIN_UI"/>
+              <sec:intercept-url pattern="/Marti/api/citrap/**" method="DELETE" access="ROLE_ADMIN"/>
 
               <sec:intercept-url pattern="/Marti/api/excheck/**" method="GET" access="ROLE_ANONYMOUS"/>
               <sec:intercept-url pattern="/Marti/api/excheck/**" method="POST" access="ROLE_ADMIN"/>
