@@ -167,6 +167,28 @@ public class MissionApi extends BaseRestController {
 		return count > cap;
 	}
 
+	// Caps for mission-keyword / content / log-entry endpoints. Each loops
+	// over caller-supplied lists with per-element DB writes, cache
+	// invalidations, and mission-change broadcasts to every subscriber of
+	// the affected mission. Without these caps an MISSION_WRITE holder
+	// (operator-tier surface) can amplify a single PUT into thousands of
+	// downstream operations (CWE-400, CWE-770).
+	public static final int MAX_MISSION_KEYWORDS = Integer.getInteger(
+			"tak.mission.maxKeywords", 256);
+	public static final int MAX_MISSION_CONTENT_HASHES = Integer.getInteger(
+			"tak.mission.maxContentHashes", 1024);
+	public static final int MAX_MISSION_CONTENT_UIDS = Integer.getInteger(
+			"tak.mission.maxContentUids", 1024);
+	public static final int MAX_MISSION_CONTENT_PATHS = Integer.getInteger(
+			"tak.mission.maxContentPaths", 1024);
+	public static final int MAX_LOG_ENTRY_MISSION_NAMES = Integer.getInteger(
+			"tak.mission.maxLogEntryMissionNames", 64);
+
+	/** Returns true if a list size exceeds the cap. Extracted for testing. */
+	public static boolean shouldRejectListSize(int size, int cap) {
+		return size > cap;
+	}
+
 	// keep a reference to the currently active request
 	@Autowired
 	private HttpServletRequest request;
@@ -1625,6 +1647,17 @@ public class MissionApi extends BaseRestController {
 					(content.getPaths() == null || content.getPaths().isEmpty())) {
 				throw new IllegalArgumentException("at least one hash or uid must be provided in request");
 			}
+
+			if (shouldRejectListSize(content.getHashes().size(), MAX_MISSION_CONTENT_HASHES)
+					|| shouldRejectListSize(content.getUids().size(), MAX_MISSION_CONTENT_UIDS)
+					|| (content.getPaths() != null
+							&& shouldRejectListSize(content.getPaths().size(), MAX_MISSION_CONTENT_PATHS))) {
+				logger.warn("addMissionContent rejecting oversized content batch: hashes={} uids={} paths={}",
+						content.getHashes().size(),
+						content.getUids().size(),
+						content.getPaths() == null ? 0 : content.getPaths().size());
+				throw new IllegalArgumentException("mission content batch exceeds caps");
+			}
 			
 			Mission mission = missionService.getMissionByNameCheckGroups(name, groupVector);
 
@@ -1663,6 +1696,17 @@ public class MissionApi extends BaseRestController {
 			if (content.getHashes().isEmpty() && content.getUids().isEmpty() &&
 					(content.getPaths() == null || content.getPaths().isEmpty())) {
 				throw new IllegalArgumentException("at least one hash or uid must be provided in request");
+			}
+
+			if (shouldRejectListSize(content.getHashes().size(), MAX_MISSION_CONTENT_HASHES)
+					|| shouldRejectListSize(content.getUids().size(), MAX_MISSION_CONTENT_UIDS)
+					|| (content.getPaths() != null
+							&& shouldRejectListSize(content.getPaths().size(), MAX_MISSION_CONTENT_PATHS))) {
+				logger.warn("addMissionContent rejecting oversized content batch: hashes={} uids={} paths={}",
+						content.getHashes().size(),
+						content.getUids().size(),
+						content.getPaths() == null ? 0 : content.getPaths().size());
+				throw new IllegalArgumentException("mission content batch exceeds caps");
 			}
 
 			Mission mission = missionService.addMissionContent(missionGuid, content, creatorUid, groupVector);
@@ -1889,6 +1933,12 @@ public class MissionApi extends BaseRestController {
 			keywords = new ArrayList<>();
 		}
 
+		if (shouldRejectListSize(keywords.size(), MAX_MISSION_KEYWORDS)) {
+			logger.warn("setKeywords rejecting {} keywords (cap {})",
+					keywords.size(), MAX_MISSION_KEYWORDS);
+			throw new IllegalArgumentException("keyword list exceeds cap");
+		}
+
 		Mission mission = missionService.getMission(missionService.trimName(name), martiUtil.getGroupVectorBitString(request));
 
 		// remove all keywords
@@ -1983,6 +2033,12 @@ public class MissionApi extends BaseRestController {
 			throw new IllegalArgumentException("empty keywords array");
 		}
 
+		if (shouldRejectListSize(keywords.size(), MAX_MISSION_KEYWORDS)) {
+			logger.warn("addUidKeyword rejecting {} keywords (cap {})",
+					keywords.size(), MAX_MISSION_KEYWORDS);
+			throw new IllegalArgumentException("keyword list exceeds cap");
+		}
+
 		Mission mission = missionService.getMission(missionService.trimName(name), martiUtil.getGroupVectorBitString(request));
 		missionService.validateMission(mission, name);
 
@@ -2052,6 +2108,12 @@ public class MissionApi extends BaseRestController {
 
 		if (keywords == null || keywords.isEmpty()) {
 			throw new IllegalArgumentException("empty keywords array");
+		}
+
+		if (shouldRejectListSize(keywords.size(), MAX_MISSION_KEYWORDS)) {
+			logger.warn("addContentKeyword rejecting {} keywords (cap {})",
+					keywords.size(), MAX_MISSION_KEYWORDS);
+			throw new IllegalArgumentException("keyword list exceeds cap");
 		}
 
 		Mission mission = missionService.getMission(missionService.trimName(name), martiUtil.getGroupVectorBitString(request));
@@ -3432,6 +3494,13 @@ public class MissionApi extends BaseRestController {
 			throw new IllegalArgumentException("log entry id must not be included for POST");
 		}
 
+		if (entry.getMissionNames() != null
+				&& shouldRejectListSize(entry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES)) {
+			logger.warn("postLogEntry rejecting {} mission names (cap {})",
+					entry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES);
+			throw new IllegalArgumentException("log entry mission-names exceeds cap");
+		}
+
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		for (String name : entry.getMissionNames()) {
@@ -3522,6 +3591,13 @@ public class MissionApi extends BaseRestController {
 			throw new IllegalArgumentException("servertime can't be modified");
 		}
 
+		if (entry.getMissionNames() != null
+				&& shouldRejectListSize(entry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES)) {
+			logger.warn("updateLogEntry rejecting {} mission names in body (cap {})",
+					entry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES);
+			throw new IllegalArgumentException("log entry mission-names exceeds cap");
+		}
+
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		// Verify the log entry exists before checking authorization
@@ -3531,6 +3607,12 @@ public class MissionApi extends BaseRestController {
 
 		// Authorize against the EXISTING log entry's missions (not just the request body)
 		LogEntry existingEntry = logEntryRepository.getOne(entry.getId());
+		if (existingEntry.getMissionNames() != null
+				&& shouldRejectListSize(existingEntry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES)) {
+			logger.warn("updateLogEntry rejecting {} mission names on existing entry (cap {})",
+					existingEntry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES);
+			throw new IllegalArgumentException("log entry mission-names exceeds cap");
+		}
 		for (String name : existingEntry.getMissionNames()) {
 			String missionName = missionService.trimName(name);
 			Mission mission = missionService.getMissionByNameCheckGroups(missionName, groupVector);
@@ -3585,6 +3667,13 @@ public class MissionApi extends BaseRestController {
 		LogEntry entry = logEntryRepository.getOne(id);
 		if (entry == null) {
 			throw new NotFoundException("log entry " + id + " not found");
+		}
+
+		if (entry.getMissionNames() != null
+				&& shouldRejectListSize(entry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES)) {
+			logger.warn("deleteLogEntry rejecting {} mission names on entry (cap {})",
+					entry.getMissionNames().size(), MAX_LOG_ENTRY_MISSION_NAMES);
+			throw new IllegalArgumentException("log entry mission-names exceeds cap");
 		}
 
 		String groupVector = martiUtil.getGroupVectorBitString(request);
