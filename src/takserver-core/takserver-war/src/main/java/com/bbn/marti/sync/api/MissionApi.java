@@ -129,6 +129,44 @@ public class MissionApi extends BaseRestController {
 
 	private static final Logger logger = LoggerFactory.getLogger(MissionApi.class);
 
+	// Caps for /missions/{...}/feed POST input parsing. filterCotTypes is
+	// caller-supplied JSON deserialized into a List<String>, and
+	// filterPolygon is a caller-supplied list of points joined into a
+	// string -- both unbounded parsing/iteration paths reachable by any
+	// caller with MISSION_WRITE on the target mission (CWE-400).
+	public static final int MAX_FEED_FILTER_COT_TYPES_BYTES = Integer.getInteger(
+			"tak.mission.feed.maxFilterCotTypesBytes", 65_536);
+	public static final int MAX_FEED_FILTER_COT_TYPES_COUNT = Integer.getInteger(
+			"tak.mission.feed.maxFilterCotTypesCount", 256);
+	public static final int MAX_FEED_FILTER_POLYGON_POINTS = Integer.getInteger(
+			"tak.mission.feed.maxFilterPolygonPoints", 1024);
+
+	/**
+	 * Returns true if a feed-filter payload must be rejected before parsing.
+	 * Extracted so the cap is unit-testable without spinning up the API
+	 * controller.
+	 */
+	public static boolean shouldRejectFeedFilterPayload(
+			String filterCotTypesSerialized,
+			java.util.List<String> filterPolygonList,
+			int maxBytes,
+			int maxPolygonPoints) {
+		if (filterCotTypesSerialized != null
+				&& filterCotTypesSerialized.length() > maxBytes) {
+			return true;
+		}
+		if (filterPolygonList != null
+				&& filterPolygonList.size() > maxPolygonPoints) {
+			return true;
+		}
+		return false;
+	}
+
+	/** Post-parse element-count check on the deserialized filter list. */
+	public static boolean shouldRejectFeedFilterCount(int count, int cap) {
+		return count > cap;
+	}
+
 	// keep a reference to the currently active request
 	@Autowired
 	private HttpServletRequest request;
@@ -4447,6 +4485,13 @@ public class MissionApi extends BaseRestController {
 			throw new ForbiddenException("Caller lacks MISSION_WRITE permission on mission " + missionName);
 		}
 
+		if (shouldRejectFeedFilterPayload(filterCotTypesSerialized, filterPolygonList,
+				MAX_FEED_FILTER_COT_TYPES_BYTES, MAX_FEED_FILTER_POLYGON_POINTS)) {
+			logger.warn("addFeed rejecting oversized filter payload on mission {}", missionName);
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			throw new Exception("filter payload exceeds caps");
+		}
+
 		List<String> filterCotTypes = null;
 		if (filterCotTypesSerialized != null) {
 			try {
@@ -4459,6 +4504,13 @@ public class MissionApi extends BaseRestController {
 			}
 		}else {
 			filterCotTypes = new ArrayList<>();
+		}
+
+		if (shouldRejectFeedFilterCount(filterCotTypes.size(), MAX_FEED_FILTER_COT_TYPES_COUNT)) {
+			logger.warn("addFeed rejecting {} cot types (cap {})",
+					filterCotTypes.size(), MAX_FEED_FILTER_COT_TYPES_COUNT);
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			throw new Exception("filterCotTypes count exceeds cap");
 		}
 
 		String filterPolygon = null;
@@ -4474,7 +4526,7 @@ public class MissionApi extends BaseRestController {
 			throw new Exception("Server error when adding feed to mission");
 		}
 	}
-	
+
 	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
 	@RequestMapping(value = "/missions/{missionGuid:.+}/feed", method = RequestMethod.POST)
 	@ResponseStatus(HttpStatus.OK)
@@ -4502,6 +4554,13 @@ public class MissionApi extends BaseRestController {
 			throw new ForbiddenException("Caller lacks MISSION_WRITE permission on mission " + mission.getName());
 		}
 
+		if (shouldRejectFeedFilterPayload(filterCotTypesSerialized, filterPolygonList,
+				MAX_FEED_FILTER_COT_TYPES_BYTES, MAX_FEED_FILTER_POLYGON_POINTS)) {
+			logger.warn("addFeedByGuid rejecting oversized filter payload on mission {}", mission.getName());
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			throw new Exception("filter payload exceeds caps");
+		}
+
 		List<String> filterCotTypes = null;
 		if (filterCotTypesSerialized != null) {
 			try {
@@ -4514,6 +4573,13 @@ public class MissionApi extends BaseRestController {
 			}
 		}else {
 			filterCotTypes = new ArrayList<>();
+		}
+
+		if (shouldRejectFeedFilterCount(filterCotTypes.size(), MAX_FEED_FILTER_COT_TYPES_COUNT)) {
+			logger.warn("addFeedByGuid rejecting {} cot types (cap {})",
+					filterCotTypes.size(), MAX_FEED_FILTER_COT_TYPES_COUNT);
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			throw new Exception("filterCotTypes count exceeds cap");
 		}
 
 		String filterPolygon = null;
