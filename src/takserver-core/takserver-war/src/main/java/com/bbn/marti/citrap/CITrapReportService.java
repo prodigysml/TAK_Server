@@ -134,14 +134,16 @@ public class CITrapReportService {
 
         ReportType report = deserializeReport(contents);
 
-        // create a new id if we need to
-        if (report.getId() == null) {
-            // create a new uid for the report if we need to
+        // SECURITY: do not let caller-supplied IDs hijack existing reports.
+        // Previously, if a submitted report's XML contained an ID that
+        // collided with an existing report visible to the caller's group,
+        // the request was silently converted into an updateReport() call,
+        // overwriting another submitter's report (CWE-639). Always allocate
+        // a fresh UID on create; updates must go through the explicit
+        // PUT/update endpoint that performs ownership checks.
+        if (report.getId() == null || reportExists(report.getId(), groupVector)) {
             String uid = UUID.randomUUID().toString();
             report.setId(uid);
-        }
-        else if (reportExists(report.getId(), groupVector)) {
-            return updateReport(reportMP, clientUid, groupVector, report.getId(), missionService);
         }
 
         //

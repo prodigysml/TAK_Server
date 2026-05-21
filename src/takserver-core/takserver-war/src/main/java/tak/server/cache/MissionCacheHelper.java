@@ -47,6 +47,17 @@ public class MissionCacheHelper {
 	private static final Logger logger = LoggerFactory.getLogger(MissionCacheHelper.class);
 	
 	public Mission getMission(String missionName, boolean hydrateDetails, boolean skipCache) {
+		return getMission(missionName, hydrateDetails, skipCache, null);
+	}
+
+	/**
+	 * SECURITY: when callers know the requesting group vector, pass it here so
+	 * the cache key includes it. Without this, missions sharing a name across
+	 * group vectors (allowDupeInDifferentGroups) collide on the cache key and
+	 * the wrong mission can be returned to the access-check downstream, which
+	 * may leak data or cause TOCTOU authorization mistakes (CWE-639).
+	 */
+	public Mission getMission(String missionName, boolean hydrateDetails, boolean skipCache, String groupVector) {
 
 		if (Strings.isNullOrEmpty(missionName)) {
 			throw new IllegalArgumentException("can't get cache for empty mission name");
@@ -56,7 +67,7 @@ public class MissionCacheHelper {
 			return doMissionQuery(missionName, hydrateDetails);
 		}
 
-		String key = getKey(missionName, hydrateDetails);
+		String key = getKey(missionName, hydrateDetails, groupVector);
 
 		Mission mission = null;
 
@@ -236,8 +247,13 @@ public class MissionCacheHelper {
 	}
 
 	public static String getKey(String missionName, boolean hydrateDetails) {
+		return getKey(missionName, hydrateDetails, null);
+	}
 
-		return "[getMission, " + missionName.toLowerCase() + ", " + (hydrateDetails ? "true, hydrated" : "false") + "]";
+	public static String getKey(String missionName, boolean hydrateDetails, String groupVector) {
+
+		String gv = (groupVector == null) ? "" : ("," + groupVector);
+		return "[getMission, " + missionName.toLowerCase() + ", " + (hydrateDetails ? "true, hydrated" : "false") + gv + "]";
 	}
 	
 	public static String getKeyGuid(UUID guid, boolean hydrateDetails) {

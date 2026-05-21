@@ -499,6 +499,32 @@ public class CommonUtil {
 		}
 		return false;
 	}
+	// SECURITY: XML-escape any attacker-controlled string before concatenating
+	// into CoT XML. Without this, callers can inject closing tags / new
+	// elements via fields like remarks, callsign, group, role, type, how
+	// (CWE-91 / CWE-74).
+	private static String xmlEscape(String s) {
+		if (s == null) return "";
+		StringBuilder out = new StringBuilder(s.length());
+		for (int i = 0; i < s.length(); i++) {
+			char c = s.charAt(i);
+			switch (c) {
+				case '&':  out.append("&amp;"); break;
+				case '<':  out.append("&lt;"); break;
+				case '>':  out.append("&gt;"); break;
+				case '"':  out.append("&quot;"); break;
+				case '\'': out.append("&apos;"); break;
+				default:
+					if (c < 0x20 && c != '\t' && c != '\n' && c != '\r') {
+						// drop disallowed XML 1.0 control chars
+					} else {
+						out.append(c);
+					}
+			}
+		}
+		return out.toString();
+	}
+
 	public String saToCot(SituationAwarenessMessage sa) {
 
 		Objects.requireNonNull(sa, "SituationAwarenessMessage");
@@ -515,7 +541,7 @@ public class CommonUtil {
 		double ce = sa.getCe() == null ? 9999999 : sa.getCe();
 		double le = sa.getLe() == null ? 9999999 : sa.getLe();
 		String result =
-				"<event version='2.0' uid='"+uid+"' type='"+sa.getType()+"' time='"+time+"' start='"+start+"' stale='"+stale+"' how='"+how+"'>"
+				"<event version='2.0' uid='"+xmlEscape(uid)+"' type='"+xmlEscape(sa.getType())+"' time='"+time+"' start='"+start+"' stale='"+stale+"' how='"+xmlEscape(how)+"'>"
 						+ "<point lat='"+sa.getLat()+"' lon='"+sa.getLon()+"' hae='"+hae+"' ce='"+ce+"' le='"+le+"' />"
 						+ "<detail>";
 
@@ -524,9 +550,9 @@ public class CommonUtil {
 		}
 
 		if (sa.getCallsign() != null) {
-			result += "<contact callsign='"+sa.getCallsign() + "' ";
+			result += "<contact callsign='"+xmlEscape(sa.getCallsign()) + "' ";
 			if (sa.getPhoneNumber() != null) {
-				result += "phone='" + sa.getPhoneNumber() + "' ";
+				result += "phone='" + xmlEscape(sa.getPhoneNumber()) + "' ";
 			}
 			if (sa.getTakv() != null) {
 				result += "endpoint='*:-1:stcp' ";
@@ -534,24 +560,25 @@ public class CommonUtil {
 			result += "/>";
 		}
 		if (sa.getGroup() != null) {
-			result += "<__group name='" + sa.getGroup() + "' role='" + sa.getRole() + "'/>";
+			result += "<__group name='" + xmlEscape(sa.getGroup()) + "' role='" + xmlEscape(sa.getRole()) + "'/>";
 		}
 		if (sa.getTakv() != null) {
-			String platform = sa.getTakv().split(":")[0];
-			String version = sa.getTakv().split(":")[1];
-			result += "<takv platform='" + platform + "' version='" + version + "'/>";
+			String[] takvParts = sa.getTakv().split(":");
+			String platform = takvParts.length > 0 ? takvParts[0] : "";
+			String version = takvParts.length > 1 ? takvParts[1] : "";
+			result += "<takv platform='" + xmlEscape(platform) + "' version='" + xmlEscape(version) + "'/>";
 		}
 		if (sa.getIconsetPath() != null) {
-			result += "<usericon iconsetpath='" + sa.getIconsetPath() + "'/>";
+			result += "<usericon iconsetpath='" + xmlEscape(sa.getIconsetPath()) + "'/>";
 		}
 		if (sa.getColor() != null) {
-			result += "<color argb='" + sa.getColor() + "' />";
+			result += "<color argb='" + xmlEscape(sa.getColor()) + "' />";
 		}
 		if (sa.getPersistent() != null) {
-			result += "<archive>" + sa.getPersistent() + "<archive>";
+			result += "<archive>" + xmlEscape(String.valueOf(sa.getPersistent())) + "</archive>";
 		}
 		if (sa.getRemarks() != null) {
-			result += "<remarks>" + sa.getRemarks() + "</remarks>";
+			result += "<remarks>" + xmlEscape(sa.getRemarks()) + "</remarks>";
 		}
 		if (sa.getDetailJson() != null && !sa.getDetailJson().equals("")) {
 			String detailJson = sa.getDetailJson();
@@ -586,16 +613,19 @@ public class CommonUtil {
 	private String helpBuildXMLFromJson(JSONObject obj, String key) {
 		StringBuilder sb = new StringBuilder();
 		List<String> subStrings = new ArrayList<>();
-		sb.append("<" + key);
+		// SECURITY: XML-escape JSON-derived element/attr names and values to
+		// prevent injection of arbitrary XML structure (CWE-91/CWE-74).
+		String safeKey = xmlEscape(key);
+		sb.append("<" + safeKey);
 		//Special case for LineStyle and PolyStyle for ATAK
 		if (key.equalsIgnoreCase("LineStyle") || key.equalsIgnoreCase("PolyStyle")){
 			sb.append(">");
 			for(int i = 0; i < obj.names().length(); i++){
 				String name = obj.names().getString(i);
 				Object val = obj.get(name);
-				sb.append("<" + name + ">" + val.toString() + "</" + name + ">");
+				sb.append("<" + xmlEscape(name) + ">" + xmlEscape(val.toString()) + "</" + xmlEscape(name) + ">");
 			}
-			sb.append("</" + key + ">");
+			sb.append("</" + safeKey + ">");
 			return sb.toString();
 		}
 		else {
@@ -606,7 +636,7 @@ public class CommonUtil {
 					subStrings.add(helpBuildXMLFromJson(obj.getJSONObject(name), name));
 					continue;
 				}
-				sb.append(" " + name + "='" + val.toString() + "'");
+				sb.append(" " + xmlEscape(name) + "='" + xmlEscape(val.toString()) + "'");
 			}
 			if (subStrings.size() != 0) {
 				for (String s : subStrings) {
@@ -614,7 +644,7 @@ public class CommonUtil {
 				}
 				int index = sb.indexOf("<", 1);
 				sb.insert(index, ">");
-				sb.append("</" + key + ">");
+				sb.append("</" + safeKey + ">");
 			} else {
 				sb.append("/>");
 			}

@@ -3109,7 +3109,9 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	public Mission getMissionByNameCheckGroups(String missionName, boolean hydrateDetails, String groupVector) {
 
-		Mission mission = missionCacheHelper.getMission(missionName, hydrateDetails, false);
+		// SECURITY: pass groupVector to cache key. Without it, name-only key
+		// collides across missions that share a name in different groups.
+		Mission mission = missionCacheHelper.getMission(missionName, hydrateDetails, false, groupVector);
 
 		if (mission != null) {
 			if (!remoteUtil.isGroupVectorAllowed(groupVector, mission.getGroupVector())) {

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -224,6 +225,7 @@ public class PluginDataApi extends BaseRestController {
 	/*
 	 * Delete generic data from a plugin.
 	 */
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/plugins/{name:.+}/submit", method = RequestMethod.DELETE)
 	public ResponseEntity<ApiResponse<String>> deleteFromPlugin(
 			@PathVariable("name") @ValidatedBy("MartiSafeString") @NotNull String pluginClassName,

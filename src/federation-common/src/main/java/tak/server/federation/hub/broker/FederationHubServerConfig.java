@@ -123,6 +123,7 @@ public class FederationHubServerConfig {
         this.keystoreFile = keystoreFile;
     }
 
+    @JsonIgnore
     public String getKeystorePassword() {
         return keystorePassword;
     }
@@ -142,6 +143,7 @@ public class FederationHubServerConfig {
     public void setTruststoreFile(String truststoreFile) {
         this.truststoreFile = truststoreFile;
     }
+    @JsonIgnore
     public String getTruststorePassword() {
         return truststorePassword;
     }
@@ -299,6 +301,7 @@ public class FederationHubServerConfig {
 		this.dbUsername = dbUsername;
 	}
 
+	@JsonIgnore
 	public String getDbPassword() {
 		return dbPassword;
 	}

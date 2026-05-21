@@ -1287,13 +1287,16 @@ public class MissionApi extends BaseRestController {
 			}
 		}
 
-		if (deepDelete) {
+		// SECURITY: previously the MISSION_DELETE permission check only ran for
+		// deepDelete=true, letting any group-member soft-delete a mission they
+		// did not create. Enforce MISSION_DELETE permission for ALL deletes.
+		{
 			MissionRole role = missionService.getRoleForRequest(mission, request);
 			if (role == null) {
 				throw new IllegalArgumentException("no role for request!");
 			}
 			if (!role.hasPermission(MissionPermission.Permission.MISSION_DELETE)) {
-				String msg = "Attempt to deepDelete mission: " + name + ", by unauthorized user: " + creatorUid;
+				String msg = "Attempt to delete mission: " + name + ", by unauthorized user: " + creatorUid;
 				logger.error(msg);
 				throw new ForbiddenException(msg);
 			}
@@ -2403,15 +2406,18 @@ public class MissionApi extends BaseRestController {
 					}, request);
 
 			//
-			// for password protected missions, the caller must provide a password or a token invite
+			// SECURITY: for password-protected missions, the password is the
+			// gate. A valid mission token alone (SUBSCRIPTION/ACCESS) must not
+			// substitute for the shared-secret password — that lets anyone
+			// who once held any token re-enter without proving knowledge of
+			// the current password. Require correct password unconditionally.
 			//
 			if (mission.isPasswordProtected()) {
-				if (!Strings.isNullOrEmpty(password)) {
-					if (!BCrypt.checkpw(password, mission.getPasswordHash())) {
-						throw new ForbiddenException("Illegal attempt to subscribe to mission! Password did not match.");
-					}
-				}  else if (subRole == null) {
-					throw new ForbiddenException("Illegal attempt to subscribe to mission! No token role provided.");
+				if (Strings.isNullOrEmpty(password)) {
+					throw new ForbiddenException("Illegal attempt to subscribe to mission! Password required for password-protected mission.");
+				}
+				if (!BCrypt.checkpw(password, mission.getPasswordHash())) {
+					throw new ForbiddenException("Illegal attempt to subscribe to mission! Password did not match.");
 				}
 			} else if (!Strings.isNullOrEmpty(password)) {
 				throw new ForbiddenException("Illegal attempt to subscribe to mission! No password provided.");
@@ -2524,15 +2530,18 @@ public class MissionApi extends BaseRestController {
 					}, request);
 
 			//
-			// for password protected missions, the caller must provide a password or a token invite
+			// SECURITY: for password-protected missions, the password is the
+			// gate. A valid mission token alone (SUBSCRIPTION/ACCESS) must not
+			// substitute for the shared-secret password — that lets anyone
+			// who once held any token re-enter without proving knowledge of
+			// the current password. Require correct password unconditionally.
 			//
 			if (mission.isPasswordProtected()) {
-				if (!Strings.isNullOrEmpty(password)) {
-					if (!BCrypt.checkpw(password, mission.getPasswordHash())) {
-						throw new ForbiddenException("Illegal attempt to subscribe to mission! Password did not match.");
-					}
-				}  else if (subRole == null) {
-					throw new ForbiddenException("Illegal attempt to subscribe to mission! No token role provided.");
+				if (Strings.isNullOrEmpty(password)) {
+					throw new ForbiddenException("Illegal attempt to subscribe to mission! Password required for password-protected mission.");
+				}
+				if (!BCrypt.checkpw(password, mission.getPasswordHash())) {
+					throw new ForbiddenException("Illegal attempt to subscribe to mission! Password did not match.");
 				}
 			} else if (!Strings.isNullOrEmpty(password)) {
 				throw new ForbiddenException("Illegal attempt to subscribe to mission! No password provided.");

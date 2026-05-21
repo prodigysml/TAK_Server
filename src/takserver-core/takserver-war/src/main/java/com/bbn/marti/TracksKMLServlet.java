@@ -111,25 +111,53 @@ public class TracksKMLServlet extends EsapiServlet {
 		return idBatch;		
 	}
 	
+	// SECURITY: XML-escape attacker-controlled fields concatenated into CoT
+	// XML to prevent stored XSS / markup injection in downstream clients
+	// (CWE-79 / CWE-116). detailtext is dropped if it contains characters
+	// that could break out of the attribute-list position.
+	private static String xmlEscape(String s) {
+		if (s == null) return "";
+		StringBuilder out = new StringBuilder(s.length());
+		for (int i = 0; i < s.length(); i++) {
+			char c = s.charAt(i);
+			switch (c) {
+				case '&':  out.append("&amp;"); break;
+				case '<':  out.append("&lt;"); break;
+				case '>':  out.append("&gt;"); break;
+				case '"':  out.append("&quot;"); break;
+				case '\'': out.append("&apos;"); break;
+				default:
+					if (c >= 0x20 || c == '\t' || c == '\n' || c == '\r') {
+						out.append(c);
+					}
+			}
+		}
+		return out.toString();
+	}
+
 	private String cotDetail(
 			CotElement cotTrack, String remoteAddr, String groupName, String groupRole) {
-		
+
 		String detail = "<detail>"
-		+	"<contact endpoint=\"" + remoteAddr + ":4242:tcp\" callsign=\"" + cotTrack.callsign + "\"/>"
-		+	"<uid Droid=\"" + cotTrack.uid + "\"/>"
+		+	"<contact endpoint=\"" + xmlEscape(remoteAddr) + ":4242:tcp\" callsign=\"" + xmlEscape(cotTrack.callsign) + "\"/>"
+		+	"<uid Droid=\"" + xmlEscape(cotTrack.uid) + "\"/>"
 		+ 	"<track speed=\"" + cotTrack.speed + "\" course=\"" + cotTrack.course + "\"/>";
-		
+
 		if (groupName != null && groupRole != null) {
-			detail += "<__group name=\"" + groupName + "\" role=\"" + groupRole + "\"/>";
+			detail += "<__group name=\"" + xmlEscape(groupName) + "\" role=\"" + xmlEscape(groupRole) + "\"/>";
 		}
-		
+
 		if (cotTrack.detailtext.length() > 0) {
-			detail += "<precisionlocation " + cotTrack.detailtext + "/>";
+			// detailtext is intended to be a name='value' attribute list; reject
+			// strings that contain characters which would let it close the tag.
+			if (cotTrack.detailtext.indexOf('<') < 0 && cotTrack.detailtext.indexOf('>') < 0) {
+				detail += "<precisionlocation " + cotTrack.detailtext + "/>";
+			}
 		}
-		
+
 		detail += "</detail>";
 		return detail;
-	}   
+	}
 
 	private double round(double value, int digits) {
 		double tmp = Math.pow(10,  digits);
