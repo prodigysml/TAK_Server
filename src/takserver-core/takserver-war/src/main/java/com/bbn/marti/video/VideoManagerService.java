@@ -37,7 +37,25 @@ import com.bbn.security.web.MartiValidator;
 import com.bbn.security.web.MartiValidatorConstants;
 
 public class VideoManagerService {
-	
+
+	// Cap on video connections + feeds processed per /Marti/api/video request.
+	// The endpoint is reachable by any authenticated caller (ROLE_ANONYMOUS in
+	// security-context.xml); each connection triggers XML inflation and
+	// per-feed iteration (CWE-400, CWE-770). Tune via
+	// -Dtak.video.maxConnectionsPerResponse / -Dtak.video.maxFeedsPerConnection.
+	static final int MAX_VIDEO_CONNECTIONS_PER_RESPONSE = Integer.getInteger(
+			"tak.video.maxConnectionsPerResponse", 1000);
+	static final int MAX_VIDEO_FEEDS_PER_CONNECTION = Integer.getInteger(
+			"tak.video.maxFeedsPerConnection", 500);
+
+	/**
+	 * Returns true if the loaded video-connection set is too large to inflate.
+	 * Extracted for unit testing.
+	 */
+	static boolean shouldTruncateConnectionSet(int size, int cap) {
+		return size > cap;
+	}
+
 	@Autowired
 	private JDBCQueryAuditLogHelper wrapper;
 	
@@ -388,9 +406,27 @@ public class VideoManagerService {
 	public VideoCollections getVideoCollections(String protocol, boolean includeV1, String groupVector) {
 		try {
 			VideoCollections videoCollections = new VideoCollections();
-			videoCollections.getVideoConnections().addAll(videoConnectionRepository.get(groupVector));
+			java.util.List<VideoConnection> loaded = videoConnectionRepository.get(groupVector);
+			if (loaded != null && shouldTruncateConnectionSet(loaded.size(),
+					MAX_VIDEO_CONNECTIONS_PER_RESPONSE)) {
+				logger.warn("Truncating video connections from {} to cap {}",
+						loaded.size(), MAX_VIDEO_CONNECTIONS_PER_RESPONSE);
+				loaded = loaded.subList(0, MAX_VIDEO_CONNECTIONS_PER_RESPONSE);
+			}
+			videoCollections.getVideoConnections().addAll(loaded);
 			for (VideoConnection videoConnection : videoCollections.getVideoConnections()) {
 				inflateFeedsFromXml(videoConnection);
+				if (videoConnection.getFeeds() != null
+						&& videoConnection.getFeeds().size() > MAX_VIDEO_FEEDS_PER_CONNECTION) {
+					logger.warn("Truncating feeds for connection {} from {} to cap {}",
+							videoConnection.getUuid(),
+							videoConnection.getFeeds().size(),
+							MAX_VIDEO_FEEDS_PER_CONNECTION);
+					java.util.List<FeedV2> feeds = videoConnection.getFeeds();
+					while (feeds.size() > MAX_VIDEO_FEEDS_PER_CONNECTION) {
+						feeds.remove(feeds.size() - 1);
+					}
+				}
 			}
 
 			if (includeV1) {

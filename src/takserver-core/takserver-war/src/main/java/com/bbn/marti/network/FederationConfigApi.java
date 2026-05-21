@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -32,6 +33,7 @@ public class FederationConfigApi extends BaseRestController{
 
 	private final Logger logger = LoggerFactory.getLogger(FederationConfigInterface.class.getName());
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/federationconfig", method = RequestMethod.GET)
     public ResponseEntity<ApiResponse<FederationConfigInfo>> getFederationConfig(){
         try {
@@ -44,6 +46,7 @@ public class FederationConfigApi extends BaseRestController{
         }
     }
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/federationconfig", method = RequestMethod.PUT)
     public ResponseEntity<ApiResponse<String>> modifyFederationConfig(@RequestBody FederationConfigInfo info){
         try {
@@ -65,6 +68,7 @@ public class FederationConfigApi extends BaseRestController{
         }
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/federationconfig/verify", method = RequestMethod.GET)
     public ResponseEntity<ApiResponse<Boolean>> verifyFederationTruststore() {
         try {
