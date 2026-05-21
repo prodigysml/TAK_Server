@@ -172,6 +172,22 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
 
     // tracks which certificate fingerprint registered each federate identity name
     private static final int MAX_FEDERATE_ID_ENTRIES = 10_000;
+
+// Cap on ROL program size accepted from a federate peer before ANTLR
+// parsing. The longest legitimate program in the upstream code base is a
+// few KiB; the cap is well over that. Operator-tunable via system property.
+static final int MAX_ROL_PROGRAM_BYTES = Integer.parseInt(
+		System.getProperty("tak.fed.maxRolProgramBytes", "65536"));
+
+/**
+ * Returns true when an incoming ROL program should be dropped before
+ * being handed to ANTLR. Null or oversized programs short-circuit; the
+ * caller is expected to log and return without invoking the parser.
+ * Visible for testing.
+ */
+static boolean shouldRejectRolProgram(String program, int maxBytes) {
+	return program == null || program.length() > maxBytes;
+}
     private final ConcurrentHashMap<String, String> federateIdToFingerprint = new ConcurrentHashMap<>();
 
     /* v2 variables. */
@@ -2329,9 +2345,20 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
     	if (!fedHubConfigManager.getConfig().isMissionFederationDisruptionEnabled())
     		return;
 
+    	// SECURITY: bound the size of the ROL program before invoking ANTLR.
+    	// A federate peer is operator-trusted at the TLS layer but should not
+    	// be able to push the hub into unbounded parse-tree construction by
+    	// sending a giant or deeply-nested program (CWE-400, CWE-770).
+    	String program = clientROL.getProgram();
+    	if (shouldRejectRolProgram(program, MAX_ROL_PROGRAM_BYTES)) {
+    		logger.warn("dropping ROL program from {} : size {} exceeds cap {}",
+    				streamKey, program == null ? 0 : program.length(), MAX_ROL_PROGRAM_BYTES);
+    		return;
+    	}
+
 		try {
             /* Interpret and execute the ROL program. */
-            RolLexer lexer = new RolLexer(new ANTLRInputStream(clientROL.getProgram()));
+            RolLexer lexer = new RolLexer(new ANTLRInputStream(program));
 
             CommonTokenStream tokens = new CommonTokenStream(lexer);
 
