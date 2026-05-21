@@ -4598,6 +4598,24 @@ public class MissionApi extends BaseRestController {
 			@RequestParam(value = "expiration", required = false) Long expiration,
 			HttpServletRequest request) {
 
+		// Bound caller-supplied expiration timestamp. The downstream
+		// retentionPolicyConfig.setMissionExpiryTask schedules a task at the
+		// supplied epoch-seconds. Extreme values churn the scheduler
+		// (CWE-400). Accept null (clears expiration), 0 (clears), or a
+		// timestamp within +/- 10 years of now. Tune via
+		// -Dtak.mission.maxExpirationWindowSeconds.
+		final long maxWindow = Long.getLong(
+				"tak.mission.maxExpirationWindowSeconds", 10L * 365L * 24L * 3600L);
+		if (expiration != null && expiration > 0) {
+			long now = System.currentTimeMillis() / 1000L;
+			if (expiration < now - maxWindow || expiration > now + maxWindow) {
+				logger.warn("setExpiration rejecting out-of-range expiration {} for mission {}",
+						expiration, missionName);
+				response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+				return;
+			}
+		}
+
 		try {
 			String groupVector = martiUtil.getGroupVectorBitString(request);
 			boolean result = missionService.setExpiration(missionName, expiration, groupVector);
