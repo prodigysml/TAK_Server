@@ -5252,6 +5252,20 @@ public class MissionApi extends BaseRestController {
 
 		logger.debug("mission API getPagedMissions");
 
+		// Bound page-size + offset to prevent unbounded mission hydration on
+		// repository call (CWE-400). Operator-tier surface; caller passes
+		// pagesize / page directly into the SQL LIMIT / OFFSET.
+		final int maxPageSize = Integer.getInteger("tak.mission.maxPagedPageSize", 500);
+		final int maxOffsetPages = Integer.getInteger("tak.mission.maxPagedOffsetPages", 10_000);
+		if (limit <= 0 || limit > maxPageSize) {
+			logger.warn("getPagedMissions clamping pagesize from {} to {}", limit, maxPageSize);
+			limit = maxPageSize;
+		}
+		if (page < 0 || page > maxOffsetPages) {
+			logger.warn("getPagedMissions clamping page from {} to {}", page, maxOffsetPages);
+			page = Math.max(0, Math.min(page, maxOffsetPages));
+		}
+
 		NavigableSet<Group> groups = martiUtil.getGroupsFromRequest(request);
 
 		List<Mission> missions;
