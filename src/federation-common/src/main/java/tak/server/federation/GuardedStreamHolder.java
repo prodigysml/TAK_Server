@@ -49,10 +49,38 @@ public class GuardedStreamHolder<T> {
     
     private boolean isRunningInHub = false;
 
+    // SECURITY: bounded to prevent a malicious federate from flooding the
+    // broker's per-stream event cache, which is later replayed in full to
+    // every newly established outbound stream (CWE-400 DoS).
+    public static final int MAX_CACHE_SIZE = Integer.parseInt(System.getProperty("tak.federation.streamCache.max", "10000"));
+
     private final Set<T> cache;
 
     public Set<T> getCache() {
         return cache;
+    }
+
+    /**
+     * Add to cache with a hard size bound. When over MAX_CACHE_SIZE, drops the
+     * lowest-ordered element (oldest per ConcurrentSkipListSet's comparator)
+     * before insert. Returns true if added.
+     */
+    public boolean addToCacheBounded(T event) {
+        if (event == null) return false;
+        while (cache.size() >= MAX_CACHE_SIZE) {
+            T first = null;
+            try {
+                first = ((java.util.NavigableSet<T>) cache).pollFirst();
+            } catch (ClassCastException ignored) {
+                java.util.Iterator<T> it = cache.iterator();
+                if (it.hasNext()) {
+                    first = it.next();
+                    it.remove();
+                }
+            }
+            if (first == null) break;
+        }
+        return cache.add(event);
     }
     
     // for outgoing connections

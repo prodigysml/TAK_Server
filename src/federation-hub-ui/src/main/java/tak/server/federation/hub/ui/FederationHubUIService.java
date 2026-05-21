@@ -604,8 +604,18 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     }
 
     private boolean isUpdateActiveFederation() {
-        /* TODO do we really need to configure this? */
-        return true;
+        // SECURITY: was hardcoded `return true`, which let any authenticated
+        // fed-hub-ui user mutate trust (addNewGroupCa, policy edits). Gate on
+        // operator-set config + require authenticated principal in security
+        // context (defense-in-depth: anyRequest().authenticated() in
+        // SecurityConfig should already enforce this, but cheap to double-check).
+        if (!fedHubConfig.isAllowFederationUpdates()) {
+            return false;
+        }
+        org.springframework.security.core.Authentication auth =
+            org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.isAuthenticated()
+            && !"anonymousUser".equals(String.valueOf(auth.getPrincipal()));
     }
 
     private Collection<EdgeFilter> getKnownFiltersFromPolicy() {

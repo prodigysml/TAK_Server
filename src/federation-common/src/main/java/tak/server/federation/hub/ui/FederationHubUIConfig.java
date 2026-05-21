@@ -37,6 +37,12 @@ public class FederationHubUIConfig {
     
     private boolean enableFlowIndicators = true;
 
+    // SECURITY: gates federation-write endpoints (addNewGroupCa, policy edits,
+    // group edits). Default false so a misconfigured deployment cannot accept
+    // CA uploads without an explicit operator opt-in. Set true only in admin
+    // tenancies where the authorized_users.yml roster is locked down.
+    private boolean allowFederationUpdates = false;
+
     public String getKeystoreType() {
         return keystoreType;
     }
@@ -182,6 +188,12 @@ public class FederationHubUIConfig {
 	}
 	public void setEnableFlowIndicators(boolean enableFlowIndicators) {
 		this.enableFlowIndicators = enableFlowIndicators;
+	}
+	public boolean isAllowFederationUpdates() {
+		return allowFederationUpdates;
+	}
+	public void setAllowFederationUpdates(boolean allowFederationUpdates) {
+		this.allowFederationUpdates = allowFederationUpdates;
 	}
 	@Override
 	public String toString() {

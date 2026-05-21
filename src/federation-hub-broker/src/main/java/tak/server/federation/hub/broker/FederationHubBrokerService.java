@@ -2228,7 +2228,9 @@ public class FederationHubBrokerService implements ApplicationListener<BrokerSer
 
                     sendMessage(federatedMessage);
 
-                    streamHolder.getCache().add(event);
+                    // SECURITY: bounded add prevents flood from a single federate
+                    // exhausting heap and burdening every new outbound stream's replay.
+                    streamHolder.addToCacheBounded(event);
                     if (logger.isDebugEnabled()) {
                         logger.debug("caching " + event +
                             "  for " + streamHolder.getFederateIdentity().getFedId());

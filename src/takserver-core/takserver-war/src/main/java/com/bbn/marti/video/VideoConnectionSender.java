@@ -8,9 +8,11 @@ package com.bbn.marti.video;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.servlet.ServletException;
@@ -24,7 +26,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.bbn.marti.EsapiServlet;
+import com.bbn.marti.remote.RemoteSubscription;
 import com.bbn.marti.remote.SubmissionInterface;
+import com.bbn.marti.remote.SubscriptionManagerLite;
 import com.bbn.marti.remote.util.DateUtil;
 import com.bbn.marti.util.CommonUtil;
 import com.bbn.marti.remote.util.SpringContextBeanForApi;
@@ -40,6 +44,9 @@ public class VideoConnectionSender extends EsapiServlet {
 
 	@Autowired
 	private SubmissionInterface submission;
+
+	@Autowired
+	private SubscriptionManagerLite subscriptionManager;
 	
     protected static final Logger logger = LoggerFactory.getLogger(VideoConnectionManager.class);
 	
@@ -116,14 +123,32 @@ public class VideoConnectionSender extends EsapiServlet {
 			}
 
     	    String[] contacts = getContacts(request);
-           	
+
+    	    // SECURITY: filter contacts to UIDs visible to the caller's groups.
+    	    // Without this an authenticated user could send video-feed CoT to any UID.
+    	    Set<String> allowedUids = new HashSet<>();
+    	    if (groupVector != null && !groupVector.isEmpty()) {
+    	        List<RemoteSubscription> visibleSubs = subscriptionManager.getSubscriptionsWithGroupAccess(groupVector, false);
+    	        if (visibleSubs != null) {
+    	            for (RemoteSubscription sub : visibleSubs) {
+    	                if (sub != null && sub.clientUid != null) {
+    	                    allowedUids.add(sub.clientUid);
+    	                }
+    	            }
+    	        }
+    	    }
+
            	String[] feedIds = request.getParameter("feedId").split("\\|");
         	for (String feedId : feedIds) {
         		Feed feed = videoManagerService.getFeed(Integer.parseInt(feedId), groupVector);
         		String senderUid = UUID.randomUUID().toString();
 
 	           	for (String contact : contacts) {
-	               	String cotMessage = getCotMessage(senderUid, contact, feed.getAddress(), feed.getAlias(), 
+	           		if (contact == null || !allowedUids.contains(contact)) {
+	           			logger.warn("Dropping video-feed CoT for contact UID '{}' not visible to caller's groups", contact);
+	           			continue;
+	           		}
+	               	String cotMessage = getCotMessage(senderUid, contact, feed.getAddress(), feed.getAlias(),
 	               		feed.getPort(), feed.getRoverPort(), feed.getRtspReliable(), feed.getIgnoreEmbeddedKLV(),
 	               		feed.getPath(), feed.getProtocol(), feed.getNetworkTimeout(), feed.getBufferTime());
 

@@ -2704,8 +2704,12 @@ public class MissionApi extends BaseRestController {
 
 			String targetUid = Strings.isNullOrEmpty(topic) ? uid : topic;
 
-			// verify the caller owns this subscription or is mission owner
-			if (!Strings.isNullOrEmpty(uid) && !uid.equals(username)) {
+			// SECURITY: verify caller owns this subscription or is mission owner.
+			// Check applies to BOTH uid and topic parameters — previously topic was
+			// unchecked, letting any authenticated user unsubscribe another user.
+			boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+			boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
+			if (uidIsOther || topicIsOther) {
 				MissionRole roleForRequest = missionService.getRoleForRequest(mission, finalRequest);
 				if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
 					throw new ForbiddenException("Only mission owner can unsubscribe another user");
@@ -2751,8 +2755,12 @@ public class MissionApi extends BaseRestController {
 
 			String targetUid = Strings.isNullOrEmpty(topic) ? uid : topic;
 
-			// verify the caller owns this subscription or is mission owner
-			if (!Strings.isNullOrEmpty(uid) && !uid.equals(username)) {
+			// SECURITY: verify caller owns this subscription or is mission owner.
+			// Check applies to BOTH uid and topic parameters — previously topic was
+			// unchecked, letting any authenticated user unsubscribe another user.
+			boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+			boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
+			if (uidIsOther || topicIsOther) {
 				MissionRole roleForRequest = missionService.getRoleForRequest(mission, finalRequest);
 				if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
 					throw new ForbiddenException("Only mission owner can unsubscribe another user");
@@ -3134,6 +3142,17 @@ public class MissionApi extends BaseRestController {
 
 		CoreConfig config = CoreConfigFacade.getInstance();
 
+		// SECURITY: type=group persists new groups (DB sequence lock) and broadcasts
+		// invites to every group member. Require MISSION_OWNER for group invites
+		// regardless of VBM to prevent invite/group-creation flooding (CWE-770).
+		if (type == MissionInvitation.Type.group) {
+			MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
+			if (roleForRequest == null || !roleForRequest.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+				throw new ForbiddenException("Only mission owner can send group invites");
+			}
+			enforceInviteRateLimit(request);
+		}
+
 		// If VBM is enabled, only let the mission owner or admin invite users to a COP mission
 		if (config.getRemoteConfiguration().getVbm() != null &&
 				config.getRemoteConfiguration().getVbm().isEnabled() &&
@@ -3172,6 +3191,28 @@ public class MissionApi extends BaseRestController {
 		}
 
 		missionService.missionInvite(mission.getGuidAsUUID(), invitee, type, inviteRole, creatorUid, groupVector);
+	}
+
+	// Per-user invite throttle. 20 invites per minute is generous for legitimate
+	// admin workflow but throttles automated abuse against the group-invite path.
+	private static final int INVITE_RATE_LIMIT_PER_MIN = 20;
+	private static final java.util.concurrent.ConcurrentHashMap<String, long[]> INVITE_RATE_WINDOWS = new java.util.concurrent.ConcurrentHashMap<>();
+
+	private void enforceInviteRateLimit(HttpServletRequest request) {
+		String user = SecurityContextHolder.getContext().getAuthentication() != null
+				? SecurityContextHolder.getContext().getAuthentication().getName()
+				: request.getRemoteAddr();
+		long now = System.currentTimeMillis();
+		long[] window = INVITE_RATE_WINDOWS.compute(user, (k, v) -> {
+			if (v == null || now - v[0] > 60_000L) {
+				return new long[] { now, 1L };
+			}
+			v[1]++;
+			return v;
+		});
+		if (window[1] > INVITE_RATE_LIMIT_PER_MIN) {
+			throw new ForbiddenException("Mission invite rate limit exceeded");
+		}
 	}
 
 	@RequestMapping(value = "/missions/guid/{missionGuid:.+}/invite/{type:.+}/{invitee:.+}", method = RequestMethod.DELETE)
