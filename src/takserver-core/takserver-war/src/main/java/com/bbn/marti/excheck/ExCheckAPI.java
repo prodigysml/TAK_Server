@@ -370,6 +370,16 @@ public class ExCheckAPI extends BaseRestController {
             HttpServletRequest request,
             HttpServletResponse response) throws IOException {
 
+        // Bound caller-supplied XML body before JAXB/SAX parsing. SecureXmlParser
+        // disables entity expansion but parser CPU still scales with input size
+        // (CWE-400). Tune via -Dtak.excheck.maxTaskXmlBytes.
+        final int maxBytes = Integer.getInteger("tak.excheck.maxTaskXmlBytes", 256 * 1024);
+        if (templateTaskXml != null && templateTaskXml.length() > maxBytes) {
+            logger.warn("addEditTemplateTask rejecting XML body len {} > cap {}",
+                    templateTaskXml.length(), maxBytes);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
+
         ChecklistTask templateTask = exCheckService.checklistTaskFromXml(templateTaskXml);
 
         if (templateTask.getUid().compareTo(taskUid) != 0) {

@@ -3299,6 +3299,16 @@ public class MissionApi extends BaseRestController {
 
 		List<MissionInvitation> missionInvitations = missionService.getMissionInvitationsByGuid(mission.getGuidAsUUID());
 
+		// Bound the per-mission invitation list. Operator-tier MISSION_READ; a
+		// large invitation history would otherwise stream verbatim (CWE-400).
+		final int maxInvitations = Integer.getInteger(
+				"tak.mission.maxInvitationsPerResponse", 1000);
+		if (missionInvitations != null && missionInvitations.size() > maxInvitations) {
+			logger.warn("getMissionInvitationsByGuid truncating {} -> cap {}",
+					missionInvitations.size(), maxInvitations);
+			missionInvitations = missionInvitations.subList(0, maxInvitations);
+		}
+
 		return new ApiResponse<List<MissionInvitation>>(Constants.API_VERSION, "MissionInvitation", missionInvitations);
 	}
 
