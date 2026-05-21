@@ -137,6 +137,17 @@ public class ContactsApi extends BaseRestController {
 			Collections.sort(subscriptions, RemoteSubscription.sortByClientUid(reversed));
 		}
 
+		// Bound the response size. /Marti/api/contacts/** GET is
+		// ROLE_ANONYMOUS so any authenticated caller can drive
+		// per-subscription + per-federate sort/serialize cost (CWE-400).
+		// Tune via -Dtak.contacts.maxResponseEntries.
+		final int maxContacts = Integer.getInteger("tak.contacts.maxResponseEntries", 2000);
+		if (subscriptions.size() > maxContacts) {
+			logger.warn("ContactsApi truncating response from {} to cap {}",
+					subscriptions.size(), maxContacts);
+			subscriptions = subscriptions.subList(0, maxContacts);
+		}
+
 		return new ResponseEntity<List<RemoteSubscription>>(subscriptions, new HttpHeaders(), HttpStatus.OK);
 	}
 }
