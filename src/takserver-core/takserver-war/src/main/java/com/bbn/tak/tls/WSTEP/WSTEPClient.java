@@ -55,10 +55,24 @@ public class WSTEPClient {
 
 	public static final Logger logger = LoggerFactory.getLogger(WSTEPClient.class);
 
+	// Cap on the CSR string before it is added to the SOAP DOM. The CSR is
+	// caller-supplied (passes through /Marti/api/tls/signClient which is
+	// ROLE_NO_CLIENT_CERT, i.e. anonymous enrollment), so an oversized base64
+	// payload would otherwise be materialized as a SOAP text node and submitted
+	// to the upstream CA (CWE-400). A typical PKCS#10 base64 CSR is under 4 KiB;
+	// 64 KiB is generous. Tune via -Dtak.wstep.maxCsrBytes.
+	public static final int MAX_WSTEP_CSR_BYTES = Integer.getInteger(
+			"tak.wstep.maxCsrBytes", 65_536);
+
 	public static X509Certificate[] submitCSR(String CSR, String TemplateName, String svcUrl,
 											  String username, String password,
 											  String truststore, String truststorePassword, boolean trustAllHosts,
 											  String tlsContext) {
+		if (CSR != null && CSR.length() > MAX_WSTEP_CSR_BYTES) {
+			logger.warn("WSTEPClient rejecting oversized CSR: {} chars > cap {}",
+					CSR.length(), MAX_WSTEP_CSR_BYTES);
+			throw new IllegalArgumentException("CSR exceeds maximum allowed size");
+		}
 		try {
 			//
 			// create the web service client
