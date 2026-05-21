@@ -101,9 +101,15 @@ public class FileManagerApi extends BaseRestController {
 		 } catch (Exception e) {
 			logger.debug("exception getting group membership for current web user ", e);
 		 }
-		 
-		 
+
+		 // SECURITY: fail closed when group resolution failed. A null
+		 // group vector bypasses the group-AND clause on the underlying
+		 // SQL queries and would enumerate every row.
 		 List<Map<String, String>> fileJson = new ArrayList<Map<String, String>>();
+		 if (Strings.isNullOrEmpty(groupVector)) {
+			 logger.warn("rejecting GET /files/metadata: caller has no group vector");
+			 return new ApiResponse<>(serverInfo.getServerId(), Constants.API_VERSION, "Files", fileJson);
+		 }
 		 Map<String,String> entry = null;
 		 
 		 
@@ -188,10 +194,10 @@ public class FileManagerApi extends BaseRestController {
 	 
 	 @RequestMapping(value = "/files/{hash}", method = RequestMethod.GET)
 	 public ResponseEntity<ByteArrayResource> getFile(@PathVariable("hash") String hash) throws RemoteException {
-		 
+
 		 String groupVector = null;
 		 final HttpServletRequest request = requestHolderBean.getRequest();
-	
+
 		 try {
 			// Get group vector for the user associated with this session
 			groupVector = SpringContextBeanForApi.getSpringContext().getBean(CommonUtil.class).getGroupBitVector(request);
@@ -199,10 +205,18 @@ public class FileManagerApi extends BaseRestController {
 		 } catch (Exception e) {
 			logger.debug("exception getting group membership for current web user ", e);
 		 }
-		 
+
+		 // SECURITY: fail closed when group resolution failed. Passing a null
+		 // group vector into persistenceStore would bypass the group-AND
+		 // clause and could expose files outside the caller's scope.
+		 if (Strings.isNullOrEmpty(groupVector)) {
+			 logger.warn("rejecting GET /files/{}: caller has no group vector", hash);
+			 return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build();
+		 }
+
 		 byte[] array = null;
 		 try {
-			 
+
 			 array = persistenceStore.getContentByHash(hash, groupVector);
 			 List<Metadata> metadataList = persistenceStore.getMetadataByHash(hash, groupVector);
 			 ByteArrayResource resource = new ByteArrayResource(array);
@@ -262,13 +276,22 @@ public class FileManagerApi extends BaseRestController {
 	 public ApiResponse<Map<String, String>> getFileHead(@PathVariable("hash") String hash) throws RemoteException {
 		 String groupVector = null;
 		 final HttpServletRequest request = requestHolderBean.getRequest();
-	
+
 		 try {
 			// Get group vector for the user associated with this session
 			groupVector = SpringContextBeanForApi.getSpringContext().getBean(CommonUtil.class).getGroupBitVector(request);
 			logger.trace("groups bit vector: " + groupVector);
 		 } catch (Exception e) {
 			logger.debug("exception getting group membership for current web user " + e.getMessage());
+		 }
+		 // SECURITY: fail closed when group resolution failed. A null
+		 // groupVector forwarded to getMetadataByHash would skip the
+		 // group-AND clause and could leak metadata for files outside the
+		 // caller's scope (CWE-693).
+		 if (Strings.isNullOrEmpty(groupVector)) {
+			 logger.warn("rejecting HEAD /files/{}: caller has no group vector", hash);
+			 Map<String,String> empty = null;
+			 return new ApiResponse<Map<String,String>>(serverInfo.getServerId(), Constants.API_VERSION, "data", empty);
 		 }
 		 Map<String,String> entry = null;
 		 
