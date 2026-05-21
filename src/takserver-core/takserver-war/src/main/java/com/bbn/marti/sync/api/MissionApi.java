@@ -2450,6 +2450,24 @@ public class MissionApi extends BaseRestController {
 				throw new IllegalArgumentException("either 'uid' or 'topic' parameter must be specified");
 			}
 
+			// SECURITY: caller-supplied uid is used as the subscription's
+			// client identity and is then consumed by missionUninvite +
+			// invitation-clearing logic. Reject a uid/topic that does not
+			// match the authenticated principal unless the caller is mission
+			// owner; otherwise an attacker could create a subscription
+			// bound to another user's UID and manipulate invitation state
+			// (CWE-862).
+			{
+				boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+				boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
+				if (uidIsOther || topicIsOther) {
+					MissionRole callerRoleSub = missionService.getRoleForRequest(mission, request);
+					if (callerRoleSub == null || !callerRoleSub.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+						throw new ForbiddenException("Only mission owner can subscribe another user");
+					}
+				}
+			}
+
 			MissionSubscription missionSubscription = missionService.missionSubscribe(mission.getGuidAsUUID(), mission.getId(),
 					Strings.isNullOrEmpty(topic) ? uid : "topic:" + topic, username, role, groupVector);
 
@@ -2572,6 +2590,24 @@ public class MissionApi extends BaseRestController {
 
 			if (Strings.isNullOrEmpty(uid) && Strings.isNullOrEmpty(topic)) {
 				throw new IllegalArgumentException("either 'uid' or 'topic' parameter must be specified");
+			}
+
+			// SECURITY: caller-supplied uid is used as the subscription's
+			// client identity and is then consumed by missionUninvite +
+			// invitation-clearing logic. Reject a uid/topic that does not
+			// match the authenticated principal unless the caller is mission
+			// owner; otherwise an attacker could create a subscription
+			// bound to another user's UID and manipulate invitation state
+			// (CWE-862).
+			{
+				boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+				boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
+				if (uidIsOther || topicIsOther) {
+					MissionRole callerRoleSub = missionService.getRoleForRequest(mission, request);
+					if (callerRoleSub == null || !callerRoleSub.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+						throw new ForbiddenException("Only mission owner can subscribe another user");
+					}
+				}
 			}
 
 			MissionSubscription missionSubscription = missionService.missionSubscribe(mission.getGuidAsUUID(), mission.getId(),
@@ -3270,9 +3306,13 @@ public class MissionApi extends BaseRestController {
 				throw new ForbiddenException("Illegal attempt to delete invitation");
 			}
 
-			// allow the invitee to remove their own invitation, otherwise require mission owner
+			// SECURITY: only allow self-uninvite when invitee matches the
+			// authenticated principal. Previously the check also accepted
+			// `invitee.equalsIgnoreCase(creatorUid)` — creatorUid comes from
+			// the request, so an attacker could set both invitee and
+			// creatorUid to the victim's UID and bypass the owner gate (CWE-807).
 			String username = SecurityContextHolder.getContext().getAuthentication().getName();
-			boolean isSelfUninvite = invitee.equalsIgnoreCase(username) || invitee.equalsIgnoreCase(creatorUid);
+			boolean isSelfUninvite = invitee.equalsIgnoreCase(username);
 
 			if (!isSelfUninvite) {
 				MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
@@ -3318,9 +3358,13 @@ public class MissionApi extends BaseRestController {
 				throw new ForbiddenException("Illegal attempt to delete invitation");
 			}
 
-			// allow the invitee to remove their own invitation, otherwise require mission owner
+			// SECURITY: only allow self-uninvite when invitee matches the
+			// authenticated principal. Previously the check also accepted
+			// `invitee.equalsIgnoreCase(creatorUid)` — creatorUid comes from
+			// the request, so an attacker could set both invitee and
+			// creatorUid to the victim's UID and bypass the owner gate (CWE-807).
 			String username = SecurityContextHolder.getContext().getAuthentication().getName();
-			boolean isSelfUninvite = invitee.equalsIgnoreCase(username) || invitee.equalsIgnoreCase(creatorUid);
+			boolean isSelfUninvite = invitee.equalsIgnoreCase(username);
 
 			if (!isSelfUninvite) {
 				MissionRole roleForRequest = missionService.getRoleForRequest(mission, request);
@@ -4447,6 +4491,17 @@ public class MissionApi extends BaseRestController {
 
 				String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
+
+		// SECURITY: server-wide MISSION_WRITE permission is necessary but not
+		// sufficient — verify the caller has MISSION_WRITE on THIS mission.
+		// Same fix as the addFeed (by-name) variant; previously any holder of
+		// MISSION_WRITE could attach feeds to any mission visible to their
+		// group vector (CWE-862/IDOR).
+		MissionRole feedWriteRoleByGuid = missionService.getRoleForRequest(mission, request);
+		if (feedWriteRoleByGuid == null || !feedWriteRoleByGuid.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
+			throw new ForbiddenException("Caller lacks MISSION_WRITE permission on mission " + mission.getName());
+		}
+
 		List<String> filterCotTypes = null;
 		if (filterCotTypesSerialized != null) {
 			try {

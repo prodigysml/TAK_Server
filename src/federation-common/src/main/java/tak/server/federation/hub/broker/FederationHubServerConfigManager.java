@@ -33,20 +33,26 @@ public class FederationHubServerConfigManager {
 	}
 	
 	private FederationHubServerConfig loadConfig() {
+		// SECURITY: close both stream variants. Previously the file branch
+		// allocated FileInputStream without closing; saveConfig calls
+		// loadConfig per request, so repeated invocation leaked file
+		// descriptors until the process exhausted its handle limit (CWE-400).
 		try {
 			if (getClass().getResource(configFile) != null) {
-				// It's a resource.
-				config = new ObjectMapper(new YAMLFactory()).readValue(getClass().getResourceAsStream(configFile),
-						FederationHubServerConfig.class);
+				try (java.io.InputStream in = getClass().getResourceAsStream(configFile)) {
+					config = new ObjectMapper(new YAMLFactory()).readValue(in,
+							FederationHubServerConfig.class);
+				}
 			} else {
-				// It's a file.
-				config = new ObjectMapper(new YAMLFactory()).readValue(new FileInputStream(configFile),
-						FederationHubServerConfig.class);	
+				try (java.io.FileInputStream fis = new java.io.FileInputStream(configFile)) {
+					config = new ObjectMapper(new YAMLFactory()).readValue(fis,
+							FederationHubServerConfig.class);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Error loading broker config", e);
 		}
-		
+
 		return config;
 	}
 

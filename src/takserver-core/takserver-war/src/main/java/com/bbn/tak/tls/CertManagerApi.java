@@ -61,6 +61,25 @@ import tak.server.Constants;
 @Profile({Constants.API_PROFILE_NAME, Constants.MONOLITH_PROFILE_NAME})
 public class CertManagerApi extends BaseRestController {
 
+    // SECURITY: serialize concurrent signClient calls per clientUid so two
+    // simultaneous CSR submissions for the same uid cannot both succeed and
+    // produce duplicate valid certificates (CWE-362 / CWE-665). Per-uid lock
+    // map is sized via Striped — bounded, fast lookup, no per-uid retention.
+    private static final int CSR_LOCK_STRIPES = Integer.parseInt(
+        System.getProperty("tak.certmgr.csrLockStripes", "256"));
+    private static final java.util.concurrent.locks.ReentrantLock[] CSR_LOCKS;
+    static {
+        CSR_LOCKS = new java.util.concurrent.locks.ReentrantLock[CSR_LOCK_STRIPES];
+        for (int i = 0; i < CSR_LOCK_STRIPES; i++) {
+            CSR_LOCKS[i] = new java.util.concurrent.locks.ReentrantLock();
+        }
+    }
+    private static java.util.concurrent.locks.ReentrantLock csrLockFor(String clientUid) {
+        String key = (clientUid == null) ? "" : clientUid;
+        int idx = (key.hashCode() & 0x7fffffff) % CSR_LOCK_STRIPES;
+        return CSR_LOCKS[idx];
+    }
+
     public class PEMCertKey {
         String certPEM;
         String keyPEM;
@@ -341,6 +360,10 @@ public class CertManagerApi extends BaseRestController {
             throw new IllegalArgumentException("CSR exceeds maximum allowed size");
         }
 
+        // SECURITY: serialize per-clientUid issuance + persistence so two
+        // concurrent requests for the same uid cannot both succeed.
+        java.util.concurrent.locks.ReentrantLock csrLock = csrLockFor(clientUid);
+        csrLock.lock();
         try {
             TakCert cert = certManagerService.signClient(clientUid, version != null, base64CSR);
             if (cert == null) {
@@ -400,6 +423,8 @@ public class CertManagerApi extends BaseRestController {
             logger.error("Exception in signClientCertV2!", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             return null;
+        } finally {
+            csrLock.unlock();
         }
     }
 

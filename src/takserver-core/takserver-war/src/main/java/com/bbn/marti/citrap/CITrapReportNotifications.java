@@ -29,18 +29,42 @@ public class CITrapReportNotifications {
     @Autowired
     private MissionService missionService;
 
+    // SECURITY: XML-escape attacker-controlled fields concatenated into the
+    // CoT notification envelope. Report summary, callsign, uid, type are
+    // derived from client-uploaded report data; without escaping a crafted
+    // value can inject closing tags or new elements (CWE-91 / CWE-74).
+    private static String xmlEscape(String s) {
+        if (s == null) return "";
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '&':  out.append("&amp;"); break;
+                case '<':  out.append("&lt;"); break;
+                case '>':  out.append("&gt;"); break;
+                case '"':  out.append("&quot;"); break;
+                case '\'': out.append("&apos;"); break;
+                default:
+                    if (c >= 0x20 || c == '\t' || c == '\n' || c == '\r') {
+                        out.append(c);
+                    }
+            }
+        }
+        return out.toString();
+    }
+
     private static String getReportNotificationCot(String senderUid, String senderCallsign, String destUid, double lon, double lat, String reportSummary, String cotType) {
         String time = DateUtil.toCotTime(System.currentTimeMillis());
         String staleTime = DateUtil.toCotTime(System.currentTimeMillis() + STALE);
         String cot = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
-                + "<event version='2.0' uid='" + senderUid + "' type='" + cotType + "' "
+                + "<event version='2.0' uid='" + xmlEscape(senderUid) + "' type='" + xmlEscape(cotType) + "' "
                 + "time='" + time + "' start='" +time + "' stale='" + staleTime + "' how='m-g'>"
                 +		"<point lat='" + lat + "' lon='" + lon + "' hae='0.0' ce='0.0' le='0.0' />"
                 + 		"<detail>"
                 +           "<archive />"
-                +           "<contact callsign='" +  senderCallsign + " CI Report'/>"
-                + 			"<marti><dest uid='" + destUid + "'/></marti>"
-                +           "<remarks>" + reportSummary + "</remarks>"
+                +           "<contact callsign='" +  xmlEscape(senderCallsign) + " CI Report'/>"
+                + 			"<marti><dest uid='" + xmlEscape(destUid) + "'/></marti>"
+                +           "<remarks>" + xmlEscape(reportSummary) + "</remarks>"
                 + 		"</detail>"
                 + "</event>";
         return cot;
