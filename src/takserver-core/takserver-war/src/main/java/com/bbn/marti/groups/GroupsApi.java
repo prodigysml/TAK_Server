@@ -35,6 +35,7 @@ import com.bbn.marti.remote.SubscriptionManagerLite;
 import com.bbn.marti.util.CommonUtil;
 
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -138,6 +139,7 @@ public class GroupsApi extends BaseRestController {
     /*
      * get a user, and group memberships, by id
      */
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/users/{connectionId:.+}", method = RequestMethod.GET)
     public ResponseEntity<ApiResponse<UserGroups>> getUser(@PathVariable("connectionId") String connectionId) {
         

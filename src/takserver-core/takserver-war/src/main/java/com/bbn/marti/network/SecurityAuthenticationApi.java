@@ -81,6 +81,7 @@ public class SecurityAuthenticationApi extends BaseRestController {
         }
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/authentication/config", method = RequestMethod.POST)
     public ResponseEntity<ApiResponse<String>> testAuthConfig() {
 
