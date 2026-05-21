@@ -240,5 +240,13 @@ public interface EnterpriseSyncService {
 	 boolean updateMetadataKeywords(String hash, List<String> keywords) throws
 			SQLException, NamingException, ValidationException;
 
+	 /**
+	  * Group-scoped variant of updateMetadataKeywords. Only mutates the
+	  * resource row when the caller's groupVector shares at least one bit
+	  * with the row's stored group_vector. Prevents IDOR on /files/{hash}/metadata.
+	  */
+	 boolean updateMetadataKeywords(String hash, List<String> keywords, String groupVector) throws
+			SQLException, NamingException, ValidationException;
+
 
 }

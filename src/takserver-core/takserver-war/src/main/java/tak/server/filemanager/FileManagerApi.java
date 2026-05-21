@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.NavigableSet;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.owasp.esapi.ESAPI;
 import org.owasp.esapi.errors.IntrusionException;
@@ -300,11 +301,12 @@ public class FileManagerApi extends BaseRestController {
 	 public void putMetadata(@PathVariable("hash") String hash,
 	    @RequestParam(value = "user", defaultValue = "") String userParam,
 		@RequestParam(value = "expiration", defaultValue = "") String expirationParam,
-	    @RequestParam(value = "keywords", defaultValue = "") List<String> keywordsParam) throws RemoteException {
-		 
+	    @RequestParam(value = "keywords", defaultValue = "") List<String> keywordsParam,
+	    HttpServletResponse response) throws RemoteException {
+
 		 String groupVector = null;
 		 final HttpServletRequest request = requestHolderBean.getRequest();
-	
+
 		 try {
 			// Get group vector for the user associated with this session
 			groupVector = SpringContextBeanForApi.getSpringContext().getBean(CommonUtil.class).getGroupBitVector(request);
@@ -312,9 +314,18 @@ public class FileManagerApi extends BaseRestController {
 		 } catch (Exception e) {
 			logger.debug("exception getting group membership for current web user " + e.getMessage());
 		 }
-		 
+
+		 // Reject the request if the caller has no resolvable group membership.
+		 // Persisting the update without a group filter would allow modifying any
+		 // resource regardless of ownership (IDOR / CWE-284).
+		 if (Strings.isNullOrEmpty(groupVector)) {
+			 logger.warn("rejecting PUT /files/{}/metadata: caller has no group vector", hash);
+			 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+			 return;
+		 }
+
 		 try {
-		 
+
 			 if (!Strings.isNullOrEmpty(userParam)) {
 		    		persistenceStore.updateMetadata(hash, Field.SubmissionUser.toString(), userParam, groupVector);
 	    	}
@@ -322,7 +333,7 @@ public class FileManagerApi extends BaseRestController {
 				 persistenceStore.updateMetadata(hash, Field.EXPIRATION.toString(), expirationParam, groupVector);
 	    	}
 			 if (keywordsParam != null) {
-				 persistenceStore.updateMetadataKeywords(hash, keywordsParam);
+				 persistenceStore.updateMetadataKeywords(hash, keywordsParam, groupVector);
 	    	}
 		 } catch (Exception e) {
 			 logger.error("Unable to store metadata", e);

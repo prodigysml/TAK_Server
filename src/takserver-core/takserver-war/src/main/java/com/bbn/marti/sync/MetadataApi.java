@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,6 +48,7 @@ public class MetadataApi extends BaseRestController {
     @Autowired
     private CommonUtil martiUtil;
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/sync/metadata/{hash}/{metadata}", method = RequestMethod.PUT)
     public ResponseEntity setMetadata(@PathVariable("hash") @NotNull String hash,
                                   @PathVariable("metadata") @NotNull String metadataField,
@@ -88,6 +90,7 @@ public class MetadataApi extends BaseRestController {
         }
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/sync/metadata/{hash}/keywords", method = RequestMethod.PUT)
     public ResponseEntity setMetadataKeywords(@PathVariable("hash") @NotNull String hash,
                                         @RequestBody List<String> keywords)
@@ -120,6 +123,7 @@ public class MetadataApi extends BaseRestController {
         }
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/sync/metadata/{hash}/expiration", method = RequestMethod.PUT)
     public ResponseEntity setExpiration(@PathVariable("hash") @NotNull String hash,
                                  @RequestParam(value = "expiration") Long expiration)

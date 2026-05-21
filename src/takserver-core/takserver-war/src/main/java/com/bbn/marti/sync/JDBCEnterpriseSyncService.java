@@ -1593,11 +1593,17 @@ public class JDBCEnterpriseSyncService implements EnterpriseSyncService {
 	@Override
 	public boolean updateMetadata(String hash, String metadataField, String metadataValue, String groupVector) throws
 			SQLException, NamingException, ValidationException {
+		if (Strings.isNullOrEmpty(groupVector)) {
+			throw new IllegalArgumentException("empty group vector");
+		}
 		boolean updated = false;
+		String sql = "update resource set " + metadataField + " = ? where hash = ?"
+				+ RemoteUtil.getInstance().getGroupAndClause();
 		try (Connection connection = dataSource.getConnection(); PreparedStatement query = queryHelper
-				.prepareStatement("update resource set " + metadataField + " = ? where hash = ?", connection)) {
+				.prepareStatement(sql, connection)) {
 			query.setString(1, metadataValue);
 			query.setString(2, hash);
+			query.setString(3, groupVector);
 			log.fine("Executing SQL: " + query.toString());
 			updated = query.executeUpdate() > 0;
 		}
@@ -1625,6 +1631,27 @@ public class JDBCEnterpriseSyncService implements EnterpriseSyncService {
 			query.setArray(1,
 					queryHelper.createArrayOf("varchar", keywords.toArray(), connection));
 			query.setString(2, hash);
+			log.fine("Executing SQL: " + query.toString());
+			updated = query.executeUpdate() > 0;
+		}
+		return updated;
+	}
+
+	@Override
+	public boolean updateMetadataKeywords(String hash, List<String> keywords, String groupVector) throws
+			SQLException, NamingException, ValidationException {
+		if (Strings.isNullOrEmpty(groupVector)) {
+			throw new IllegalArgumentException("empty group vector");
+		}
+		boolean updated = false;
+		String sql = "update resource set keywords = ? where hash = ?"
+				+ RemoteUtil.getInstance().getGroupAndClause();
+		try (Connection connection = dataSource.getConnection(); PreparedStatement query = queryHelper
+				.prepareStatement(sql, connection)) {
+			query.setArray(1,
+					queryHelper.createArrayOf("varchar", keywords.toArray(), connection));
+			query.setString(2, hash);
+			query.setString(3, groupVector);
 			log.fine("Executing SQL: " + query.toString());
 			updated = query.executeUpdate() > 0;
 		}
