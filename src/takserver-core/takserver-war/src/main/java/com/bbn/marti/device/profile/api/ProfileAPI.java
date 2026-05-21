@@ -77,11 +77,17 @@ public class ProfileAPI extends BaseRestController {
     private void validateClientUidOwnership(String clientUid) {
         String authenticatedUser = SecurityContextHolder.getContext().getAuthentication().getName();
         RemoteSubscription subscription = subscriptionManager.getRemoteSubscriptionByClientUid(clientUid);
-        if (subscription != null && subscription.getUsername() != null
-                && !subscription.getUsername().equals(authenticatedUser)) {
-            // also check User.getId() in case username field isn't populated
-            if (subscription.getUser() == null || subscription.getUser().getId() == null
-                    || !subscription.getUser().getId().equals(authenticatedUser)) {
+        // SECURITY: if a subscription exists for the supplied clientUid we must
+        // be able to confirm it belongs to the caller. Previously a null
+        // username (or null User.id) silently passed the check, letting an
+        // attacker pass any clientUid for which the username/User mapping had
+        // not yet been resolved and pull its profile (CWE-285 IDOR).
+        if (subscription != null) {
+            String subUsername = subscription.getUsername();
+            String subUserId = (subscription.getUser() != null) ? subscription.getUser().getId() : null;
+            boolean usernameMatches = subUsername != null && subUsername.equals(authenticatedUser);
+            boolean userIdMatches = subUserId != null && subUserId.equals(authenticatedUser);
+            if (!usernameMatches && !userIdMatches) {
                 throw new ForbiddenException("Not authorized to access profile for clientUid: " + clientUid);
             }
         }

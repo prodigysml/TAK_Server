@@ -538,7 +538,15 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     
     @RequestMapping(value="/fig/restartBroker", method=RequestMethod.GET)
 	public ResponseEntity<Void> serverRestart() {
-		try {		
+		// SECURITY: kills + restarts the federation broker process via shell.
+		// Reuse the same gate as other privileged /fig/* endpoints: require the
+		// operator-set allowFederationUpdates config flag plus an authenticated
+		// non-anonymous principal. Without this, any fed-hub-ui user could
+		// induce repeated broker restarts (CWE-862 / CWE-306).
+		if (!isUpdateActiveFederation()) {
+			return new ResponseEntity<>(new HttpHeaders(), HttpStatus.FORBIDDEN);
+		}
+		try {
 			logger.info("Restarting Broker Service");
 
 			killBrokerProcess();

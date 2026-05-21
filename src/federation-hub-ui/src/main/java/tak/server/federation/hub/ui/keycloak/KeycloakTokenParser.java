@@ -109,7 +109,23 @@ public class KeycloakTokenParser {
         return parser;
     }
 
+    // SECURITY: previously re-read /opt/tak/certs/sclz.2.der and ran a fresh
+    // KeyFactory + X509EncodedKeySpec on EVERY token parse. A token flood
+    // therefore amplified to repeated disk I/O + crypto setup on every
+    // pre-auth request (CWE-400). Cache the parsed public keys with a short
+    // TTL so legitimate cert rotation still picks up, but a flood of bad
+    // tokens hits the cached list instead of disk.
+    private static final long EXTERNAL_VERIFIER_TTL_MS = Long.parseLong(
+        System.getProperty("tak.fedHub.jwt.externalVerifierTtlMs", "60000"));
+    private static volatile List<RSAPublicKey> cachedExternalVerifiers = null;
+    private static volatile long cachedExternalVerifiersLoadedAt = 0L;
+
     public List<RSAPublicKey> getExternalVerifiers() {
+        long now = System.currentTimeMillis();
+        List<RSAPublicKey> snapshot = cachedExternalVerifiers;
+        if (snapshot != null && (now - cachedExternalVerifiersLoadedAt) < EXTERNAL_VERIFIER_TTL_MS) {
+            return snapshot;
+        }
         try {
             List<RSAPublicKey> rsaPublicKeys = new ArrayList<>();
 
@@ -118,10 +134,15 @@ public class KeycloakTokenParser {
             KeyFactory kf = KeyFactory.getInstance("RSA");
             rsaPublicKeys.add((RSAPublicKey) kf.generatePublic(spec));
 
+            cachedExternalVerifiers = rsaPublicKeys;
+            cachedExternalVerifiersLoadedAt = now;
             return rsaPublicKeys;
         } catch (Exception e) {
             logger.error("exception in getExternalVerifiers!", e);
-            return  null;
+            // On failure return the previous snapshot if we have one so a
+            // transient disk hiccup does not break in-flight requests.
+            if (snapshot != null) return snapshot;
+            return null;
         }
     }
 

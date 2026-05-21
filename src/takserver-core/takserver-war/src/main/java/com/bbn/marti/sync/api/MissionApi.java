@@ -2963,13 +2963,25 @@ public class MissionApi extends BaseRestController {
 				throw new ForbiddenException(
 						"validateRoleAssignment failed! Illegal attempt to assign role " + newRole.name());
 			}
+		} else {
+			// SECURITY: newRole==null means the caller is removing/unsubscribing
+			// the target user. Verify the caller has MISSION_MANAGE_SUBSCRIPTIONS
+			// (or owner) on this mission before performing the removal —
+			// previously the role check was skipped, letting any user with
+			// MISSION_SET_ROLE remove arbitrary participants (CWE-285/862).
+			MissionRole callerRole = missionService.getRoleForRequest(mission, request);
+			if (callerRole == null
+					|| !callerRole.getRole().equals(MissionRole.Role.MISSION_OWNER)) {
+				throw new ForbiddenException(
+						"Only mission owner can unsubscribe another participant from this mission");
+			}
 		}
 
 		result = missionService.setRole(mission, clientUid, username, role, martiUtil.getGroupVectorBitString(request));
 
 		response.setStatus(result ? HttpServletResponse.SC_OK : HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
 	}
-	
+
 	@PreAuthorize("hasPermission(#request, 'MISSION_SET_ROLE')")
 	@RequestMapping(value = "/missions/{missionName:.+}/role", method = RequestMethod.PUT)
 	public void setMissionRole(
@@ -4381,6 +4393,16 @@ public class MissionApi extends BaseRestController {
 
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMission(missionName, groupVector);
+
+		// SECURITY: server-wide MISSION_WRITE permission is necessary but not
+		// sufficient — verify the caller has MISSION_WRITE on THIS mission.
+		// Previously any user with MISSION_WRITE could add feeds to any
+		// mission their group vector could see (CWE-285/862).
+		MissionRole feedWriteRole = missionService.getRoleForRequest(mission, request);
+		if (feedWriteRole == null || !feedWriteRole.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
+			throw new ForbiddenException("Caller lacks MISSION_WRITE permission on mission " + missionName);
+		}
+
 		List<String> filterCotTypes = null;
 		if (filterCotTypesSerialized != null) {
 			try {
