@@ -295,8 +295,18 @@ public class VideoManagerService {
     			p.setString(1, groupVector);
     			try (ResultSet results = wrapper.doQuery(p)) {
     				videoConnections = new VideoConnections();
+    				// Bound the in-memory feed list. /Marti/vcm/** GET is
+    				// ROLE_ANONYMOUS in security-context.xml, so any
+    				// authenticated caller can drive marshalling cost. Reuse the
+    				// per-connection feed cap as the per-response feed cap.
+    				int feedCap = MAX_VIDEO_CONNECTIONS_PER_RESPONSE;
     				while (results.next()) {
-    					Feed feed = feedFromResultSet(results);	    		
+    					if (videoConnections.getFeeds().size() >= feedCap) {
+    						logger.warn("getVideoConnections truncating feeds at cap {} for groupVector",
+    								feedCap);
+    						break;
+    					}
+    					Feed feed = feedFromResultSet(results);
     					videoConnections.getFeeds().add(feed);
     				}
     			}
