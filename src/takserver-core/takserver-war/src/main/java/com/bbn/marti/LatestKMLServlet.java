@@ -157,6 +157,19 @@ public class LatestKMLServlet extends EsapiServlet {
 			}
 		}
 
+		// Bound secago window to prevent broad KML queries. Downstream
+		// kmlService.process iterates every matching CoT in the window
+		// (CWE-400). Default cap: 30 days.
+		final int maxSecAgo = Integer.getInteger("tak.kml.maxSecAgo", 30 * 24 * 3600);
+		if (secAgoInt < 0) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "secago must be >= 0");
+			return;
+		}
+		if (secAgoInt > maxSecAgo) {
+			log.warning("LatestKMLServlet clamping secago " + secAgoInt + " -> " + maxSecAgo);
+			secAgoInt = maxSecAgo;
+		}
+
 		OutputStream servletReponseOutputStream = null;
 		String contentDisposition = "filename=" + DEFAULT_FILENAME_BASE + "-" + cotType + ".kml";
 		try {

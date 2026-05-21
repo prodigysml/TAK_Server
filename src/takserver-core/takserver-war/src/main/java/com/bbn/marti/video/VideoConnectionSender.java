@@ -109,12 +109,35 @@ public class VideoConnectionSender extends EsapiServlet {
 	    // Get the list of people to send an advertisement to (OPTIONAL)
     	String[] contacts = request.getParameterValues("contacts");
     	if (contacts == null || contacts.length == 0) {
+    		// Bound multipart accumulation: /Marti/vcm/** is ROLE_ANONYMOUS so
+    		// any authenticated caller can submit many parts named "contacts"
+    		// with large bodies. Without these caps each part body is fully
+    		// buffered into a StringWriter (CWE-400).
+    		final int maxParts = Integer.getInteger("tak.video.maxContactParts", 1024);
+    		final int maxPartBytes = Integer.getInteger(
+    				"tak.video.maxContactPartBytes", 4096);
     		List<String> contactList = new LinkedList<String>();
     			for(Part part : request.getParts()) {
     				if (part.getName().equalsIgnoreCase("contacts")) {
+    					if (contactList.size() >= maxParts) {
+    						logger.warn("getContacts truncating multipart parts at cap {}", maxParts);
+    						break;
+    					}
+    					if (part.getSize() > maxPartBytes) {
+    						logger.warn("getContacts skipping oversized part {} > {} bytes",
+    								part.getSize(), maxPartBytes);
+    						continue;
+    					}
     					try(InputStream in = part.getInputStream()) {
+							InputStream bounded = com.google.common.io.ByteStreams.limit(
+									in, (long) maxPartBytes + 1L);
 							StringWriter writer = new StringWriter();
-							IOUtils.copy(in, writer);
+							IOUtils.copy(bounded, writer);
+							if (writer.getBuffer().length() > maxPartBytes) {
+								logger.warn("getContacts skipping part exceeding {} bytes after read",
+										maxPartBytes);
+								continue;
+							}
 							contactList.add(writer.toString());
 						}
     				}
