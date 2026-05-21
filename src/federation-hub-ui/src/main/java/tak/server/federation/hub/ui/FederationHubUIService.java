@@ -94,6 +94,16 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
 
     private static final int CERT_FILE_UPLOAD_SIZE = 1048576;
 
+    // Bounds on caller-driven cached state. fed-hub-ui SecurityConfig pins
+    // .anyRequest().authenticated() with no role distinction, so saveFederation
+    // is reachable by any authenticated user. Without these caps the
+    // cachedPolicies map and getKnownGroupsForGraphNode response grow without
+    // bound and can be driven to OOM (CWE-400, CWE-770).
+    static final int MAX_CACHED_POLICIES = Integer.getInteger(
+            "tak.fedhub.maxCachedPolicies", 1024);
+    static final int MAX_GROUPS_PER_GRAPH_NODE = Integer.getInteger(
+            "tak.fedhub.maxGroupsPerGraphNode", 4096);
+
     private String activePolicyName = null;
     private Map<String, FederationPolicyModel> cachedPolicies = new HashMap<>();
 
@@ -289,7 +299,17 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     public FederationPolicyModel saveFederation(RequestEntity<FederationPolicyModel> requestEntity) {
         FederationPolicyModel policy = requestEntity.getBody();
         if (policy != null) {
-        	this.cachedPolicies.put(policy.getName(), policy);
+            // Bound the unique-policy-name cardinality. Without this cap any
+            // authenticated user could POST distinct names to grow the map
+            // forever and exhaust heap (CWE-400, CWE-770). Skip-if-new-key
+            // when at cap; existing keys still update.
+            if (!this.cachedPolicies.containsKey(policy.getName())
+                    && this.cachedPolicies.size() >= MAX_CACHED_POLICIES) {
+                logger.warn("saveFederation rejecting new policy {}: cachedPolicies at cap {}",
+                        policy.getName(), MAX_CACHED_POLICIES);
+                return null;
+            }
+            this.cachedPolicies.put(policy.getName(), policy);
         }
 
         return policy;
@@ -445,7 +465,15 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     		}
     	});
 
-        return new ResponseEntity<List<String>>(groupsForNode, new HttpHeaders(), HttpStatus.OK);
+        // Bound response size to prevent unbounded allocation on policies with
+        // huge per-cell group membership (CWE-400). Truncation logs WARN.
+        List<String> bounded = groupsForNode;
+        if (bounded.size() > MAX_GROUPS_PER_GRAPH_NODE) {
+            logger.warn("truncating groups for graph node {} from {} to cap {}",
+                    graphNodeId, bounded.size(), MAX_GROUPS_PER_GRAPH_NODE);
+            bounded = new ArrayList<>(bounded.subList(0, MAX_GROUPS_PER_GRAPH_NODE));
+        }
+        return new ResponseEntity<List<String>>(bounded, new HttpHeaders(), HttpStatus.OK);
     }
 
     @RequestMapping(value = "/fig/getActiveConnections", method = RequestMethod.GET)
