@@ -61,6 +61,24 @@ public class ProfileAdminAPI extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(ProfileAPI.class);
 
+    // Cap group-name list on profile create/update to bound the per-request
+    // group hydration cost. groupManager.findGroups() lookups + bit-vector
+    // assembly scale with list size (CWE-400). Tune via
+    // -Dtak.profile.maxGroupNames.
+    static final int MAX_PROFILE_GROUP_NAMES = Integer.getInteger(
+            "tak.profile.maxGroupNames", 256);
+
+    static final int MAX_PROFILE_GROUP_NAME_LEN = Integer.getInteger(
+            "tak.profile.maxGroupNameLen", 256);
+
+    /**
+     * Returns true if a group-name list is too large to process. Extracted for
+     * unit testing.
+     */
+    static boolean shouldRejectGroupList(int size, int cap) {
+        return size > cap;
+    }
+
     @Autowired
     private ProfileRepository profileRepository;
 
@@ -205,12 +223,19 @@ public class ProfileAdminAPI extends BaseRestController {
         }
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/device/profile/{name}", method = RequestMethod.POST)
     public ResponseEntity createProfile(
             @PathVariable("name") @NotNull String name,
             @RequestParam(value = "group", defaultValue = "") @MissionApi.ValidatedBy("MartiSafeString") String[] groupNames)
             throws RemoteException
     {
+        if (groupNames != null
+                && shouldRejectGroupList(groupNames.length, MAX_PROFILE_GROUP_NAMES)) {
+            logger.warn("createProfile rejecting {} group names (cap {})",
+                    groupNames.length, MAX_PROFILE_GROUP_NAMES);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
         Set<Group> groups = groupManager.findGroups(Arrays.asList(groupNames));
         String groupVector = remoteUtil.bitVectorToString(remoteUtil.getBitVectorForGroups(groups));
 
@@ -223,6 +248,7 @@ public class ProfileAdminAPI extends BaseRestController {
         return new ResponseEntity(HttpStatus.OK);
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/device/profile/{name}", method = RequestMethod.PUT)
     public ResponseEntity updateProfile(
             @PathVariable("name") @NotNull String name,
@@ -230,6 +256,14 @@ public class ProfileAdminAPI extends BaseRestController {
             throws RemoteException
     {
         try {
+            List<String> requestedGroups = profile.getGroupNames();
+            if (requestedGroups != null
+                    && shouldRejectGroupList(requestedGroups.size(),
+                            MAX_PROFILE_GROUP_NAMES)) {
+                logger.warn("updateProfile rejecting {} group names (cap {})",
+                        requestedGroups.size(), MAX_PROFILE_GROUP_NAMES);
+                return new ResponseEntity(HttpStatus.BAD_REQUEST);
+            }
             if (profile.getGroupNames().contains("APPLY_TO_ALL_GROUPS")) {
                 profileRepository.updateGroups(profile.getId(), RemoteUtil.getInstance().getBitStringAllGroups());
             } else {
