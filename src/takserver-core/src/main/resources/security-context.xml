@@ -106,6 +106,9 @@
 	  	      <sec:intercept-url pattern="/Marti/api/maplayers/**" method="GET" access="ROLE_ANONYMOUS" />
 	  	      
 	  	      <!-- injector API -->
+	  	      <!-- Belt-and-suspenders: cover both the bare collection path and the wildcard. -->
+	  	      <sec:intercept-url pattern="/Marti/api/injectors/cot/uid" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/injectors/cot/uid/**" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/injectors/cot/uid/**" method="DELETE" access="ROLE_ADMIN" />
 
 	  	      <!-- Contact cache invalidation: admin-only DELETE; must precede the blanket DELETE deny -->
