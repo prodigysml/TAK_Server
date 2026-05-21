@@ -4830,6 +4830,17 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	public List<String> getAllCotForString(String uidSearch, String groupVector) {
 
+		// Bound the uidSearch length before the SQL LIKE expansion. Even
+		// with the limit 5 below, an extremely large search string forces
+		// pattern-match work per row (CWE-400). Tune via
+		// -Dtak.cot.maxUidSearchLen.
+		final int maxUidSearchLen = Integer.getInteger("tak.cot.maxUidSearchLen", 256);
+		if (uidSearch != null && uidSearch.length() > maxUidSearchLen) {
+			logger.warn("getAllCotForString rejecting uidSearch len {} > cap {}",
+					uidSearch.length(), maxUidSearchLen);
+			throw new IllegalArgumentException("uidSearch exceeds cap");
+		}
+
 		String sql =  "select distinct uid from cot_router where uid like ? " // querys
 				+ remoteUtil.getGroupAndClause()
 				+ " limit 5";

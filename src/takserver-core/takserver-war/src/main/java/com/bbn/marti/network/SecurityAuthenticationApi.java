@@ -99,6 +99,7 @@ public class SecurityAuthenticationApi extends BaseRestController {
             "Auth config testing " + (result == HttpStatus.OK ? "passed" : "failed")), result);
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/security/config", method = RequestMethod.GET)
     public ResponseEntity<ApiResponse<SecurityConfigInfo>> getSecConfig() {
         try {
@@ -118,6 +119,7 @@ public class SecurityAuthenticationApi extends BaseRestController {
         }
     }
 
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/security/config", method = RequestMethod.PUT)
     public ResponseEntity<ApiResponse<String>> modifySecConfig(@RequestBody SecurityConfigInfo info) {
         try {
