@@ -28,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -589,6 +590,7 @@ public class FederationApi extends BaseRestController {
 		return result;
 	}
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/federateremotegroups/{federateId}", method = RequestMethod.GET)
 	public ResponseEntity<ApiResponse<List<String>>> getFederateRemoteGroups(@PathVariable("federateId") String federateId, HttpServletResponse response) {
 
@@ -749,6 +751,7 @@ public class FederationApi extends BaseRestController {
 		return result;
 	}
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/federatecahops", method = RequestMethod.POST)
 	public ResponseEntity<ApiResponse<String>> setFederateCAHops(@RequestBody FederateCAHopsAssociation federateCAHopsAssociation){
 		ResponseEntity<ApiResponse<String>> result = null;
@@ -1369,6 +1372,7 @@ public class FederationApi extends BaseRestController {
 	private static final int PORT_RANGE_HIGH = 65535;
 
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/fednum", method = RequestMethod.GET)
 	public int getNum() {
 		return federationInterface.incrementAndGetCounter();
@@ -1381,6 +1385,7 @@ public class FederationApi extends BaseRestController {
 		logger.info("Federation events cleared");
 	}
 	
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/federatemissions/{federateId}", method = RequestMethod.PUT)
 	public ResponseEntity<ApiResponse<FederateMissionPerConnectionSettings>> updateFederateMissions(@PathVariable String federateId, @RequestBody FederateMissionPerConnectionSettings federateMissionPerConnectionSettings) {
 

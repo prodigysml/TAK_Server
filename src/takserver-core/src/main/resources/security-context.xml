@@ -133,6 +133,11 @@
 	  	      <!--  set federates security -->
 	  	      <sec:intercept-url pattern="/Marti/api/federates/**" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/federatedetails/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/federateremotegroups/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/federatecahops/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/federatemissions/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/fednum/**" access="ROLE_ADMIN" />
+	  	      <sec:intercept-url pattern="/Marti/api/clearFederationEvents/**" access="ROLE_ADMIN" />
 	  	      
 	  	      <!--  set federate group config security -->
 	  	      <sec:intercept-url pattern="/Marti/api/federategroupconfig/**" access="ROLE_ADMIN" />
