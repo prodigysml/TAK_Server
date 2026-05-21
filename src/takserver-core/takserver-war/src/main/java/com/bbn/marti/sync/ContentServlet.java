@@ -57,6 +57,14 @@ public class ContentServlet extends EnterpriseSyncServlet {
 
 	private static final int DEFAULT_PARAMETER_LENGTH = 1024;
 
+	// SECURITY: cap caller-supplied offset to bound the cost of
+	// InputStream.skip on retrieved content. Without a cap an attacker
+	// can force the server to traverse and discard arbitrary amounts of
+	// stored content per request (CWE-400).
+	static final int MAX_CONTENT_OFFSET = Integer.parseInt(
+			System.getProperty("tak.enterpriseSync.maxOffset",
+					Integer.toString(1 * 1024 * 1024 * 1024))); // 1 GiB
+
 	private void getResource(AsyncContext async, HttpMethod method) throws ServletException, IOException {
 		
 		HttpServletRequest request = (HttpServletRequest) async.getRequest();
@@ -168,6 +176,14 @@ public class ContentServlet extends EnterpriseSyncServlet {
 
 				// apply offset param
 				if (offset != null && offset > 0) {
+
+					if (offset > MAX_CONTENT_OFFSET) {
+						logger.warn("rejecting GET with offset " + offset
+								+ " (cap " + MAX_CONTENT_OFFSET + ")");
+						response.sendError(HttpServletResponse.SC_BAD_REQUEST,
+								"offset exceeds server cap");
+						return;
+					}
 
 					try {
 						contentStream.skip(offset);
