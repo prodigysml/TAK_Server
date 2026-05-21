@@ -722,7 +722,8 @@ public class SubmissionApi extends BaseRestController {
 	}
 
 
-	private List<String> getValidationErrors(Input input) {
+	// package-private for SubmissionApiInputValidationTest
+	List<String> getValidationErrors(Input input) {
 
 		List<String> errors = new ArrayList<String>();
 
@@ -756,7 +757,9 @@ public class SubmissionApi extends BaseRestController {
 			//Validate multicast group
 			if (input.getGroup() != null && input.getGroup().trim().length() > 0) {
 				input.setGroup(input.getGroup().trim());
-				if (input.getGroup().replaceFirst("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", "").length() > 0) {
+				if (input.getGroup().length() > MAX_GROUP_LEN) {
+					errors.add("Multicast group value too long.");
+				} else if (input.getGroup().replaceFirst("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", "").length() > 0) {
 					errors.add("Invalid multicast group value.");
 				}
 			}
@@ -764,8 +767,25 @@ public class SubmissionApi extends BaseRestController {
 			//Validate interface
 			if (input.getIface() != null && input.getIface().trim().length() > 0) {
 				input.setIface(input.getIface().trim());
-				if (input.getIface().replaceFirst("^[A-Za-z0-9]+$", "").length() > 0) {
+				if (input.getIface().length() > MAX_IFACE_LEN) {
+					errors.add("Interface value too long.");
+				} else if (input.getIface().replaceFirst("^[A-Za-z0-9]+$", "").length() > 0) {
 					errors.add("Invalid interface value.");
+				}
+			}
+
+			//Validate filtergroup list size and entry length
+			java.util.List<String> fg = input.getFiltergroup();
+			if (fg != null) {
+				if (fg.size() > MAX_FILTERGROUP_ENTRIES) {
+					errors.add("Too many filtergroup entries (max " + MAX_FILTERGROUP_ENTRIES + ").");
+				} else {
+					for (String entry : fg) {
+						if (entry != null && entry.length() > MAX_FILTERGROUP_ENTRY_LEN) {
+							errors.add("Filtergroup entry too long (max " + MAX_FILTERGROUP_ENTRY_LEN + ").");
+							break;
+						}
+					}
 				}
 			}
 
@@ -853,6 +873,15 @@ public class SubmissionApi extends BaseRestController {
 	private static final int INPUT_NAME_MAX_LENGTH = 30;
 	private static final int PORT_RANGE_LOW = 1;
 	private static final int PORT_RANGE_HIGH = 65535;
+
+	// SECURITY: bound caller-controlled string and list field sizes before
+	// they reach downstream regex / queue / serialization paths. Without
+	// these caps, an oversized JSON body to POST /inputs forces unbounded
+	// validation, comparison, and Ignite broadcast work (CWE-400).
+	static final int MAX_FILTERGROUP_ENTRIES = 64;
+	static final int MAX_FILTERGROUP_ENTRY_LEN = 256;
+	static final int MAX_IFACE_LEN = 64;
+	static final int MAX_GROUP_LEN = 64;
 
 	//As discussed with team, this will go into an enum in a future release; ok for now
 	public static final List<String> PROTOCOLS = Collections.unmodifiableList(Arrays.asList("tcp", "udp", "stcp", "tls", "mcast", "cotmcast", "prototls", "cottls", "quic", "grpc"));
