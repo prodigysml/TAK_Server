@@ -189,6 +189,48 @@ public class MissionApi extends BaseRestController {
 		return size > cap;
 	}
 
+	// Cap on /missions/.../send 'contacts' parameter. Each entry generates a
+	// CoT message recipient + downstream subscriptionManager work. Holders of
+	// MISSION_READ (operator-tier) must not amplify a single send into
+	// thousands of fanout operations (CWE-400).
+	public static final int MAX_SEND_CONTACT_UIDS = Integer.getInteger(
+			"tak.mission.maxSendContactUids", 256);
+
+	/**
+	 * Build the base URL for server-issued resource links without trusting
+	 * the request's Host header. Prefers the operator-configured
+	 * TakServerHost in CoreConfig.network; falls back to the local server
+	 * interface (request.getLocalName) which Tomcat populates from the
+	 * accept socket, not the Host header. Mitigates Open Redirect /
+	 * CoT-link spoofing where an attacker who can reach a mission-send
+	 * endpoint sets `Host: evil.com` and gets the value reflected into a
+	 * CoT fileshare message delivered to other operators (CWE-601).
+	 */
+	public static String resolveSafeServerBaseUrl(HttpServletRequest req) {
+		String host = null;
+		try {
+			host = com.bbn.marti.remote.config.CoreConfigFacade.getInstance()
+					.getRemoteConfiguration().getNetwork().getTakServerHost();
+		} catch (Throwable ignored) {
+			// fall through to local interface (covers Ignite/Spring not booted in unit tests)
+		}
+		return buildSafeServerBaseUrl(req, host);
+	}
+
+	/** Test-friendly variant: callers supply the configured host, bypassing CoreConfigFacade. */
+	public static String buildSafeServerBaseUrl(HttpServletRequest req, String configuredHost) {
+		String serverName = (configuredHost != null && !configuredHost.isEmpty())
+				? configuredHost : req.getLocalName();
+		if (serverName == null || serverName.isEmpty()) {
+			serverName = req.getLocalAddr();
+		}
+		String scheme = req.getScheme();
+		int port = req.getLocalPort();
+		boolean defaultPort = ("http".equalsIgnoreCase(scheme) && port == 80)
+				|| ("https".equalsIgnoreCase(scheme) && port == 443);
+		return scheme + "://" + serverName + (defaultPort ? "" : ":" + port);
+	}
+
 	// keep a reference to the currently active request
 	@Autowired
 	private HttpServletRequest request;
@@ -1526,6 +1568,12 @@ public class MissionApi extends BaseRestController {
 			throw new IllegalArgumentException("empty contacts array");
 		}
 
+		if (shouldRejectListSize(contactUids.length, MAX_SEND_CONTACT_UIDS)) {
+			logger.warn("sendMissionArchive rejecting {} contacts (cap {})",
+					contactUids.length, MAX_SEND_CONTACT_UIDS);
+			throw new IllegalArgumentException("contacts array exceeds cap");
+		}
+
 		// validate the uids before sending on to the subscriptionManager
 		for (String uid : contactUids) {
 			validator.getValidInput(context, uid, "MartiSafeString", DEFAULT_PARAMETER_LENGTH, false);
@@ -1538,8 +1586,10 @@ public class MissionApi extends BaseRestController {
 
 		String shaHash = missionService.addMissionArchiveToEsync(missionName, archive, groupVector, false);
 
-		String requestUrl = request.getRequestURL().toString();
-		String url = requestUrl.substring(0, requestUrl.indexOf(request.getServletPath()))
+		// SECURITY: do not trust request.getRequestURL() — its host portion comes
+		// from the Host header and can be set by the caller (CWE-601). Build the
+		// base from the configured TakServerHost / local interface instead.
+		String url = resolveSafeServerBaseUrl(request)
 				+ "/Marti/sync/content?hash=" + shaHash; // yes: uid will be set to the shaHash in the CoT message (see below)
 
 		// Generate the CoT message
@@ -1582,6 +1632,12 @@ public class MissionApi extends BaseRestController {
 			throw new IllegalArgumentException("empty contacts array");
 		}
 
+		if (shouldRejectListSize(contactUids.length, MAX_SEND_CONTACT_UIDS)) {
+			logger.warn("sendMissionArchiveByGuid rejecting {} contacts (cap {})",
+					contactUids.length, MAX_SEND_CONTACT_UIDS);
+			throw new IllegalArgumentException("contacts array exceeds cap");
+		}
+
 		// validate the uids before sending on to the subscriptionManager
 		for (String uid : contactUids) {
 			validator.getValidInput(context, uid, "MartiSafeString", DEFAULT_PARAMETER_LENGTH, false);
@@ -1591,13 +1647,14 @@ public class MissionApi extends BaseRestController {
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		byte[] archive = missionService.archiveMission(mission.getGuidAsUUID(), groupVector, request.getServerName());
-		
+
 		String archiveName = mission.getName() + "_" + mission.getGuid().toString(); // include the guid in the archive zipo name for uniqueness
 
 		String shaHash = missionService.addMissionArchiveToEsync(archiveName, archive, groupVector, false);
 
-		String requestUrl = request.getRequestURL().toString();
-		String url = requestUrl.substring(0, requestUrl.indexOf(request.getServletPath()))
+		// SECURITY: same fix as sendMissionArchive -- do not embed
+		// caller-controlled Host header (CWE-601).
+		String url = resolveSafeServerBaseUrl(request)
 				+ "/Marti/sync/content?hash=" + shaHash; // yes: uid will be set to the shaHash in the CoT message (see below)
 
 		// Generate the CoT message
@@ -3884,7 +3941,16 @@ public class MissionApi extends BaseRestController {
 		if (missionService.getApiVersionNumberFromRequest(request) > 2) {
 
 			final int MAX_INVITE_BODY_SIZE = 1024 * 1024; // 1 MB
-			byte[] bodyBytes = IOUtils.toByteArray(request.getInputStream());
+			// SECURITY: pre-check Content-Length and bound the inputstream read
+			// so the server does not buffer an arbitrarily large body before the
+			// size check fires (CWE-400 memory exhaustion).
+			long declaredLen = request.getContentLengthLong();
+			if (declaredLen > MAX_INVITE_BODY_SIZE) {
+				throw new IllegalArgumentException("Request body exceeds maximum allowed size");
+			}
+			java.io.InputStream limited = com.google.common.io.ByteStreams.limit(
+					request.getInputStream(), (long) MAX_INVITE_BODY_SIZE + 1L);
+			byte[] bodyBytes = IOUtils.toByteArray(limited);
 			if (bodyBytes.length > MAX_INVITE_BODY_SIZE) {
 				throw new IllegalArgumentException("Request body exceeds maximum allowed size");
 			}
@@ -4010,7 +4076,16 @@ public class MissionApi extends BaseRestController {
 		if (missionService.getApiVersionNumberFromRequest(request) > 2) {
 
 			final int MAX_INVITE_BODY_SIZE = 1024 * 1024; // 1 MB
-			byte[] bodyBytes = IOUtils.toByteArray(request.getInputStream());
+			// SECURITY: pre-check Content-Length and bound the inputstream read
+			// so the server does not buffer an arbitrarily large body before the
+			// size check fires (CWE-400 memory exhaustion).
+			long declaredLen = request.getContentLengthLong();
+			if (declaredLen > MAX_INVITE_BODY_SIZE) {
+				throw new IllegalArgumentException("Request body exceeds maximum allowed size");
+			}
+			java.io.InputStream limited = com.google.common.io.ByteStreams.limit(
+					request.getInputStream(), (long) MAX_INVITE_BODY_SIZE + 1L);
+			byte[] bodyBytes = IOUtils.toByteArray(limited);
 			if (bodyBytes.length > MAX_INVITE_BODY_SIZE) {
 				throw new IllegalArgumentException("Request body exceeds maximum allowed size");
 			}

@@ -146,7 +146,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 		}
 
 		String token = getAccessToken(request);
-		if (!jwtUtil.validateAccessToken(token)) {
+		if (token == null || !jwtUtil.validateAccessToken(token)) {
 			filterChain.doFilter(request, response);
 			return;
 		}
@@ -165,9 +165,21 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 	}
 
 	private String getAccessToken(HttpServletRequest request) {
+		// SECURITY: previously dereferenced a null Authorization header and
+		// indexed into split(" ")[1] without checking length. A missing or
+		// single-token header produced NullPointerException /
+		// ArrayIndexOutOfBoundsException, which the servlet container
+		// rendered as 500 -- callers could spam these to flood the filter
+		// chain (CWE-400, CWE-754).
 		String header = request.getHeader("Authorization");
-		String token = header.split(" ")[1].trim();
-		return token;
+		if (header == null) {
+			return null;
+		}
+		String[] parts = header.split(" ");
+		if (parts.length < 2) {
+			return null;
+		}
+		return parts[1].trim();
 	}
 	
 	private void setKeycloakAuth(String token, HttpServletRequest request) {
