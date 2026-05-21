@@ -359,12 +359,31 @@ public class CITrapReportAPI extends BaseRestController {
             validator.getValidInput("CITrap report filename", filename, "FileName", 255, false);
 
             try {
-            	
+
+            	// SECURITY: missionSubscribe binds the supplied clientUid to a
+            	// mission. Previously the handler accepted any caller-supplied
+            	// clientUid, letting an attacker who could view a report register
+            	// somebody else's UID against the report's mission (IDOR /
+            	// CWE-862). Only allow self-subscription: clientUid must match
+            	// the authenticated principal name.
+            	String authName = null;
+            	try {
+            		authName = org.springframework.security.core.context.SecurityContextHolder
+            				.getContext().getAuthentication().getName();
+            	} catch (Exception authEx) {
+            		// fall through; authName remains null -> mismatch rejected below
+            	}
+            	if (authName == null || !authName.equalsIgnoreCase(clientUid)) {
+            		logger.warn("CITrap getReport rejecting clientUid {} that does not match authenticated principal {}",
+            				clientUid, authName);
+            		return new ResponseEntity(HttpStatus.FORBIDDEN);
+            	}
+
             	Mission reportMission = missionService.getMissionByNameCheckGroups(id, groupVector);
-            	
+
                 missionService.missionSubscribe(reportMission.getGuidAsUUID(), clientUid, groupVector);
             } catch (JpaSystemException e) {  // DuplicateKeyException comes through as JpaSystemException due to transaction
-            
+
         	} catch (NotFoundException e) {
         		return new ResponseEntity(HttpStatus.NOT_FOUND);
             }

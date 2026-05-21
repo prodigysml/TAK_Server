@@ -513,6 +513,14 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
 
     @RequestMapping(value = "/fig/deleteGroupCa/{uid}", method = RequestMethod.DELETE)
     public ResponseEntity<Void> deleteGroupCa(@PathVariable("uid") String uid) {
+    	// SECURITY: removing a CA from the truststore + refreshing SSL + restarting
+    	// the V2 server is the same privileged class as addNewGroupCa. Gate with the
+    	// existing isUpdateActiveFederation() check used by sibling /fig/*
+    	// endpoints, so a non-operator authenticated user cannot disrupt server
+    	// trust relationships (CWE-862).
+    	if (!isUpdateActiveFederation()) {
+    		return new ResponseEntity<>(new HttpHeaders(), HttpStatus.FORBIDDEN);
+    	}
     	try {
         	Collection<FederateGroup> federateGroups = fedHubPolicyManager.getCaGroups();
     		if (federateGroups != null) {
@@ -528,9 +536,14 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     		return new ResponseEntity<>(new HttpHeaders(), HttpStatus.BAD_REQUEST);
 		}
     }
-    
+
     @RequestMapping(value = "/fig/disconnectFederate/{connectionId}", method = RequestMethod.DELETE)
     public ResponseEntity<Void> disconnectFederate(@PathVariable("connectionId") String connectionId) {
+    	// SECURITY: forcibly disconnects a live federate; same operator-tier
+    	// authority gate as deleteGroupCa / restartBroker (CWE-862).
+    	if (!isUpdateActiveFederation()) {
+    		return new ResponseEntity<>(new HttpHeaders(), HttpStatus.FORBIDDEN);
+    	}
     	try {
         	fedHubBroker.disconnectFederate(connectionId);
     		return new ResponseEntity<>(new HttpHeaders(), HttpStatus.OK);

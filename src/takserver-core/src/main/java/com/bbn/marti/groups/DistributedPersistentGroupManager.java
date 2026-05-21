@@ -697,13 +697,30 @@ public class DistributedPersistentGroupManager implements GroupManager, Service 
         }
     }
 
+    /**
+     * Escape an LDAP RDN value per RFC 4514 so caller-controlled input cannot
+     * inject DN metacharacters (=, ',', '+', '"', '\\', '<', '>', ';') and
+     * change the target container or attach to a different OU. Returns the
+     * escaped value safe to concatenate after `cn=`.
+     */
+    static String escapeLdapRdnValue(String v) {
+        if (v == null) return "";
+        // javax.naming.ldap.Rdn.escapeValue handles all RFC 4514 special chars.
+        return javax.naming.ldap.Rdn.escapeValue(v);
+    }
+
     @Override
     public void addLdapUser(String emailAddress, String userName, String password, String[] groupNames) {
 
         DirContext context = connectLdap();
 
         Auth.Ldap ldapConfig = config().getAuth().getLdap();
-        String entryDN = "cn=" + userName + "," + ldapConfig.getUserBaseRDN();
+        // SECURITY: userName flows from caller-controlled registration input.
+        // Without DN-safe escaping, characters like ',' or '+' redirect the
+        // createSubcontext target outside ldapConfig.getUserBaseRDN()
+        // (CWE-90 LDAP DN Injection).
+        String safeUserName = escapeLdapRdnValue(userName);
+        String entryDN = "cn=" + safeUserName + "," + ldapConfig.getUserBaseRDN();
 
         // create the user
         try {
@@ -778,7 +795,7 @@ public class DistributedPersistentGroupManager implements GroupManager, Service 
                 container.put(cn);
                 container.put(groupType);
 
-                String groupDn = "cn=" + group + "," + ldapConfig.getGroupBaseRDN();
+                String groupDn = "cn=" + escapeLdapRdnValue(group) + "," + ldapConfig.getGroupBaseRDN();
                 context.createSubcontext(groupDn, container);
             }
 
@@ -793,7 +810,7 @@ public class DistributedPersistentGroupManager implements GroupManager, Service 
 
             for (String group : groupNames) {
                 ModificationItem[] mods = new ModificationItem[1];
-                String groupDn = "cn=" + group + "," + ldapConfig.getGroupBaseRDN();
+                String groupDn = "cn=" + escapeLdapRdnValue(group) + "," + ldapConfig.getGroupBaseRDN();
                 Attribute mod = new BasicAttribute("member", entryDN + "," + domain);
                 mods[0] = new ModificationItem(DirContext.ADD_ATTRIBUTE, mod);
                 context.modifyAttributes(groupDn, mods);
