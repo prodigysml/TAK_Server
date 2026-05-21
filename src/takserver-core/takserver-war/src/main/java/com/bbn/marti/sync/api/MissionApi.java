@@ -2857,7 +2857,16 @@ public class MissionApi extends BaseRestController {
 			HttpServletRequest request) {
 
 		UUID missionGuid = parseGuid(missionGuidParam);
-		
+
+		// Bound caller-supplied subscription list. Each element runs validation +
+		// DB role lookup + downstream missionService.inviteOrUpdate work (CWE-400).
+		final int maxSubs = Integer.getInteger("tak.mission.maxSubscriptionRoleBatch", 256);
+		if (subscriptions != null && subscriptions.size() > maxSubs) {
+			logger.warn("setSubscriptionRoleByGuid rejecting {} subscriptions (cap {})",
+					subscriptions.size(), maxSubs);
+			throw new IllegalArgumentException("subscription list exceeds cap");
+		}
+
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		// validate existence of mission
@@ -5225,7 +5234,17 @@ public class MissionApi extends BaseRestController {
 					throws ValidationException, IntrusionException, RemoteException {
 
 		UUID missionGuid = parseGuid(missionGuidParam);
-		
+
+		// Bound caller-supplied uid array. Each entry runs the recursive
+		// removeMissionLayer + broadcast path (now depth/node-capped by
+		// commit 25a5748b), but the outer array length is still unbounded.
+		final int maxLayerUids = Integer.getInteger("tak.mission.maxLayerUidsPerDelete", 256);
+		if (layerUids != null && layerUids.length > maxLayerUids) {
+			logger.warn("deleteMissionLayerByGuid rejecting {} uids (cap {})",
+					layerUids.length, maxLayerUids);
+			throw new IllegalArgumentException("layerUids count exceeds cap");
+		}
+
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
 

@@ -74,6 +74,25 @@ public class CopViewApi extends BaseRestController {
 			logger.debug("cop API getAllCops");
 		}
 
+		// Bound the page-size + offset, including the implicit "fetch all" when
+		// caller omits these. /Marti/api/cops/** is ROLE_ANONYMOUS so any
+		// authenticated caller can drive mission hydration (CWE-400). Tune via
+		// -Dtak.cops.maxPageSize / -Dtak.cops.maxOffsetPages.
+		final int maxCopPageSize = Integer.getInteger("tak.cops.maxPageSize", 500);
+		final int maxCopOffset = Integer.getInteger("tak.cops.maxOffsetPages", 10_000) * maxCopPageSize;
+		if (size == null || size <= 0 || size > maxCopPageSize) {
+			if (size != null && size > maxCopPageSize) {
+				logger.warn("/cops clamping size {} -> {}", size, maxCopPageSize);
+			}
+			size = maxCopPageSize;
+		}
+		if (offset == null || offset < 0) {
+			offset = 0;
+		} else if (offset > maxCopOffset) {
+			logger.warn("/cops clamping offset {} -> {}", offset, maxCopOffset);
+			offset = maxCopOffset;
+		}
+
 		NavigableSet<Group> groups = martiUtil.getGroupsFromRequest(request);
 
 		List<Mission> missions = missionService.getAllCopsMissions(getDefaultMcsTool(), groups, path, offset, size);
