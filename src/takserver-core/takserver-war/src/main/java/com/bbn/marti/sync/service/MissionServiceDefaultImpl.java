@@ -791,8 +791,35 @@ public class MissionServiceDefaultImpl implements MissionService {
 				creatorUid, mission.getTool(), commonUtil.toXml(updated));
 	}
 
+	// Cap on mission-layer tree depth + total nodes visited per delete. The
+	// recursive removeMissionLayerData walks layer.getChildren() and re-enters
+	// itself for each one, so a deeply nested or wide tree turns one DELETE
+	// into stack-frame + per-node DB work without bound (CWE-400, CWE-674).
+	// Tune via -Dtak.mission.maxLayerDepth and -Dtak.mission.maxLayerNodes.
+	public static final int MAX_MISSION_LAYER_DEPTH = Integer.getInteger(
+			"tak.mission.maxLayerDepth", 32);
+	public static final int MAX_MISSION_LAYER_NODES = Integer.getInteger(
+			"tak.mission.maxLayerNodes", 4096);
+
 	private void removeMissionLayerData(
 			MissionLayer layer,  Mission mission, String creatorUid, String groupVector) {
+		removeMissionLayerData(layer, mission, creatorUid, groupVector, 0, new int[]{0});
+	}
+
+	private void removeMissionLayerData(
+			MissionLayer layer,  Mission mission, String creatorUid, String groupVector,
+			int depth, int[] nodeCount) {
+
+		if (depth > MAX_MISSION_LAYER_DEPTH) {
+			logger.warn("removeMissionLayerData aborting at depth {} (cap {}) on mission {}",
+					depth, MAX_MISSION_LAYER_DEPTH, mission.getName());
+			throw new IllegalStateException("mission layer depth exceeds cap");
+		}
+		if (nodeCount[0]++ >= MAX_MISSION_LAYER_NODES) {
+			logger.warn("removeMissionLayerData aborting after {} nodes (cap {}) on mission {}",
+					nodeCount[0], MAX_MISSION_LAYER_NODES, mission.getName());
+			throw new IllegalStateException("mission layer node count exceeds cap");
+		}
 
 		for (MissionLayer child : layer.getChildren()) {
 			getMissionService().removeMissionLayer(mission.getName(), mission, child.getUid(), creatorUid, groupVector);
@@ -818,7 +845,7 @@ public class MissionServiceDefaultImpl implements MissionService {
 		missionLayerRepository.deleteByUid(layer.getUid());
 
 		for (MissionLayer child : layer.getChildren()) {
-			removeMissionLayerData(child, mission, creatorUid, groupVector);
+			removeMissionLayerData(child, mission, creatorUid, groupVector, depth + 1, nodeCount);
 		}
 	}
 
@@ -3829,12 +3856,26 @@ public class MissionServiceDefaultImpl implements MissionService {
 		return change;
 	}
 
+	// Cap on per-request child-mission iteration. Each child triggers a
+	// distinct getMissionByGuid (cache + DB lookup), so a parent with many
+	// children amplifies per-request cost (CWE-770, CWE-400). Tune via
+	// -Dtak.mission.maxChildrenPerLookup. A scoping fix at the repository
+	// layer (pagination) is tracked in [[project-rearchitecture-areas]].
+	public static final int MAX_MISSION_CHILDREN_PER_LOOKUP = Integer.getInteger(
+			"tak.mission.maxChildrenPerLookup", 1024);
+
 	@Override
 	public Set<Mission> getChildren(UUID missionGuid, String groupVector) {
 
 		List<String> childGuids = missionRepository.getChildGuids(missionGuid.toString());
 		if (childGuids == null || childGuids.isEmpty()) {
 			throw new NotFoundException("Child missions not found for parent mission guid " + missionGuid);
+		}
+
+		if (childGuids.size() > MAX_MISSION_CHILDREN_PER_LOOKUP) {
+			logger.warn("getChildren truncating {} child GUIDs to cap {} for parent {}",
+					childGuids.size(), MAX_MISSION_CHILDREN_PER_LOOKUP, missionGuid);
+			childGuids = childGuids.subList(0, MAX_MISSION_CHILDREN_PER_LOOKUP);
 		}
 
 		Set<Mission> children = new ConcurrentSkipListSet<>();
