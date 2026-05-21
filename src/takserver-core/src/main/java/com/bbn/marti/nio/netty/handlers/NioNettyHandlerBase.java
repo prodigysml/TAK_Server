@@ -89,6 +89,24 @@ public abstract class NioNettyHandlerBase extends SimpleChannelInboundHandler<by
 	protected ProtocolListener<CotEventContainer> negotiationListener;
 	protected ConcurrentLinkedQueue<ProtocolListener<CotEventContainer>> protocolListeners;
 	protected static final int MINUTE_IN_MILLIS = 60000;
+
+	// SECURITY: cap inbound message size before invoking the CoT / protobuf
+	// reader. A peer (even cert-authenticated) should not be able to drive
+	// the parser to unbounded work with a single oversized read.
+	// Operator-tunable via system property tak.tcp.maxMessageBytes; default
+	// 8 MiB comfortably exceeds typical CoT / mission-package messages but
+	// stops obvious flood patterns.
+	static final int MAX_TCP_MESSAGE_BYTES = Integer.parseInt(
+			System.getProperty("tak.tcp.maxMessageBytes",
+					Integer.toString(8 * 1024 * 1024)));
+
+	/**
+	 * Visible for testing. Returns true if a byte[] message should be dropped
+	 * before reader.read invocation due to size constraint.
+	 */
+	static boolean shouldDropOversizedTcp(int len, int max) {
+		return len < 0 || len > max;
+	}
 	protected AtomicInteger currentMessageCount = new AtomicInteger();
 	protected AtomicLong lastMessageCountResetTime = new AtomicLong(System.currentTimeMillis());
 	protected AtomicBoolean isInstantFlush = new AtomicBoolean(true);
@@ -164,6 +182,15 @@ public abstract class NioNettyHandlerBase extends SimpleChannelInboundHandler<by
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, byte[] msg) throws Exception {
+
+		if (msg == null || shouldDropOversizedTcp(msg.length, MAX_TCP_MESSAGE_BYTES)) {
+			if (log.isDebugEnabled()) {
+				log.debug("dropping oversized TCP message: "
+						+ (msg == null ? "null" : msg.length + " bytes")
+						+ " (cap=" + MAX_TCP_MESSAGE_BYTES + ")");
+			}
+			return;
+		}
 
 		AbstractBroadcastingChannelHandler.totalBytesRead.getAndAdd(msg.length);
 		AbstractBroadcastingChannelHandler.totalNumberOfReads.getAndIncrement();
