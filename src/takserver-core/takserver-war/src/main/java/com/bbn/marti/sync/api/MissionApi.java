@@ -2824,6 +2824,16 @@ public class MissionApi extends BaseRestController {
 
 		missionName = missionService.trimName(missionName);
 
+		// Same cap as setSubscriptionRoleByGuid (commit 4d246329): bound the
+		// per-request subscription list before per-entry validation + DB
+		// role lookup + downstream inviteOrUpdate (CWE-400).
+		final int maxSubs = Integer.getInteger("tak.mission.maxSubscriptionRoleBatch", 256);
+		if (subscriptions != null && subscriptions.size() > maxSubs) {
+			logger.warn("setSubscriptionRole rejecting {} subscriptions (cap {})",
+					subscriptions.size(), maxSubs);
+			throw new IllegalArgumentException("subscription list exceeds cap");
+		}
+
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		// validate existence of mission
