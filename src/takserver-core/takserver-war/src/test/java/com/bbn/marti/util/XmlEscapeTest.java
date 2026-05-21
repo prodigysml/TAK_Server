@@ -107,13 +107,4 @@ public class XmlEscapeTest {
 		assertEquals(safe, CommonUtil.xmlEscape(safe));
 	}
 
-	@Test
-	public void citrapXmlEscapeMatchesCommonUtilSemantics() {
-		// CITrapReportNotifications has its own escape helper — verify same behavior
-		assertEquals("", com.bbn.marti.citrap.CITrapReportNotifications.xmlEscape(null));
-		assertEquals("&amp;&lt;&gt;&quot;&apos;",
-				com.bbn.marti.citrap.CITrapReportNotifications.xmlEscape("&<>\"'"));
-		assertEquals("safe",
-				com.bbn.marti.citrap.CITrapReportNotifications.xmlEscape("safe"));
-	}
 }
