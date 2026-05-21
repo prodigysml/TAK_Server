@@ -347,6 +347,38 @@ public class FileManagerApi extends BaseRestController {
 			 return;
 		 }
 
+		 // Bound caller-controlled metadata inputs: each value goes into JDBC
+		 // and the keyword list expands into a SQL array. Without caps an
+		 // operator-tier caller can submit huge fields/lists and exhaust DB
+		 // bandwidth (CWE-400). Tune via -Dtak.files.metadata.* properties.
+		 final int maxMetadataFieldLen = Integer.getInteger(
+				 "tak.files.metadata.maxFieldLen", 1024);
+		 final int maxKeywordCount = Integer.getInteger(
+				 "tak.files.metadata.maxKeywords", 256);
+		 final int maxKeywordLen = Integer.getInteger(
+				 "tak.files.metadata.maxKeywordLen", 256);
+		 if ((userParam != null && userParam.length() > maxMetadataFieldLen)
+				 || (expirationParam != null && expirationParam.length() > maxMetadataFieldLen)) {
+			 logger.warn("rejecting PUT /files/{}/metadata: field exceeds {} chars", hash, maxMetadataFieldLen);
+			 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			 return;
+		 }
+		 if (keywordsParam != null && keywordsParam.size() > maxKeywordCount) {
+			 logger.warn("rejecting PUT /files/{}/metadata: {} keywords > cap {}",
+					 hash, keywordsParam.size(), maxKeywordCount);
+			 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			 return;
+		 }
+		 if (keywordsParam != null) {
+			 for (String kw : keywordsParam) {
+				 if (kw != null && kw.length() > maxKeywordLen) {
+					 logger.warn("rejecting PUT /files/{}/metadata: keyword exceeds {} chars", hash, maxKeywordLen);
+					 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+					 return;
+				 }
+			 }
+		 }
+
 		 try {
 
 			 if (!Strings.isNullOrEmpty(userParam)) {

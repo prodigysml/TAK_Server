@@ -162,6 +162,28 @@ public class VideoConnectionSender extends EsapiServlet {
     	    }
 
            	String[] feedIds = request.getParameter("feedId").split("\\|");
+
+        	// Bound nested fan-out: contacts * feedIds CoT messages enqueued per
+        	// request. /Marti/vcm/** POST is ROLE_ANONYMOUS in
+        	// security-context.xml; without caps an authenticated caller can
+        	// amplify a single POST into millions of submitCot calls
+        	// (CWE-400, CWE-770). Tune via -Dtak.video.maxSendFeedIds /
+        	// -Dtak.video.maxSendContacts.
+        	final int maxFeedIds = Integer.getInteger("tak.video.maxSendFeedIds", 256);
+        	final int maxContacts = Integer.getInteger("tak.video.maxSendContacts", 1024);
+        	if (feedIds.length > maxFeedIds) {
+        		logger.warn("rejecting video send: feedIds={} > cap {}", feedIds.length, maxFeedIds);
+        		response.sendError(HttpServletResponse.SC_BAD_REQUEST,
+        				"feedId count exceeds cap");
+        		return;
+        	}
+        	if (contacts != null && contacts.length > maxContacts) {
+        		logger.warn("rejecting video send: contacts={} > cap {}", contacts.length, maxContacts);
+        		response.sendError(HttpServletResponse.SC_BAD_REQUEST,
+        				"contacts count exceeds cap");
+        		return;
+        	}
+
         	for (String feedId : feedIds) {
         		Feed feed = videoManagerService.getFeed(Integer.parseInt(feedId), groupVector);
         		String senderUid = UUID.randomUUID().toString();

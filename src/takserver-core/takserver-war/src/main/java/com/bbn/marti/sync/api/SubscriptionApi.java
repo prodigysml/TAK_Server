@@ -92,7 +92,20 @@ public class SubscriptionApi extends BaseRestController {
 
     @Autowired
     private ActiveGroupCacheHelper activeGroupCacheHelper;
-    
+
+    // Hard cap on the page-size query parameter for /subscriptions/all. Admin
+    // path passes `limit` directly into the Ignite SQL as a LIMIT clause; an
+    // unbounded value materializes the entire subscription set in memory
+    // (CWE-400). Tune via -Dtak.subscription.maxPageSize.
+    public static final int MAX_SUBSCRIPTION_PAGE_LIMIT = Integer.getInteger(
+            "tak.subscription.maxPageSize", 1000);
+
+    /** Returns a safe limit value, capping caller-supplied requests. */
+    public static int clampSubscriptionLimit(int requested, int cap) {
+        if (requested <= 0) return cap; // sentinel "all" -> still bound
+        return Math.min(requested, cap);
+    }
+
     // GET all subscriptions
     @RequestMapping(value = "/subscriptions/all", method = RequestMethod.GET)
     ResponseEntity<ApiResponse<Set<SubscriptionInfo>>> getAllSubscriptions(
@@ -100,21 +113,22 @@ public class SubscriptionApi extends BaseRestController {
             @RequestParam(value = "direction", defaultValue = "ASCENDING") SubscriptionSortOrder direction,
             @RequestParam(value = "page", defaultValue = "-1") int page,
             @RequestParam(value = "limit", defaultValue = "-1") int limit) throws RemoteException {
-    	
+
     	if (logger.isDebugEnabled()) {
     		logger.debug("groupManager: " + groupManager.getClass().getName());
     	}
-    	        
+
         final NavigableSet<SubscriptionInfo> subs = new ConcurrentSkipListSet<>();
 
         List<RemoteSubscription> subscriptions = null;
-        
+
         String sort = sortBy == SubscriptionSortField.CALLSIGN ? "callsign" : "clientUid";
         int dir = direction == SubscriptionSortOrder.ASCENDING ? 1 : -1;
+        int safeLimit = clampSubscriptionLimit(limit, MAX_SUBSCRIPTION_PAGE_LIMIT);
 
         // let admin see all subscriptions, otherwise group filter the list.
         if (martiUtil.isAdmin()) {
-        	subscriptions = subscriptionManager.getCachedSubscriptionList(null, sort, dir, page, limit);
+        	subscriptions = subscriptionManager.getCachedSubscriptionList(null, sort, dir, page, safeLimit);
         } else {
         	try {
         		// Get group vector for the user associated with this session
@@ -139,7 +153,16 @@ public class SubscriptionApi extends BaseRestController {
         }
         
         java.util.Objects.requireNonNull(subscriptions, "subscription list");
-        
+
+        // Bound the post-fetch enumeration cost: even after group filtering,
+        // the per-subscription group-vector hydration + metrics lookups can
+        // dominate the response time. Cap to safeLimit.
+        if (subscriptions.size() > safeLimit) {
+            logger.warn("truncating subscriptions response from {} to cap {}",
+                    subscriptions.size(), safeLimit);
+            subscriptions = subscriptions.subList(0, safeLimit);
+        }
+
         if (logger.isDebugEnabled()) {
         	logger.debug("subscriptions: " + subscriptions);
         }

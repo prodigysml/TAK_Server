@@ -30,6 +30,18 @@ import tak.server.Constants;
 @RestController
 public class MapLayersApi extends BaseRestController {
 
+    // Cap on /maplayers/all response size. GET is ROLE_ANONYMOUS in
+    // security-context.xml -- any authenticated caller can request the full
+    // collection. Without a bound the server allocates and serializes every
+    // map layer in the DB per request (CWE-400, CWE-770).
+    public static final int MAX_MAP_LAYERS_PER_RESPONSE = Integer.getInteger(
+            "tak.maplayer.maxPerResponse", 1000);
+
+    /** Returns true if a layer set must be truncated. Extracted for unit tests. */
+    public static boolean shouldTruncateMapLayers(int size, int cap) {
+        return size > cap;
+    }
+
 	@Autowired
     private MapLayerService mapLayerService;
 
@@ -40,8 +52,17 @@ public class MapLayersApi extends BaseRestController {
     @ResponseStatus(HttpStatus.OK)
     ApiResponse<Collection<MapLayer>> getAllMapLayers() throws RemoteException {
 
-        return new ApiResponse<Collection<MapLayer>>(Constants.API_VERSION, MapLayer.class.getName(),
-                mapLayerService.getAllMapLayers());
+        Collection<MapLayer> all = mapLayerService.getAllMapLayers();
+        if (all != null && shouldTruncateMapLayers(all.size(), MAX_MAP_LAYERS_PER_RESPONSE)) {
+            java.util.List<MapLayer> truncated = new java.util.ArrayList<>(MAX_MAP_LAYERS_PER_RESPONSE);
+            int i = 0;
+            for (MapLayer ml : all) {
+                if (i++ >= MAX_MAP_LAYERS_PER_RESPONSE) break;
+                truncated.add(ml);
+            }
+            all = truncated;
+        }
+        return new ApiResponse<Collection<MapLayer>>(Constants.API_VERSION, MapLayer.class.getName(), all);
     }
 
     /*
