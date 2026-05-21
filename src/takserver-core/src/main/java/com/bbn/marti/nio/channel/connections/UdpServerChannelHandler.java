@@ -109,8 +109,8 @@ private static final java.util.concurrent.atomic.AtomicLong DROPPED_DATAGRAMS =
                 if (IN_FLIGHT_TASKS.get() >= MAX_IN_FLIGHT_TASKS) {
                     long dropped = DROPPED_DATAGRAMS.incrementAndGet();
                     if ((dropped & 0xFFFL) == 0L) {
-                        log.warn("UDP datagram dropped due to in-flight task cap {}; total dropped={}",
-                                MAX_IN_FLIGHT_TASKS, dropped);
+                        log.warn("UDP datagram dropped due to in-flight task cap "
+                                + MAX_IN_FLIGHT_TASKS + "; total dropped=" + dropped);
                     }
                 } else {
                     // copy data into local buffer
