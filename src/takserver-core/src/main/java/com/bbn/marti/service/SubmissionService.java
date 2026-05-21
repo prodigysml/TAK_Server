@@ -1914,30 +1914,12 @@ public class SubmissionService extends BaseService implements MessagingConfigura
 
                 // SECURITY: attacker XML can set publish=<transport>:<host>:<port>
                 // which makes the server open an outbound to an arbitrary host
-                // (CWE-918 SSRF). Reject loopback, link-local, multicast, any-local,
-                // site-local, and any address outside the operator-configured
-                // allow-list (tak.subscription.publishAllowedHosts CSV). Reject
-                // privileged-port (<1024) destinations and the broker's own port.
-                if (port < 1024 || port > 65535) {
-                    logger.warn("processSubscriptionMessage: rejecting privileged/invalid publish port {}", port);
+                // (CWE-918 SSRF). See isPublishTargetBlocked() for the rules.
+                String blockReason = isPublishTargetBlocked(address, port, tokens[1],
+                        System.getProperty("tak.subscription.publishAllowedHosts", ""));
+                if (blockReason != null) {
+                    logger.warn("processSubscriptionMessage: {}", blockReason);
                     return;
-                }
-                if (address.isLoopbackAddress() || address.isLinkLocalAddress()
-                        || address.isMulticastAddress() || address.isAnyLocalAddress()
-                        || address.isSiteLocalAddress()) {
-                    logger.warn("processSubscriptionMessage: rejecting publish target in private/loopback/link-local/multicast range: {}", address);
-                    return;
-                }
-                String allowList = System.getProperty("tak.subscription.publishAllowedHosts", "");
-                if (!allowList.isEmpty()) {
-                    boolean allowed = false;
-                    for (String h : allowList.split(",")) {
-                        if (h.trim().equalsIgnoreCase(tokens[1].trim())) { allowed = true; break; }
-                    }
-                    if (!allowed) {
-                        logger.warn("processSubscriptionMessage: publish target {} not in tak.subscription.publishAllowedHosts", tokens[1]);
-                        return;
-                    }
                 }
 
                 handlerAndProtocol = transportType.client(
@@ -2768,5 +2750,41 @@ public class SubmissionService extends BaseService implements MessagingConfigura
         ret.put("truststoreFile", truststoreFile.exists());
         return ret;
     }
-	  
+
+    /**
+     * SECURITY: Decide whether an outbound publish target should be blocked.
+     *
+     * Rejects (returns a non-null reason string):
+     *  - port outside [1024, 65535]
+     *  - loopback, link-local, multicast, any-local, site-local addresses
+     *  - any host not present in the operator-configured allow-list
+     *    (only enforced when the allow-list is non-empty)
+     *
+     * @param address resolved address from the publish directive
+     * @param port destination port
+     * @param hostToken raw host token from the publish directive (matched against allowList)
+     * @param allowListCsv comma-separated allow-list; empty string = no allow-list check
+     * @return null if target is allowed, otherwise a short reason string for logging
+     */
+    static String isPublishTargetBlocked(java.net.InetAddress address, int port,
+                                         String hostToken, String allowListCsv) {
+        if (port < 1024 || port > 65535) {
+            return "rejecting privileged/invalid publish port " + port;
+        }
+        if (address.isLoopbackAddress() || address.isLinkLocalAddress()
+                || address.isMulticastAddress() || address.isAnyLocalAddress()
+                || address.isSiteLocalAddress()) {
+            return "rejecting publish target in private/loopback/link-local/multicast range: " + address;
+        }
+        if (allowListCsv != null && !allowListCsv.isEmpty()) {
+            for (String h : allowListCsv.split(",")) {
+                if (hostToken != null && h.trim().equalsIgnoreCase(hostToken.trim())) {
+                    return null;
+                }
+            }
+            return "publish target " + hostToken + " not in tak.subscription.publishAllowedHosts";
+        }
+        return null;
+    }
+
 }

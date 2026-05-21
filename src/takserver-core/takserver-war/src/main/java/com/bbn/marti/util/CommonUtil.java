@@ -503,7 +503,8 @@ public class CommonUtil {
 	// into CoT XML. Without this, callers can inject closing tags / new
 	// elements via fields like remarks, callsign, group, role, type, how
 	// (CWE-91 / CWE-74).
-	private static String xmlEscape(String s) {
+	// package-private for unit tests; do not widen further.
+	static String xmlEscape(String s) {
 		if (s == null) return "";
 		StringBuilder out = new StringBuilder(s.length());
 		for (int i = 0; i < s.length(); i++) {

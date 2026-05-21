@@ -66,13 +66,20 @@ public class GuardedStreamHolder<T> {
      * before insert. Returns true if added.
      */
     public boolean addToCacheBounded(T event) {
+        return addToCacheBounded(cache, event, MAX_CACHE_SIZE);
+    }
+
+    /**
+     * Package-private static for unit-test access. Pure function of (cache, event, max).
+     */
+    static <E> boolean addToCacheBounded(Set<E> cache, E event, int max) {
         if (event == null) return false;
-        while (cache.size() >= MAX_CACHE_SIZE) {
-            T first = null;
+        while (cache.size() >= max) {
+            E first = null;
             try {
-                first = ((java.util.NavigableSet<T>) cache).pollFirst();
+                first = ((java.util.NavigableSet<E>) cache).pollFirst();
             } catch (ClassCastException ignored) {
-                java.util.Iterator<T> it = cache.iterator();
+                java.util.Iterator<E> it = cache.iterator();
                 if (it.hasNext()) {
                     first = it.next();
                     it.remove();

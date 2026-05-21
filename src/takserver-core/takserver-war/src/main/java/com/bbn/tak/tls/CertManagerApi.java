@@ -74,7 +74,8 @@ public class CertManagerApi extends BaseRestController {
             CSR_LOCKS[i] = new java.util.concurrent.locks.ReentrantLock();
         }
     }
-    private static java.util.concurrent.locks.ReentrantLock csrLockFor(String clientUid) {
+    // package-private for unit tests; do not widen further.
+    static java.util.concurrent.locks.ReentrantLock csrLockFor(String clientUid) {
         String key = (clientUid == null) ? "" : clientUid;
         int idx = (key.hashCode() & 0x7fffffff) % CSR_LOCK_STRIPES;
         return CSR_LOCKS[idx];

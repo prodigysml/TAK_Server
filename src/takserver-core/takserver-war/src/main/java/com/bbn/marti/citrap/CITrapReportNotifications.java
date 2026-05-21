@@ -33,7 +33,8 @@ public class CITrapReportNotifications {
     // CoT notification envelope. Report summary, callsign, uid, type are
     // derived from client-uploaded report data; without escaping a crafted
     // value can inject closing tags or new elements (CWE-91 / CWE-74).
-    private static String xmlEscape(String s) {
+    // package-private for unit tests; do not widen further.
+    static String xmlEscape(String s) {
         if (s == null) return "";
         StringBuilder out = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {
