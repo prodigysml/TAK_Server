@@ -443,8 +443,34 @@ public class DataFeedApi extends BaseRestController {
 		};
 	}
 
+	// Enforce per-feed group access before returning feed-derived data.
+	// /Marti/api/datafeeds/** GET is ROLE_ANONYMOUS, so without this check any
+	// caller could read another group's feed contents by guessing/observing a
+	// feed UUID (CWE-639/CWE-284). Mirrors the group check already applied on
+	// the predicate-feed-by-guid and update paths. Throws ForbiddenException
+	// (403) on denial; called outside the per-endpoint try so it is not
+	// downgraded to a 500.
+	private void authorizeFeedAccess(String uuid) {
+		if (Strings.isNullOrEmpty(uuid)) {
+			throw new IllegalArgumentException("empty feed uuid");
+		}
+		final String requestGroupVector = remoteUtil.bitVectorToString(
+				remoteUtil.getBitVectorForGroups(commonUtil.getGroupsFromActiveRequest()));
+		if (!dataFeedRepository.doesFeedExist(uuid)) {
+			throw new IllegalArgumentException("feed " + uuid + " does not exist");
+		}
+		List<DataFeedDTO> feeds = dataFeedRepository.getDataFeedByUUID(uuid);
+		if (feeds.isEmpty()) {
+			throw new IllegalArgumentException("feed " + uuid + " does not exist");
+		}
+		if (!remoteUtil.isGroupVectorAllowed(requestGroupVector, feeds.get(0).getGroupVector())) {
+			throw new ForbiddenException("Group access denied for feed " + uuid);
+		}
+	}
+
 	@RequestMapping(value = "/datafeeds/{uuid}/cots/{cot_type}", method = RequestMethod.GET)
 	public ResponseEntity<ApiResponse<List<String>>> getCotsForDataFeedByCotType(@PathVariable("uuid") String uuid, @PathVariable("cot_type") String cotType){
+		authorizeFeedAccess(uuid);
 		List<String> cots = new ArrayList<>();
 		try {
 			cots = dataFeedService.getCotsForDataFeedByCotType(uuid, cotType);
@@ -462,6 +488,7 @@ public class DataFeedApi extends BaseRestController {
 	
 	@RequestMapping(value = "/datafeeds/{uuid}/cots_types", method = RequestMethod.GET)
 	public ResponseEntity<ApiResponse<List<String>>> getExistingCotTypesForDataFeed(@PathVariable("uuid") String uuid){
+		authorizeFeedAccess(uuid);
 		List<String> cotTypes = new ArrayList<>();
 		try {
 			cotTypes = dataFeedService.getExistingCotTypesForDataFeed(uuid);

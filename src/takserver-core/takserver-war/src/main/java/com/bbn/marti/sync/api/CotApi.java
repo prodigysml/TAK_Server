@@ -100,7 +100,13 @@ public class CotApi extends BaseRestController {
     		// out during message processing prior to createFileTransferRequest being called.
     		//
     		cot.setHae(Double.parseDouble(cot.hae));
-    		cot.detailtext = cot.detailtext.replaceAll("<marti>.+<\\/marti>", "");
+    		// Strip <marti> detail. Use a reluctant, DOTALL match instead of the
+    		// previous greedy "<marti>.+</marti>": the greedy form backtracks from
+    		// end-of-input when the closing tag is missing/late, so a large stored
+    		// detailtext could burn CPU (CWE-400). The reluctant form scans linearly.
+    		if (cot.detailtext != null) {
+    			cot.detailtext = cot.detailtext.replaceAll("(?s)<marti>.*?<\\/marti>", "");
+    		}
 
     		HttpHeaders headers = new HttpHeaders();
 
