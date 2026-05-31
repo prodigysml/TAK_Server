@@ -114,8 +114,20 @@ public class CertManagerService {
         }
     }
 
+    // Cap on the caller-supplied base64 CSR before it is decoded and parsed.
+    // signClient is reachable from the enrollment endpoint, so an oversized
+    // payload would otherwise force expensive Base64 decode + PKCS#10 parse +
+    // signing work (CWE-400). A real PKCS#10 base64 CSR is under 4 KiB; 64 KiB
+    // is generous. Tune via -Dtak.cert.maxCsrBytes.
+    public static final int MAX_CSR_BYTES = Integer.getInteger("tak.cert.maxCsrBytes", 65_536);
+
     public TakCert signClient(String clientUid, boolean addChannelsExtUsage, String base64CSR) {
         try {
+            if (base64CSR != null && base64CSR.length() > MAX_CSR_BYTES) {
+                logger.warn("signClient rejecting oversized CSR: {} chars > cap {}",
+                        base64CSR.length(), MAX_CSR_BYTES);
+                throw new TakException("CSR exceeds maximum allowed size");
+            }
             //
             // get the cert config from CoreConfig.xml
             //

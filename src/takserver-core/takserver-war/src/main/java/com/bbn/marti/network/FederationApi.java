@@ -264,6 +264,7 @@ public class FederationApi extends BaseRestController {
 		return result;
 	}
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/outgoingconnections/{name}", method = RequestMethod.DELETE)
 	public ResponseEntity<ApiResponse<Boolean>> deleteOutgoingConnection(@PathVariable("name") String name) {
 
@@ -775,6 +776,7 @@ public class FederationApi extends BaseRestController {
 		return result;
 	}
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/outgoingconnections", method = RequestMethod.POST)
 	public ResponseEntity<ApiResponse<Federation.FederationOutgoing>> createOutgoingConnection(@RequestBody Federation.FederationOutgoing outgoingConnection) {
 
@@ -818,8 +820,9 @@ public class FederationApi extends BaseRestController {
 		return result;
 	}
 
+	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	@RequestMapping(value = "/outgoingconnections", method = RequestMethod.PUT)
-	public ResponseEntity<ApiResponse<Federation.FederationOutgoing>> updateOutgoingConnection(@RequestBody Map<String, Federation.FederationOutgoing> outgoingConnections) {		
+	public ResponseEntity<ApiResponse<Federation.FederationOutgoing>> updateOutgoingConnection(@RequestBody Map<String, Federation.FederationOutgoing> outgoingConnections) {
 		ResponseEntity<ApiResponse<Federation.FederationOutgoing>> result = null;
 
 		List<String> errors = null;

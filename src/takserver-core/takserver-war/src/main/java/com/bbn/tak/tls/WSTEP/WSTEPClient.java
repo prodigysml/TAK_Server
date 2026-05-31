@@ -106,6 +106,15 @@ public class WSTEPClient {
 			// wsdl location in Service.create.. but we still need to point to the endpoint
 			dispatch.getRequestContext().put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, portAddress);
 
+			// Bound the SOAP connect/read time. A slow or unresponsive upstream CA
+			// would otherwise block the invoking worker thread indefinitely and
+			// tie up the enrollment path (CWE-400). Values in ms; tunable via
+			// -Dtak.wstep.connectTimeoutMs / -Dtak.wstep.requestTimeoutMs.
+			dispatch.getRequestContext().put(JAXWSProperties.CONNECT_TIMEOUT,
+					Integer.getInteger("tak.wstep.connectTimeoutMs", 30_000));
+			dispatch.getRequestContext().put(JAXWSProperties.REQUEST_TIMEOUT,
+					Integer.getInteger("tak.wstep.requestTimeoutMs", 60_000));
+
 			if (trustAllHosts) {
 				// disable hostname verification, we still verify the host by requiring the trust store to be loaded
 				// in advance. This just relaxes the requirements that the cert's CN match it's hostname
@@ -235,7 +244,23 @@ public class WSTEPClient {
 			//
 			ByteArrayOutputStream baos = new ByteArrayOutputStream();
 			response.writeTo(baos);
+
+			// Reject an oversized response before parsing. Tunable via
+			// -Dtak.wstep.maxResponseBytes (default 4 MiB). Guards against a
+			// hostile/compromised CA returning a giant document (CWE-400).
+			int maxResponseBytes = Integer.getInteger("tak.wstep.maxResponseBytes", 4 * 1024 * 1024);
+			if (baos.size() > maxResponseBytes) {
+				throw new TakException("WSTEP response exceeds maximum allowed size");
+			}
+
 			DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+			// Harden the parser: disable DTDs and external entity resolution so a
+			// crafted response cannot drive entity expansion or SSRF (CWE-400/CWE-611).
+			documentBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			documentBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			documentBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			documentBuilderFactory.setXIncludeAware(false);
+			documentBuilderFactory.setExpandEntityReferences(false);
 			DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
 			Document document = documentBuilder.parse(new InputSource(new StringReader(baos.toString())));
 			document.getDocumentElement().normalize();

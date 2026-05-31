@@ -823,7 +823,18 @@ public class KmlUtils {
         if (Strings.isNullOrEmpty(cotType)) {
             throw new IllegalArgumentException("empty CoT type");
         }
-        
+
+        // Bound the CoT type length. The fallback resolver below trims the string
+        // two chars at a time and rescans the MIL-STD filename list each pass, so
+        // request cost grows with input size; a caller-controlled cotType (e.g.
+        // via the iconurl endpoint) could otherwise drive disproportionate CPU
+        // (CWE-400). Real CoT types are short (well under 32 chars). Tune via
+        // -Dtak.icon.maxCotTypeLength.
+        final int maxCotTypeLength = Integer.getInteger("tak.icon.maxCotTypeLength", 256);
+        if (cotType.length() > maxCotTypeLength) {
+            throw new IllegalArgumentException("CoT type exceeds maximum allowed length");
+        }
+
         if (cotType.equals("b-m-p-s-p-i")) {
             iconUrl = "icons/bmpspi.png";
         } else if (cotType.startsWith("b-m-p-j")) {

@@ -274,14 +274,11 @@ public class UserRegistrationService {
             text.append(getEmailConfig().getSupportEmail());
             text.append("</html>");
 
-            // send the credentials email in a thread so the request can return quickly
-            Thread emailThread = new Thread(new Runnable() {
-                public void run() {
-                    sendEmail(takUser.getEmailAddress(), "Account Activated", text.toString());
-                }
-            });
-
-            emailThread.start();
+            // send the credentials email via the bounded pool so the request can
+            // return quickly without spawning an unbounded thread per activation (CWE-400).
+            final String activationText = text.toString();
+            EMAIL_EXECUTOR.submit(() ->
+                sendEmail(takUser.getEmailAddress(), "Account Activated", activationText));
             return true;
 
         } catch (Exception e) {

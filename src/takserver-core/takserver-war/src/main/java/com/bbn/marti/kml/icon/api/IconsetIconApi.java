@@ -210,8 +210,19 @@ public class IconsetIconApi extends BaseRestController {
 
         List<String> iconUrls = new ArrayList<>();
 
+        // Bound the number of icon URLs materialized per request. An iconset is
+        // eagerly loaded and iterated in full, so a very large iconset (or a
+        // crafted upload) would drive disproportionate CPU/memory/serialization
+        // cost on every iconseturl request (CWE-400). A typical iconset holds a
+        // few hundred icons; 8192 is generous. Tune via -Dtak.iconset.maxIconsPerResponse.
+        final int maxIcons = Integer.getInteger("tak.iconset.maxIconsPerResponse", 8192);
+
         if (iconset.getIcons() != null) {
             for (Icon icon : iconset.getIcons()) {
+                if (iconUrls.size() >= maxIcons) {
+                    logger.warn("iconseturl truncating icon list for uid {} at cap {}", uid, maxIcons);
+                    break;
+                }
                 String url;
                 try {
                     url = KmlUtils.getBaseUrl(request) + "/" + ICON_API_PATH + "/" + icon.getIconsetUid() + "/" + icon.getGroup() + "/" + icon.getName();
