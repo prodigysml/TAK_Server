@@ -17,6 +17,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.owasp.esapi.Validator;
 import org.slf4j.Logger;
@@ -104,8 +105,13 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     static final int MAX_GROUPS_PER_GRAPH_NODE = Integer.getInteger(
             "tak.fedhub.maxGroupsPerGraphNode", 4096);
 
-    private String activePolicyName = null;
-    private Map<String, FederationPolicyModel> cachedPolicies = new HashMap<>();
+    // Shared mutable policy state read+written by multiple endpoints
+    // concurrently (SecurityConfig pins .anyRequest().authenticated()).
+    // A plain HashMap can corrupt / spin under concurrent structural
+    // modification (CWE-362); use a concurrent map and a volatile pointer
+    // so reads see consistent published state.
+    private volatile String activePolicyName = null;
+    private Map<String, FederationPolicyModel> cachedPolicies = new ConcurrentHashMap<>();
 
     private Validator validator = new MartiValidator();
     @Autowired

@@ -140,9 +140,13 @@ public class MissionCacheHelper {
 		
 		Mission mission = null;
 
-		ValueWrapper wrapper = getCacheManager().getCache(guid.toString()).get(key);	
+		// Read from the same cache name that the put below and the GUID cache
+		// resolver/eviction use ("mg-" + guid). Previously the gets used the
+		// bare guid name while the put used "mg-" + guid, so lookups never hit
+		// and every call fell through to a full DB query (CWE-400 availability).
+		ValueWrapper wrapper = getCacheManager().getCache("mg-" + guid.toString()).get(key);
 		mission = unwrapMission(wrapper);
-		
+
 		if (mission != null) {
 			if (logger.isDebugEnabled()) {
 				logger.debug("cache hit for " + key);
@@ -160,8 +164,8 @@ public class MissionCacheHelper {
 			lock = getMissionLock(key);
 			lock.acquire();
 
-			// double-checked cache get
-			wrapper = getCacheManager().getCache(guid.toString()).get(key);	
+			// double-checked cache get (same "mg-" + guid cache name as above)
+			wrapper = getCacheManager().getCache("mg-" + guid.toString()).get(key);
 			mission = unwrapMission(wrapper);
 
 			if (mission != null) {
