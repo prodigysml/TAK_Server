@@ -340,10 +340,27 @@ public class LogServlet extends EsapiServlet {
 			throws ServletException, IOException {
         try {
         	initAuditLog(request);
-        	
+
         	String id = request.getParameter("id");
+
+        	// Bound the bulk-delete id list before it is split and turned into a
+        	// SQL array parameter. The raw comma-separated value is forwarded
+        	// straight into persistenceStore.deleteLog, so an oversized value
+        	// would otherwise drive large array allocation and statement-parse
+        	// cost (CWE-400). Tune via -Dtak.logs.maxDeleteIdLength /
+        	// -Dtak.logs.maxDeleteIds.
+        	if (id != null) {
+        		final int maxIdLength = Integer.getInteger("tak.logs.maxDeleteIdLength", 65_536);
+        		final int maxIds = Integer.getInteger("tak.logs.maxDeleteIds", 10_000);
+        		if (id.length() > maxIdLength || id.split(",").length > maxIds) {
+        			logger.warn("LogServlet rejecting oversized delete id list (len={})", id.length());
+        			response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+        			return;
+        		}
+        	}
+
         	persistenceStore.deleteLog(id);
-        	
+
 	    } catch (Exception e) {
 	        logger.error("Exception!", e);
 	        response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
