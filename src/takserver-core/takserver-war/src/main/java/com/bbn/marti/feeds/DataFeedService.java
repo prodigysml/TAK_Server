@@ -266,26 +266,37 @@ public class DataFeedService {
 	public List<String> getCotsForDataFeedByCotType(String dataFeedUuid, String cotType) throws SQLException {
 		
 		List<String> cotUUIDs = new ArrayList<>();
-		
+
+		// Bound the result set so a feed with a very large number of matching
+		// CoT rows cannot exhaust the JVM heap by materializing every uid into
+		// memory (CWE-400). Tune via -Dtak.datafeed.maxCotResults.
+		final int maxResults = Integer.getInteger("tak.datafeed.maxCotResults", 100_000);
+
 		try (Connection connection = dataSource.getConnection()) {
 			try (PreparedStatement ps = connection.prepareStatement("SELECT cot_router.uid from cot_router "
 					+ "INNER JOIN data_feed_cot ON cot_router.id = data_feed_cot.cot_router_id "
 					+ "INNER JOIN data_feed ON data_feed_cot.data_feed_id = data_feed.id "
-					+ "WHERE data_feed.uuid = ? AND cot_router.cot_type = ? ;")) {
-				
+					+ "WHERE data_feed.uuid = ? AND cot_router.cot_type = ? LIMIT ? ;")) {
+
 				ps.setString(1, dataFeedUuid);
 				ps.setString(2, cotType);
+				ps.setInt(3, maxResults);
 
 				try (ResultSet rs = ps.executeQuery()) {
 					while (rs.next()) {
 						cotUUIDs.add(rs.getString(1));
 					}
 				}
-			} 
+			}
 		}
-		
+
+		if (cotUUIDs.size() >= maxResults) {
+			logger.warn("getCotsForDataFeedByCotType result truncated at cap {} for feed {} cotType {}",
+					maxResults, dataFeedUuid, cotType);
+		}
+
 		return cotUUIDs;
-		
+
 	}
 	
 	public List<String> getExistingCotTypesForDataFeed(String dataFeedUuid) throws SQLException {
