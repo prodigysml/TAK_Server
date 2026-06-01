@@ -4868,12 +4868,41 @@ public class MissionApi extends BaseRestController {
 	}
 
 	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
+	/**
+	 * SECURITY: validate caller-supplied MapLayer free-text fields before they
+	 * are persisted and broadcast in the mission-change feed to every mission
+	 * subscriber. The human-readable name/description are checked against
+	 * MartiSafeString, which rejects HTML/script metacharacters (stored XSS over
+	 * the websocket change channel, CWE-79) and bounds length to
+	 * DEFAULT_PARAMETER_LENGTH. The structured url/type fields may legitimately
+	 * contain characters MartiSafeString forbids, so they are only length-capped
+	 * to prevent oversized-body persistence (CWE-400).
+	 */
+	private void validateMapLayerInput(MapLayer mapLayer) throws ValidationException, IntrusionException {
+		if (mapLayer == null) {
+			return;
+		}
+		validator.getValidInput(context, mapLayer.getName(), "MartiSafeString", DEFAULT_PARAMETER_LENGTH, true);
+		validator.getValidInput(context, mapLayer.getDescription(), "MartiSafeString", DEFAULT_PARAMETER_LENGTH, true);
+
+		final int maxUrlLength = Integer.getInteger("tak.mission.maxMapLayerUrlLength", 2048);
+		if (mapLayer.getUrl() != null && mapLayer.getUrl().length() > maxUrlLength) {
+			throw new IllegalArgumentException("map layer url exceeds maximum length");
+		}
+		final int maxTypeLength = Integer.getInteger("tak.mission.maxMapLayerTypeLength", 256);
+		if (mapLayer.getType() != null && mapLayer.getType().length() > maxTypeLength) {
+			throw new IllegalArgumentException("map layer type exceeds maximum length");
+		}
+	}
+
 	@RequestMapping(value = "/missions/{missionName:.+}/maplayers", method = RequestMethod.POST)
 	@ResponseStatus(HttpStatus.OK)
 	ApiResponse<MapLayer> createMapLayer(
 			@PathVariable(value = "missionName") String missionName,
 			@RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
-			@RequestBody MapLayer mapLayer) {
+			@RequestBody MapLayer mapLayer) throws ValidationException, IntrusionException {
+
+		validateMapLayerInput(mapLayer);
 
 		missionName = missionService.trimName(missionName);
 
@@ -4893,9 +4922,10 @@ public class MissionApi extends BaseRestController {
 	ApiResponse<MapLayer> createMapLayerByGuid(
 			@PathVariable(value = "missionGuid") String missionGuidParam,
 			@RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
-			@RequestBody MapLayer mapLayer) {
-		
-		
+			@RequestBody MapLayer mapLayer) throws ValidationException, IntrusionException {
+
+		validateMapLayerInput(mapLayer);
+
 		UUID missionGuid = parseGuid(missionGuidParam);
 
 		String groupVector = martiUtil.getGroupVectorBitString(request);
@@ -4946,7 +4976,9 @@ public class MissionApi extends BaseRestController {
 	ApiResponse<MapLayer> updateMapLayer(
 			@PathVariable(value = "missionName") String missionName,
 			@RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
-			@RequestBody MapLayer mapLayer) {
+			@RequestBody MapLayer mapLayer) throws ValidationException, IntrusionException {
+
+		validateMapLayerInput(mapLayer);
 
 		missionName = missionService.trimName(missionName);
 
@@ -4966,8 +4998,10 @@ public class MissionApi extends BaseRestController {
 	ApiResponse<MapLayer> updateMapLayerByGuid(
 			@PathVariable(value = "missionGuid") String missionGuidParam,
 			@RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
-			@RequestBody MapLayer mapLayer) {
-		
+			@RequestBody MapLayer mapLayer) throws ValidationException, IntrusionException {
+
+		validateMapLayerInput(mapLayer);
+
 		UUID missionGuid = parseGuid(missionGuidParam);
 
 		String groupVector = martiUtil.getGroupVectorBitString(request);
