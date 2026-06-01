@@ -74,12 +74,17 @@ public class ProfileAPI extends BaseRestController {
 
 
 
-    private void validateClientUidOwnership(String clientUid) {
+    // SECURITY: validate the *already-resolved* subscription instance. The
+    // ownership check and the subsequent use of the subscription's identity/
+    // group data must operate on the same object, otherwise a concurrent
+    // subscription change between a check-read and a use-read opens a TOCTOU
+    // window (CWE-284/367) that could select a profile package using stale or
+    // mismatched identity. Callers fetch the subscription once and pass it here.
+    private void validateClientUidOwnership(String clientUid, RemoteSubscription subscription) {
         String authenticatedUser = SecurityContextHolder.getContext().getAuthentication().getName();
-        RemoteSubscription subscription = subscriptionManager.getRemoteSubscriptionByClientUid(clientUid);
-        // SECURITY: if a subscription exists for the supplied clientUid we must
-        // be able to confirm it belongs to the caller. Previously a null
-        // username (or null User.id) silently passed the check, letting an
+        // If a subscription exists for the supplied clientUid we must
+        // be able to confirm it belongs to the caller. A null username
+        // (or null User.id) must not silently pass the check, letting an
         // attacker pass any clientUid for which the username/User mapping had
         // not yet been resolved and pull its profile (CWE-285 IDOR).
         if (subscription != null) {
@@ -97,9 +102,12 @@ public class ProfileAPI extends BaseRestController {
         try {
             if (CoreConfigFacade.getInstance().getRemoteConfiguration().getProfile() != null &&
                     CoreConfigFacade.getInstance().getRemoteConfiguration().getProfile().isUseStreamingGroup()) {
-                validateClientUidOwnership(clientUid);
-
+                // Resolve the subscription ONCE, then validate ownership and
+                // derive the group vector from that same instance to avoid a
+                // TOCTOU window between the authorization check and use.
                 RemoteSubscription subscription = subscriptionManager.getRemoteSubscriptionByClientUid(clientUid);
+                validateClientUidOwnership(clientUid, subscription);
+
                 if (subscription != null) {
                     String groupVectorTmp = groupManager.getCachedOutboundGroupVectorByConnectionId(
                             subscription.getUser().getConnectionId());

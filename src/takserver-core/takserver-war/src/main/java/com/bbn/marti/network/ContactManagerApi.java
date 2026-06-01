@@ -96,6 +96,15 @@ public class ContactManagerApi extends BaseRestController {
     		String useGroupVector = groupVector;
 
     		if (queryGroupNames != null) {
+				// Bound the caller-supplied group-name list; each name drives a
+				// findGroups lookup and bit-vector hydration (CWE-400).
+				final int maxQueryGroups = Integer.getInteger("tak.contacts.maxQueryGroups", 256);
+				if (queryGroupNames.length > maxQueryGroups) {
+					logger.warn("getClientEndpoints rejecting {} query groups (cap {})",
+							queryGroupNames.length, maxQueryGroups);
+					throw new IllegalArgumentException("group query list exceeds cap");
+				}
+
 				BigInteger bitVectorUser = remoteUtil.bitVectorStringToInt(groupVector);
 
 				Set<Group> queryGroups = groupManager.findGroups(Arrays.asList(queryGroupNames));
