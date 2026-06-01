@@ -1046,10 +1046,15 @@ public class SubscriptionApi extends BaseRestController {
             // get username and groups from request
             String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
+            // Build a hash set of the requested active bit positions once, so the
+            // per-group membership test is O(1) instead of a linear scan of the
+            // request-controlled array on every group (avoids O(n*m), CWE-400).
+            java.util.Set<Integer> activeBitSet = new java.util.HashSet<>(Arrays.asList(activebits));
+
             List<Group> activeGroups = new LinkedList<>();
             for (Group group : martiUtil.getAllInOutGroups()) {
                 Group copy = group.getCopy();
-                boolean active = Arrays.asList(activebits).contains(group.getBitpos());
+                boolean active = activeBitSet.contains(group.getBitpos());
                 copy.setActive(active);
                 activeGroups.add(copy);
             }

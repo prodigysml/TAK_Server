@@ -158,6 +158,14 @@ public class CertManagerApi extends BaseRestController {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM);
 
+            // SECURITY: this body is a PKCS#12 keystore containing a client
+            // private key. Forbid any caching so the key material is not
+            // retained in browser history, proxy caches, or intermediary logs
+            // (CWE-200). GET responses are otherwise cacheable by default.
+            headers.setCacheControl("no-store, no-cache, must-revalidate, private");
+            headers.setPragma("no-cache");
+            headers.setExpires(0);
+
             return new ResponseEntity<byte[]>(result, headers, HttpStatus.OK);
         } catch (Exception e) {
             logger.error("Exception making client certificate for: " + cn + " on behalf of " + getHttpUser(), e);
