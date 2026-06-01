@@ -3989,6 +3989,16 @@ public class MissionApi extends BaseRestController {
 			List<MissionInvitation> missionInvitations =
 					mapper.readValue(body, new TypeReference<List<MissionInvitation>>(){});
 
+			// Bound the invitation count; each item triggers token creation,
+			// persistence, and delivery. The 1 MB body cap above limits bytes
+			// but still permits thousands of small invitations (CWE-400/770).
+			final int maxInvitations = Integer.getInteger("tak.mission.maxInvitationsPerRequest", 1000);
+			if (shouldRejectListSize(missionInvitations.size(), maxInvitations)) {
+				logger.warn("invite rejecting {} invitations (cap {})",
+						missionInvitations.size(), maxInvitations);
+				throw new IllegalArgumentException("invitations list exceeds cap");
+			}
+
 			for (MissionInvitation missionInvitation : missionInvitations) {
 
 				if (missionInvitation.getType() == null || missionInvitation.getInvitee() == null) {
@@ -4123,6 +4133,16 @@ public class MissionApi extends BaseRestController {
 			ObjectMapper mapper = new ObjectMapper();
 			List<MissionInvitation> missionInvitations =
 					mapper.readValue(body, new TypeReference<List<MissionInvitation>>(){});
+
+			// Bound the invitation count; each item triggers token creation,
+			// persistence, and delivery. The 1 MB body cap above limits bytes
+			// but still permits thousands of small invitations (CWE-400/770).
+			final int maxInvitations = Integer.getInteger("tak.mission.maxInvitationsPerRequest", 1000);
+			if (shouldRejectListSize(missionInvitations.size(), maxInvitations)) {
+				logger.warn("invite rejecting {} invitations (cap {})",
+						missionInvitations.size(), maxInvitations);
+				throw new IllegalArgumentException("invitations list exceeds cap");
+			}
 
 			for (MissionInvitation missionInvitation : missionInvitations) {
 
@@ -4650,8 +4670,24 @@ public class MissionApi extends BaseRestController {
 			@PathVariable(value = "guid") @ValidatedBy("MartiSafeString") String missionGuidParam,
 			@RequestParam(value = "expiration", required = false) Long expiration,
 			HttpServletRequest request) {
-		
+
 		UUID missionGuid = parseGuid(missionGuidParam);
+
+		// Bound caller-supplied expiration timestamp (same as the name-based
+		// setExpiration above). Extreme values churn the retention scheduler
+		// (CWE-400). Accept null/0 (clears), or a timestamp within +/- the
+		// configured window of now. Tune via -Dtak.mission.maxExpirationWindowSeconds.
+		final long maxWindow = Long.getLong(
+				"tak.mission.maxExpirationWindowSeconds", 10L * 365L * 24L * 3600L);
+		if (expiration != null && expiration > 0) {
+			long now = System.currentTimeMillis() / 1000L;
+			if (expiration < now - maxWindow || expiration > now + maxWindow) {
+				logger.warn("setExpirationByGuid rejecting out-of-range expiration {} for mission {}",
+						expiration, missionGuid);
+				response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+				return;
+			}
+		}
 
 		try {
 			String groupVector = martiUtil.getGroupVectorBitString(request);
@@ -5232,6 +5268,15 @@ public class MissionApi extends BaseRestController {
 					throws ValidationException, IntrusionException, RemoteException {
 
 		UUID missionGuid = parseGuid(missionGuidParam);
+
+		// Bound the caller-supplied layer array; each element drives a
+		// setLayerParent call (DB + reorder). Reject oversized arrays (CWE-400).
+		final int maxLayerUids = Integer.getInteger("tak.mission.maxLayerUidsPerParent", 256);
+		if (shouldRejectListSize(layerUids.length, maxLayerUids)) {
+			logger.warn("setLayerParentByGuid rejecting {} layerUids (cap {})",
+					layerUids.length, maxLayerUids);
+			throw new IllegalArgumentException("layerUid array exceeds cap");
+		}
 
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
