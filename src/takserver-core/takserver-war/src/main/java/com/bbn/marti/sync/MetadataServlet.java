@@ -231,7 +231,14 @@ public class MetadataServlet extends EnterpriseSyncServlet {
 		Integer primaryKey = null;
 		String[] values = SecurityUtils.getCaseInsensitiveParameter(parameters, RequestParameters.PrimaryKey.toString());
 		if (values != null && values.length > 0) {
-			primaryKey = Integer.parseInt(values[0]);
+			try {
+				primaryKey = Integer.parseInt(values[0]);
+			} catch (NumberFormatException e) {
+				// A malformed PrimaryKey previously threw an uncaught
+				// NumberFormatException that aborted request handling (CWE-20).
+				// Treat an unparseable value the same as an absent one.
+				log.warning("ignoring malformed PrimaryKey parameter: " + values[0]);
+			}
 		}
 		return primaryKey;
 	}
