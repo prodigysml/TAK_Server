@@ -139,6 +139,15 @@ public class ContactManagerApi extends BaseRestController {
     			throw new IllegalArgumentException("invalid secAgo parameter " + secAgo);
     		}
 
+    		// Bound the caller-supplied lookback window; an arbitrarily large
+    		// secAgo widens the SQL time filter and forces the database to scan
+    		// and aggregate far more history than intended (CWE-400).
+    		final long maxSecAgo = Long.getLong("tak.contacts.maxSecAgo", 31536000L); // 1 year
+    		if (secAgo > maxSecAgo) {
+    			logger.warn("getClientEndpoints rejecting secAgo {} (cap {})", secAgo, maxSecAgo);
+    			throw new IllegalArgumentException("secAgo exceeds cap");
+    		}
+
     		try {
 
     			return new ResponseEntity<ApiResponse<List<ClientEndpoint>>>(new ApiResponse<List<ClientEndpoint>>(Constants.API_VERSION, ClientEndpoint.class.getName(), contactManagerService.getCachedClientEndpointData(connected, recent, useGroupVector, secAgo)), HttpStatus.OK);

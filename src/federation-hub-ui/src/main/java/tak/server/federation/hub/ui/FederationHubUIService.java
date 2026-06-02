@@ -265,7 +265,10 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
             return ResponseEntity.ok().headers(responseHeaders).body(authResponse);
 
         } catch (BadCredentialsException ex) {
-        	logger.error("Bad credentials", ex);
+        	// Login is unauthenticated-reachable; logging the full exception at
+        	// ERROR on every bad-credentials attempt lets a remote caller flood
+        	// the logs and exhaust disk/IO (CWE-400). Log a terse WARN instead.
+        	logger.warn("Bad credentials for fedhub login");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         catch (Exception e) {
