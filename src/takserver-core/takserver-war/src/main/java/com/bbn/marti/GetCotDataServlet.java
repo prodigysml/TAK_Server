@@ -146,6 +146,14 @@ public class GetCotDataServlet extends EsapiServlet {
 		    }
 		}
 
+		// If the query or document construction failed above, doc is null;
+		// return a clean 404 instead of dereferencing it (avoids a per-request
+		// NullPointerException, 500, and stack-trace log spam) (CWE-476).
+		if (doc == null) {
+		    response.sendError(404);
+		    return;
+		}
+
 		// respond with XML
 		if (isXml) {
 		    response.setContentType("application/xml");
