@@ -431,7 +431,12 @@ public class MissionApi extends BaseRestController {
 		try {
 			missionGuid = UUID.fromString(guid);
 		} catch (IllegalArgumentException e) {
-			logger.error("invalid guid {}", guid);
+			// Bound the logged value: this path variable is caller-supplied and
+			// unbounded, so logging it verbatim on every parse failure lets an
+			// attacker flood logs / fill disk with huge invalid GUIDs (CWE-400).
+			String safeGuid = guid == null ? "null"
+					: (guid.length() > 64 ? guid.substring(0, 64) + "...(len=" + guid.length() + ")" : guid);
+			logger.error("invalid guid {}", safeGuid);
 			throw e;
 		}
 		
