@@ -34,10 +34,13 @@ public class VideoConnectionUploader extends EsapiServlet {
 	
     private String getParameter(HttpServletRequest request, String parameter) {
     	String value = request.getParameter(parameter);
-    	if (value.length() == 0) {
+    	// Guard against an omitted parameter: getParameter returns null, and the
+    	// previous value.length() check then threw a NullPointerException (500)
+    	// before validation could run (CWE-476).
+    	if (value == null || value.length() == 0) {
     		return null;
     	}
-    
+
     	return value;
     }
     
