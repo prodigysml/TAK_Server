@@ -293,9 +293,13 @@ public class MissionCacheHelper {
 
 		lock = new Semaphore(1, true);
 
-		missionAvailableMap.putIfAbsent(key, lock);
+		// Return the Semaphore that actually ended up in the map: if another
+		// thread won the putIfAbsent race, our local instance was discarded and
+		// returning it would give the two threads distinct locks, breaking
+		// per-key mutual exclusion (CWE-362).
+		Semaphore existing = missionAvailableMap.putIfAbsent(key, lock);
 
-		return lock;
+		return existing != null ? existing : lock;
 	}
 
 	private void deleteLock(String key) {
