@@ -418,18 +418,22 @@ public class CommonUtil {
 		else{
 			sendCallsign = chat.getSenderCallsign();
 		}
+		// Escape all caller-controlled values before concatenating into CoT XML
+		// to prevent XML structure injection into the broadcast event (CWE-116).
+		String eUid = escapeXmlAttr(uid);
+		String eSendCallsign = escapeXmlAttr(sendCallsign);
 		String result =
-				"<event version='2.0' uid='" + uid + "." + UUID.randomUUID().toString() + "' type='b-t-f' time='"+time+"' start='"+start+"' stale='"+stale+"' how='"+how+"'>"
+				"<event version='2.0' uid='" + eUid + "." + UUID.randomUUID().toString() + "' type='b-t-f' time='"+time+"' start='"+start+"' stale='"+stale+"' how='"+how+"'>"
 						+ "<point lat='" + chat.getLat() + "' lon='" + chat.getLon() + "' hae='"+hae+"' ce='"+ce+"' le='"+le+"' />"
 						+ "<detail>"
-						+ "<__chat parent='RootContactGroup' groupOwner='false' chatroom='" + uid + "' id='" + uid + "' senderCallsign='" + sendCallsign + "'>";
+						+ "<__chat parent='RootContactGroup' groupOwner='false' chatroom='" + eUid + "' id='" + eUid + "' senderCallsign='" + eSendCallsign + "'>";
 
 		//Fill in uids in chatgrp (this is the way ATAK needs it)
 		//uids are listed for every contact participating in this conversation even if its only 1 to 1 communication
 		int uidCounter = 0;
 		result += "<chatgrp ";
 		for(String converUid : chat.getConversationUids()){
-			result += "uid" + uidCounter + "='" + converUid +"' ";
+			result += "uid" + uidCounter + "='" + escapeXmlAttr(converUid) +"' ";
 			uidCounter++;
 		}
 		result += "/></__chat>";
@@ -437,7 +441,7 @@ public class CommonUtil {
 			result += marti.toString();
 		}
 
-		result += "<remarks time='" + time + "' source='" + uid + "'>" + chat.getBody() + "</remarks>";
+		result += "<remarks time='" + time + "' source='" + eUid + "'>" + escapeXmlAttr(chat.getBody()) + "</remarks>";
 		result += "</detail>"
 				+ "</event>";
 		return result;
@@ -465,18 +469,26 @@ public class CommonUtil {
 			sendCallsign = chat.getSenderCallsign();
 		}
 		String randomUUID = UUID.randomUUID().toString();
+		// Escape all caller-controlled values before concatenating them into the
+		// CoT XML; previously body/callsign/chatroom/from/lat/lon were inserted
+		// raw, allowing XML structure injection into the broadcast event (CWE-116).
+		// Mirrors the escaping already done in getFileTransferCotMessage.
+		String eUid = escapeXmlAttr(uid);
+		String eRoom = escapeXmlAttr(specialChatroom);
+		String eSendCallsign = escapeXmlAttr(sendCallsign);
+		String eFrom = escapeXmlAttr(chat.getFrom());
 		String result =
-				"<event version='2.0' uid='" + uid + "." +  specialChatroom + "." + randomUUID + "' type='b-t-f' time='"+time+"' start='"+start+"' stale='"+stale+"' how='"+how+"'>"
+				"<event version='2.0' uid='" + eUid + "." +  eRoom + "." + randomUUID + "' type='b-t-f' time='"+time+"' start='"+start+"' stale='"+stale+"' how='"+how+"'>"
 						+ "<point lat='" + chat.getLat() + "' lon='" + chat.getLon() + "' hae='"+hae+"' ce='"+ce+"' le='"+le+"' />"
 						+ "<detail>"
-						+ "<__chat parent='RootContactGroup' groupOwner='false' chatroom='" + specialChatroom + "' id='" + specialChatroom + "' senderCallsign='" + sendCallsign + "'>"
-						+ "<chatgrp uid0='" + chat.getFrom() + "' uid1='" + specialChatroom + "' id='" + specialChatroom + "'/></__chat>";
+						+ "<__chat parent='RootContactGroup' groupOwner='false' chatroom='" + eRoom + "' id='" + eRoom + "' senderCallsign='" + eSendCallsign + "'>"
+						+ "<chatgrp uid0='" + eFrom + "' uid1='" + eRoom + "' id='" + eRoom + "'/></__chat>";
 
 		if (added.get() > 0) {
 			result += marti.toString();
 		}
 
-		result += "<remarks time='" + time + "' source='" + uid + "'>" + chat.getBody() + "</remarks>";
+		result += "<remarks time='" + time + "' source='" + eUid + "'>" + escapeXmlAttr(chat.getBody()) + "</remarks>";
 		result += "</detail>"
 				+ "</event>";
 		return result;
