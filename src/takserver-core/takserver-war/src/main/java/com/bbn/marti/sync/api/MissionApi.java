@@ -5090,8 +5090,8 @@ public class MissionApi extends BaseRestController {
 
 		try {
 			
-			UUID missionGuid = parseGuid("missionGuidParam");
-			
+			UUID missionGuid = parseGuid(missionGuidParam);
+
 			String groupVector = martiUtil.getGroupVectorBitString(request);
 			Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
 

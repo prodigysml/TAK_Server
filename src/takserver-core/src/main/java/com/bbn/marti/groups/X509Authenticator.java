@@ -141,8 +141,11 @@ public class X509Authenticator extends AbstractAuthenticator implements Serializ
                 try {
                     groupManager.authenticate("oauth", user);
                 } catch (InvalidBearerTokenException | JwtException e) {
+                    // Do not log cert.token: it is a live bearer credential and
+                    // would be reusable by anyone with read access to the logs
+                    // (CWE-532). Log only the failure reason.
                     if (logger.isDebugEnabled()) {
-                        logger.debug("{} {} ", e.getMessage(), cert.token);
+                        logger.debug("bearer token authentication failed: {}", e.getMessage());
                     }
                     throw new TakException();
                 }
