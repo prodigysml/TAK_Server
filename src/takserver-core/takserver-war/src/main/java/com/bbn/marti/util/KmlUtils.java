@@ -882,6 +882,14 @@ public class KmlUtils {
 
     public static Double[] parseSpatialCoordinates(String given) throws IllegalArgumentException {
     	String[] coordinateStrings = given.replaceAll(",", " ").split("\\s+");
+    	// Bound the token count. Callers pass small fixed-arity geometry
+    	// (bbox = 4 numbers, circle = 3); a very long caller-supplied string
+    	// would otherwise force an unbounded parse/allocation loop (CWE-400),
+    	// and these params are reachable on anonymous KML query endpoints.
+    	final int maxCoordinateTokens = Integer.getInteger("tak.kml.maxCoordinateTokens", 64);
+    	if (coordinateStrings.length > maxCoordinateTokens) {
+    		throw new IllegalArgumentException("too many coordinate tokens");
+    	}
     	List<Double> coordinates = new ArrayList<Double>();
     	for (String token : coordinateStrings) {
     		Double value = Double.parseDouble(token.trim());

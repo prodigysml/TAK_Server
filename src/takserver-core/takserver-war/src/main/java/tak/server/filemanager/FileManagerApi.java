@@ -245,6 +245,15 @@ public class FileManagerApi extends BaseRestController {
 	 @RequestMapping(value = "/files/{hash}", method = RequestMethod.DELETE)
 	 public void deleteFile(@PathVariable("hash") String hash) throws RemoteException {
 
+		 // Bound and validate the caller-supplied hash before any processing.
+		 // It is a hex content hash; reject overlong or non-hex values so an
+		 // attacker cannot submit a huge {hash} to force large allocations
+		 // (CWE-400) or repeatedly trigger downstream failures.
+		 if (hash == null || hash.isEmpty() || hash.length() > 128 || !hash.matches("[0-9a-fA-F]+")) {
+			 logger.warn("Rejecting file deletion: invalid hash");
+			 throw new IllegalArgumentException("invalid hash");
+		 }
+
 		 String groupVector = null;
 		 final HttpServletRequest request = requestHolderBean.getRequest();
 
@@ -267,7 +276,10 @@ public class FileManagerApi extends BaseRestController {
 			 }
 
 		 } catch (Exception e) {
-			 logger.error("Unable to delete file ",e);
+			 // Log at warn without a stack trace: an attacker repeatedly
+			 // triggering delete failures could otherwise flood logs / fill
+			 // disk via full stack traces on every failure (CWE-400).
+			 logger.warn("Unable to delete file (hash=" + hash + "): " + e.getMessage());
 		 }
 	 }
 	 
