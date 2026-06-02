@@ -210,17 +210,24 @@ public class PersistenceStore {
 
 			sql += " order by time desc";
 
+			// Bound the result set so a broad or empty query cannot force a
+			// full-table read plus large log/contents payloads (CWE-400).
+			final int maxLogResults = Integer.getInteger("tak.logs.maxResults", 10000);
+			sql += " limit ?";
+
 			try (Connection connection = ds.getConnection(); PreparedStatement select = wrapper.prepareStatement(sql, connection)) {
 
+				int paramIndex = 1;
 				if (hasQuery) {
-					select.setString(1, "%" + query + "%");
-					select.setString(2, "%" + query + "%");
-					select.setString(3, "%" + query + "%");
-					select.setString(4, "%" + query + "%");
-					select.setString(5, "%" + query + "%");
-					select.setString(6, "%" + query + "%");
-					select.setString(7, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
+					select.setString(paramIndex++, "%" + query + "%");
 				}
+				select.setInt(paramIndex, maxLogResults);
 
 				ResultSet results = select.executeQuery();
 
@@ -230,6 +237,10 @@ public class PersistenceStore {
 				}
 
 				results.close();
+
+				if (logs.size() >= maxLogResults) {
+					logger.warn("getLogs truncated at {} rows (cap tak.logs.maxResults)", maxLogResults);
+				}
 
 			} catch (Exception e) {
 				logger.error("Exception!", e);

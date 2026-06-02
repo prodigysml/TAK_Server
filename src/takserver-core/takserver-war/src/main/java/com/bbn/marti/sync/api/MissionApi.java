@@ -571,6 +571,11 @@ public class MissionApi extends BaseRestController {
 
 		final String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
+		// validate this differently since it's a path variable; the mission name
+		// is broadcast to websocket clients on mission changes, so reject HTML
+		// metacharacters here to prevent stored client-side injection (CWE-79).
+		validator.getValidInput(context, nameParam, "MartiSafeString", DEFAULT_PARAMETER_LENGTH, false);
+
 		String name = missionService.trimName(nameParam);
 		try {
 			Mission mission = missionService.getMission(name, groupVectorUser);
