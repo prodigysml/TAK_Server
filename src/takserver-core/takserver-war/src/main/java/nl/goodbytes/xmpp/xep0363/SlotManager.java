@@ -77,12 +77,10 @@ public class SlotManager
 
     public Slot consumeSlotForPut( UUID uuid )
     {
-        final Slot slot = slots.getIfPresent( uuid );
-        if ( slot != null )
-        {
-            slots.invalidate( uuid );
-        }
-
-        return slot;
+        // Atomically remove-and-return the slot. The previous getIfPresent +
+        // invalidate was a non-atomic check-then-act, so two concurrent PUTs
+        // could both read the same one-time slot and both proceed (CWE-362).
+        // ConcurrentMap.remove returns the slot to exactly one caller.
+        return slots.asMap().remove( uuid );
     }
 }
