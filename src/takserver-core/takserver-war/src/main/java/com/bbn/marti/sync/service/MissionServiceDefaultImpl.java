@@ -2937,24 +2937,17 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	public void validateMissionByGuid(Mission mission) {
 
-		logger.debug("validateMissionByGuid {} {} ", mission, mission.getGuid(), mission.getName());
-		
 		if (mission == null) {
-			// if a mission was deleted, respond with a 410
-			if (isDeletedByGuid(UUID.fromString(mission.getGuid()))) {
-				throw new MissionDeletedException("Mission  '" + mission.getGuid() + "' was deleted");
-				// if a mission doesn't exist, respond with a 404
-			} else {
-
-				String msg = "Mission '" + mission.getGuid() + "' not found - not deleted";
-
-				if (logger.isDebugEnabled()) {
-					logger.debug(msg);
-				}
-
-				throw new NotFoundException(msg);
-			}
+			// The mission lookup returned nothing (not found, deleted, or not
+			// visible to the caller). The previous code dereferenced the null
+			// mission here (mission.getGuid()) inside this null branch, which
+			// guaranteed a NullPointerException and a 500 instead of a proper
+			// 404 — both a robustness bug and a way to probe GUID existence via
+			// the differing response (CWE-476, CWE-200). Respond with 404.
+			throw new NotFoundException("mission not found");
 		}
+
+		logger.debug("validateMissionByGuid {} {}", mission.getGuid(), mission.getName());
 	}
 
 	@Override
