@@ -76,6 +76,35 @@ public class CoreConfigFacade implements CoreConfig {
         return instance;
     }
 
+    /**
+     * Test-only constructor. Backs the facade with a fixed {@link Configuration} and performs no
+     * Ignite / DistributedConfiguration lookup, so unit tests can exercise helpers that read the
+     * config without booting Apache Ignite (which otherwise blocks the test worker for minutes).
+     * {@code coreConfig} is left null on purpose: mutation / save paths are unsupported under the
+     * test facade and will fail fast rather than silently touch cluster state.
+     */
+    private CoreConfigFacade(Configuration configuration) {
+        this.remoteConfig = configuration;
+        this.cachedConfig = configuration;
+    }
+
+    /**
+     * Test-only seam. Pre-installs a facade backed by the supplied {@link Configuration} so that
+     * subsequent {@link #getInstance()} calls return it without running the Ignite-booting
+     * constructor. Pair with {@link #clearInstanceForTesting()} in test teardown.
+     */
+    public static synchronized void setInstanceForTesting(Configuration configuration) {
+        instance = new CoreConfigFacade(configuration);
+    }
+
+    /**
+     * Test-only seam. Clears any installed instance (including one set by
+     * {@link #setInstanceForTesting(Configuration)}) so tests do not leak singleton state.
+     */
+    public static synchronized void clearInstanceForTesting() {
+        instance = null;
+    }
+
 
     public void saveChanges() {
         coreConfig.saveChanges();
