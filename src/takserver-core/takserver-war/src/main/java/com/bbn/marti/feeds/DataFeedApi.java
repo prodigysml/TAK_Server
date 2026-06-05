@@ -24,6 +24,7 @@ import com.bbn.marti.config.AuthType;
 import com.bbn.marti.cot.search.model.ApiResponse;
 import com.bbn.marti.network.BaseRestController;
 import com.bbn.marti.remote.exception.ForbiddenException;
+import com.bbn.marti.remote.exception.NotFoundException;
 import com.bbn.marti.remote.groups.GroupManager;
 import com.bbn.marti.remote.util.RemoteUtil;
 import com.bbn.marti.sync.repository.DataFeedRepository;
@@ -302,9 +303,10 @@ public class DataFeedApi extends BaseRestController {
 			// only update groups if specified. Log the change.
 			logger.info("update predicate-based data feed: {} updateGroups: {}", pfeed, updateGroups);
 
+			Long updatedId;
 			if (updateGroups) {
 				logger.debug("update feed {} with groups", pfeed.getUuid());
-						dataFeedRepository.updateDataFeedWithGroupVector(
+				updatedId = dataFeedRepository.updateDataFeedWithGroupVector(
 						pfeed.getUuid(),
 						pfeed.getName(),
 						DataFeedType.Predicate.ordinal(),
@@ -330,7 +332,7 @@ public class DataFeedApi extends BaseRestController {
 						pfeed.getAuthType());
 			} else {
 				logger.debug("update feed {} without groups", pfeed.getUuid());
-				dataFeedRepository.updateDataFeed(
+				updatedId = dataFeedRepository.updateDataFeed(
 						pfeed.getUuid(),
 						pfeed.getName(),
 						DataFeedType.Predicate.ordinal(),
@@ -354,7 +356,14 @@ public class DataFeedApi extends BaseRestController {
 						pfeed.getPredicate(),
 						pfeed.getAuthType());
 			}
-			
+
+			// Group-scoped conditional UPDATE (returning id): a null result means the feed
+			// was removed or moved out of the caller's groups since it was validated above
+			// (TOCTOU). Surface it instead of returning a success response for a no-op.
+			if (updatedId == null) {
+				throw new NotFoundException("data feed not found or not accessible for update: " + pfeed.getUuid());
+			}
+
 			return new ApiResponse<PredicateDataFeed>(Constants.API_VERSION, PredicateDataFeed.class.getSimpleName(), pfeed);
 		};
 	}
@@ -394,9 +403,15 @@ public class DataFeedApi extends BaseRestController {
 			}
 
 			logger.info("deleting predicate-based data feed by uuid: {}", feedUuid);
-			
-			dataFeedRepository.deleteDataFeedByUuid(feedUuid);
-			
+
+			// The feed was validated to exist and be group-accessible above; a null result
+			// means it was deleted concurrently (TOCTOU). Surface that rather than returning
+			// a success response built from the now-stale pre-read feed.
+			Long deletedId = dataFeedRepository.deleteDataFeedByUuid(feedUuid);
+			if (deletedId == null) {
+				throw new NotFoundException("data feed not found or not accessible for deletion: " + feedUuid);
+			}
+
 			return new ApiResponse<PredicateDataFeed>(Constants.API_VERSION, PredicateDataFeed.class.getSimpleName(), dataFeedService.DataFeedDTOtoPredicateDataFeed(feed));
 		};
 	}
