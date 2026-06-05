@@ -943,10 +943,17 @@ public class MissionApi extends BaseRestController {
 					}
 
 					if (updated) {
-						if (expiration != null) {
-							missionRepository.update(name, groupVectorUser, description, chatRoom, baseLayer, bbox, path, classification, expiration, boundingPolygon);
-						} else {
-							missionRepository.update(name, groupVectorUser, description, chatRoom, baseLayer, bbox, path, classification, -1L, boundingPolygon);
+						// Group-scoped conditional UPDATEs (returning id). A null result means
+						// no row matched - the mission was removed or moved out of the caller's
+						// groups since getMission validated it (TOCTOU). We log rather than throw:
+						// this method's create-case handler catches NotFoundException, so throwing
+						// would be swallowed into the create branch. Logging surfaces the race
+						// without corrupting control flow.
+						Long metadataUpdatedId = (expiration != null)
+								? missionRepository.update(name, groupVectorUser, description, chatRoom, baseLayer, bbox, path, classification, expiration, boundingPolygon)
+								: missionRepository.update(name, groupVectorUser, description, chatRoom, baseLayer, bbox, path, classification, -1L, boundingPolygon);
+						if (metadataUpdatedId == null) {
+							logger.warn("updateMission: metadata update matched no row for mission {} (concurrent removal/regroup?)", name);
 						}
 					}
 
@@ -958,7 +965,9 @@ public class MissionApi extends BaseRestController {
 						String newPasswordHash = BCrypt.hashpw(password, BCrypt.gensalt());
 
 						if (!StringUtils.equals(newPasswordHash, mission.getPasswordHash())) {
-							missionRepository.setPasswordHash(name, newPasswordHash, groupVectorMission);
+							if (missionRepository.setPasswordHash(name, newPasswordHash, groupVectorMission) == null) {
+								logger.warn("updateMission: password update matched no row for mission {} (concurrent removal/regroup?)", name);
+							}
 							mission.setPasswordHash(newPasswordHash);
 							updated = true;
 						}
@@ -987,7 +996,9 @@ public class MissionApi extends BaseRestController {
 							}
 
 							mission.setDefaultRole(defaultRole);
-							missionRepository.setDefaultRoleId(name, defaultRole.getId(), groupVectorMission);
+							if (missionRepository.setDefaultRoleId(name, defaultRole.getId(), groupVectorMission) == null) {
+								logger.warn("updateMission: default-role update matched no row for mission {} (concurrent removal/regroup?)", name);
+							}
 							updated = true;
 						}
 					}
@@ -996,7 +1007,9 @@ public class MissionApi extends BaseRestController {
 					if (missionService.validatePermission(MissionPermission.Permission.MISSION_UPDATE_GROUPS, request)) {
 						// did the groups change?
 						if (mission.getGroupVector().compareTo(groupVectorMission) != 0) {
-							missionRepository.updateGroups(name, groupVectorUser, groupVectorMission);
+							if (missionRepository.updateGroups(name, groupVectorUser, groupVectorMission) == null) {
+								logger.warn("updateMission: group update matched no row for mission {} (concurrent removal/regroup?)", name);
+							}
 							updated = true;
 						}
 					}
@@ -1966,7 +1979,12 @@ public class MissionApi extends BaseRestController {
 		// remove all keywords
 		mission.getKeywords().clear();
 
-		missionRepository.removeAllKeywordsForMission(mission.getId());
+		// Idempotent reset: an empty result just means the mission had no keywords. Inspect
+		// the removed-id list so the no-op is observable rather than silently discarded.
+		List<Long> removedKeywordIds = missionRepository.removeAllKeywordsForMission(mission.getId());
+		if (removedKeywordIds == null || removedKeywordIds.isEmpty()) {
+			logger.debug("removeAllKeywords: mission {} had no keywords to remove", name);
+		}
 
 		missionService.invalidateMissionCache(name);
 
