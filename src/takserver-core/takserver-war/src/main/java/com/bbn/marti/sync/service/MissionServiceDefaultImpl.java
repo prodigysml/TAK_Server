@@ -722,7 +722,13 @@ public class MissionServiceDefaultImpl implements MissionService {
 
 		MissionLayer updated = new MissionLayer(layer);
 
-		missionLayerRepository.setName(layerUid, name);
+		// The layer was just validated to exist and belong to this mission; a zero-row
+		// update means it was deleted concurrently (TOCTOU). Don't announce a rename for a
+		// layer that no longer exists.
+		int renamed = missionLayerRepository.setName(layerUid, name);
+		if (renamed == 0) {
+			throw new NotFoundException("mission layer " + layerUid + " no longer exists");
+		}
 		updated.setName(name);
 
 		subscriptionManager.announceMissionChange(mission.getGuidAsUUID(), mission.getName(), SubscriptionManagerLite.ChangeType.MISSION_LAYER,
@@ -1529,7 +1535,14 @@ public class MissionServiceDefaultImpl implements MissionService {
 		namedParameters.addValue("type", type.name());
 		String sql = "delete from mission_invitation where mission_id in (select id from mission where guid = uuid(:missionGuid)) and " +
 				" lower(invitee) = lower(:invitee) and type = :type";
-		new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
+		int deleted = new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
+		// Uninvite is idempotent (an already-removed invitation is fine), so a zero-row
+		// delete is not an error — but inspect the count so the silent no-op is observable
+		// rather than invisible.
+		if (deleted == 0) {
+			logger.debug("missionUninvite removed no rows for mission {}, invitee {}, type {}",
+					missionGuid, invitee, type);
+		}
 
 	}
 

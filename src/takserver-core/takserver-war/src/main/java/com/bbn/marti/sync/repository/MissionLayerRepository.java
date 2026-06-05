@@ -22,7 +22,7 @@ public interface MissionLayerRepository extends JpaRepository<MissionLayer, Stri
     @Modifying
     @Transactional
     @Query(value = "update mission_layer set name = :name where uid = :uid ", nativeQuery = true)
-    void setName(@Param("uid") String uid, @Param("name") String name);
+    int setName(@Param("uid") String uid, @Param("name") String name);
 
     @Modifying
     @Transactional
