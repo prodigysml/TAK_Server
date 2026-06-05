@@ -108,7 +108,10 @@ public class ResubscribeServlet extends EsapiServlet {
 						"Subscription ID cannot be negative");
 			}
 			sqlQuery.setInt(1, idInt);
-			wrap.doUpdate(sqlQuery);
+			int removed = wrap.doUpdate(sqlQuery);
+			if (removed == 0) {
+				log.warning("removeSubscription matched no subscription row for id " + idInt);
+			}
 		} catch (Exception e) {
 			// not sure where this output goes
 			// but we're just doing best effort here...

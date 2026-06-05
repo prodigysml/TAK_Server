@@ -147,9 +147,14 @@ public class PropertiesServiceDefaultImpl  implements PropertiesService {
 		MapSqlParameterSource namedParameters = new MapSqlParameterSource();
 		namedParameters.addValue("uid", uid);
 		namedParameters.addValue("key", key);
-		String sqlDeleteKey = "delete from properties_keys where " 
+		String sqlDeleteKey = "delete from properties_keys where "
 				+ " key =:key and properties_uid_id =(select id from properties_uid where uid=:uid);";
-		new NamedParameterJdbcTemplate(dataSource).update(sqlDeleteKey, namedParameters);
+		// Keyed on (uid, key) the caller supplied; zero rows just means the key was already
+		// gone (idempotent), but inspect the count so the no-op is observable.
+		int deleted = new NamedParameterJdbcTemplate(dataSource).update(sqlDeleteKey, namedParameters);
+		if (deleted == 0) {
+			logger.debug("deleteKey matched no row for uid {} key {}", uid, key);
+		}
 	}
 
 	@Override
