@@ -3169,7 +3169,11 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	public void setParent(UUID childMissionGuid, UUID parentMissionGuid, String groupVector) {
 		String currentParentGuid = missionRepository.getParentMissionGuid(childMissionGuid.toString());
-		if (currentParentGuid == null || !currentParentGuid.equals(parentMissionGuid)) {
+		// currentParentGuid is a String; compare against the parent UUID rendered as a
+		// String. Comparing String#equals(UUID) is always false, which previously defeated
+		// this dedupe guard and forced a redundant UPDATE + double cache invalidation on
+		// every call.
+		if (currentParentGuid == null || !currentParentGuid.equals(parentMissionGuid.toString())) {
 			missionRepository.setParent(childMissionGuid.toString(), parentMissionGuid.toString(), groupVector);
 			getMissionService().invalidateMissionCache(childMissionGuid);
 			getMissionService().invalidateMissionCache(parentMissionGuid);

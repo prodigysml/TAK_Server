@@ -13,30 +13,60 @@ import java.util.Optional;
 import javax.sql.DataSource;
 
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assume;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
- * MfaService tests against an in-memory H2 database with the V94 schema
- * mirrored as a CREATE TABLE. Exercises provision -> enroll -> verify
- * round-trip as well as idempotency on re-provision.
+ * MfaService tests against a real PostgreSQL (via Testcontainers).
  *
- * The ObjectProvider used by MfaService is faked here with an inline
- * implementation that returns the H2 DataSource on demand; mirrors how
- * Spring's lazy lookup behaves in production without dragging in the
- * full ApplicationContext.
+ * <p>MfaService.getOrProvision issues a PostgreSQL {@code INSERT ... ON CONFLICT
+ * (username) DO NOTHING} upsert. H2 cannot parse that grammar at any version, so
+ * these tests must run against actual PostgreSQL. The container is started once
+ * per class; each test creates and drops the {@code user_totp_secret} table
+ * (mirroring the V94 schema) so the round-trip — provision -&gt; enroll -&gt; verify,
+ * plus re-provision idempotency — is exercised end to end.
+ *
+ * <p>When Docker is unavailable the whole class self-skips ({@code Assume}) rather
+ * than failing, so the unit test task stays green on Docker-less machines/CI.
+ *
+ * <p>The ObjectProvider used by MfaService is faked with an inline implementation
+ * that returns the DataSource on demand; mirrors Spring's lazy lookup without
+ * dragging in the full ApplicationContext.
  */
 public class MfaServiceTest {
 
-	private static final String JDBC_URL = "jdbc:h2:mem:mfaservicetest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL";
+	private static PostgreSQLContainer<?> postgres;
 
 	private DataSource dataSource;
 	private MfaService service;
 
+	@BeforeClass
+	public static void startDatabase() {
+		Assume.assumeTrue(
+				"Docker is required for MfaServiceTest (PostgreSQL ON CONFLICT upsert); skipping.",
+				DockerClientFactory.instance().isDockerAvailable());
+		postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+		postgres.start();
+	}
+
+	@AfterClass
+	public static void stopDatabase() {
+		if (postgres != null) {
+			postgres.stop();
+			postgres = null;
+		}
+	}
+
 	@Before
 	public void setUp() throws Exception {
-		dataSource = new SimpleH2DataSource(JDBC_URL);
+		dataSource = new JdbcUrlDataSource(
+				postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
 		try (Connection c = dataSource.getConnection();
 				Statement st = c.createStatement()) {
 			st.execute("DROP TABLE IF EXISTS user_totp_secret");
@@ -54,6 +84,9 @@ public class MfaServiceTest {
 
 	@After
 	public void tearDown() throws Exception {
+		if (dataSource == null) {
+			return;
+		}
 		try (Connection c = dataSource.getConnection();
 				Statement st = c.createStatement()) {
 			st.execute("DROP TABLE IF EXISTS user_totp_secret");
@@ -134,11 +167,17 @@ public class MfaServiceTest {
 	}
 
 	/** Minimal DataSource that hands out JDBC connections from DriverManager. */
-	private static final class SimpleH2DataSource implements DataSource {
+	private static final class JdbcUrlDataSource implements DataSource {
 		private final String url;
-		SimpleH2DataSource(String url) { this.url = url; }
+		private final String user;
+		private final String password;
+		JdbcUrlDataSource(String url, String user, String password) {
+			this.url = url;
+			this.user = user;
+			this.password = password;
+		}
 		@Override public Connection getConnection() throws java.sql.SQLException {
-			return DriverManager.getConnection(url, "sa", "");
+			return DriverManager.getConnection(url, user, password);
 		}
 		@Override public Connection getConnection(String u, String p) throws java.sql.SQLException {
 			return DriverManager.getConnection(url, u, p);

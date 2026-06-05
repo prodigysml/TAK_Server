@@ -159,6 +159,12 @@ dependencies {
   testImplementation group: 'junit', name: 'junit', version: junit_version
   testImplementation group: 'org.mockito', name: 'mockito-core', version: mockito_version
   testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: logback_version
+  // Test-scope only: MfaService issues a PostgreSQL `INSERT ... ON CONFLICT` upsert that
+  // H2 cannot parse at any version, so MfaServiceTest must run against real PostgreSQL.
+  // Testcontainers spins an ephemeral postgres; the test self-skips when Docker is absent.
+  testImplementation group: 'org.testcontainers', name: 'testcontainers', version: '1.20.4'
+  testImplementation group: 'org.testcontainers', name: 'postgresql', version: '1.20.4'
+  testImplementation group: 'org.postgresql', name: 'postgresql', version: postgres_version
 
 }
 
@@ -168,6 +174,14 @@ sourceSets {
       srcDir("$buildDir/generated/ism/api/src/main/java")
     }
   }
+}
+
+test {
+  // Testcontainers' Ryuk reaper image is not always pullable in restricted/offline
+  // environments. The container lifecycle is handled explicitly (@AfterClass) plus a
+  // JVM shutdown hook, so the reaper is not required. Tests that need Docker self-skip
+  // when it is unavailable.
+  environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
 }
 
 openApiGenerate {

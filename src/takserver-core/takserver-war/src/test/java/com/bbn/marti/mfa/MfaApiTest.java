@@ -14,12 +14,15 @@ import java.util.Optional;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.bbn.marti.cot.search.model.ApiResponse;
+
+import tak.server.system.ApiDependencyProxyTestSupport;
 
 /**
  * Direct unit tests for {@link MfaApi}. We bypass MockMvc on purpose —
@@ -37,6 +40,10 @@ public class MfaApiTest {
 
 	@Before
 	public void setUp() {
+		// ApiResponse's constructor resolves the node id via ApiDependencyProxy ->
+		// ServerInfo. Install a stub context so direct API calls can build responses
+		// without a Spring context.
+		ApiDependencyProxyTestSupport.install("test-node");
 		mfaService = mock(MfaService.class);
 		attempts = new LoginAttemptService();
 		api = new MfaApi(mfaService, attempts);
@@ -47,6 +54,11 @@ public class MfaApiTest {
 		when(request.getUserPrincipal()).thenReturn(principal);
 		when(request.getRemoteAddr()).thenReturn("127.0.0.1");
 		when(request.getSession(true)).thenReturn(session);
+	}
+
+	@After
+	public void tearDown() {
+		ApiDependencyProxyTestSupport.clear();
 	}
 
 	@Test(expected = IllegalStateException.class)
