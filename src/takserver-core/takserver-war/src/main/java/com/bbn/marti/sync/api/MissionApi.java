@@ -4543,7 +4543,15 @@ public class MissionApi extends BaseRestController {
 		Mission mission = missionService.getMission(missionName, groupVector);
 
 		String newPasswordHash = BCrypt.hashpw(password, BCrypt.gensalt());
-		missionRepository.setPasswordHash(missionName, newPasswordHash, groupVector);
+		// The conditional UPDATE is group-scoped (returning id). A null result means no row
+		// matched - the mission was removed or moved out of the caller's groups since
+		// getMission validated it (TOCTOU) - so the password was not set. Surface that
+		// instead of invalidating the cache and broadcasting a password change that never
+		// happened.
+		Long updated = missionRepository.setPasswordHash(missionName, newPasswordHash, groupVector);
+		if (updated == null) {
+			throw new NotFoundException("mission not found or not accessible: " + missionName);
+		}
 		missionService.invalidateMissionCache(missionName);
 
 		try {
@@ -4553,7 +4561,7 @@ public class MissionApi extends BaseRestController {
 			logger.debug("exception announcing mission change " + e.getMessage(), e);
 		}
 	}
-	
+
 	@PreAuthorize("hasPermission(#request, 'MISSION_SET_PASSWORD')")
 	@RequestMapping(value = "/missions/guid/{guid:.+}/password", method = RequestMethod.PUT)
 	@ResponseStatus(HttpStatus.OK)
@@ -4570,7 +4578,10 @@ public class MissionApi extends BaseRestController {
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
 
 		String newPasswordHash = BCrypt.hashpw(password, BCrypt.gensalt());
-		missionRepository.setPasswordHashByGuid(missionGuid.toString(), newPasswordHash, groupVector);
+		Long updated = missionRepository.setPasswordHashByGuid(missionGuid.toString(), newPasswordHash, groupVector);
+		if (updated == null) {
+			throw new NotFoundException("mission not found or not accessible: " + missionGuid);
+		}
 		missionService.invalidateMissionCache(missionGuid);
 
 		try {
@@ -4594,7 +4605,10 @@ public class MissionApi extends BaseRestController {
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMission(missionName, groupVector);
 
-		missionRepository.setPasswordHash(missionName, null, groupVector);
+		Long updated = missionRepository.setPasswordHash(missionName, null, groupVector);
+		if (updated == null) {
+			throw new NotFoundException("mission not found or not accessible: " + missionName);
+		}
 		missionService.invalidateMissionCache(missionName);
 
 		try {
@@ -4619,7 +4633,10 @@ public class MissionApi extends BaseRestController {
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
 
-		missionRepository.setPasswordHashByGuid(missionGuid.toString(), null, groupVector);
+		Long updated = missionRepository.setPasswordHashByGuid(missionGuid.toString(), null, groupVector);
+		if (updated == null) {
+			throw new NotFoundException("mission not found or not accessible: " + missionGuid);
+		}
 		missionService.invalidateMissionCache(missionGuid);
 
 		try {
