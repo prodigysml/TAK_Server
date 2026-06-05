@@ -3174,7 +3174,18 @@ public class MissionServiceDefaultImpl implements MissionService {
 		// this dedupe guard and forced a redundant UPDATE + double cache invalidation on
 		// every call.
 		if (currentParentGuid == null || !currentParentGuid.equals(parentMissionGuid.toString())) {
-			missionRepository.setParent(childMissionGuid.toString(), parentMissionGuid.toString(), groupVector);
+			// The conditional UPDATE carries the caller's group vector in its WHERE clause
+			// and `returning id`, so a null result means no row matched: the mission was
+			// removed or moved out of the caller's groups since the controller validated it
+			// (TOCTOU). Surface that instead of silently "succeeding" and then invalidating
+			// caches / firing the federation @AfterReturning advice for a change that never
+			// landed.
+			Long updatedId = missionRepository.setParent(
+					childMissionGuid.toString(), parentMissionGuid.toString(), groupVector);
+			if (updatedId == null) {
+				throw new NotFoundException(
+						"mission not found or not accessible when setting parent: " + childMissionGuid);
+			}
 			getMissionService().invalidateMissionCache(childMissionGuid);
 			getMissionService().invalidateMissionCache(parentMissionGuid);
 		}
@@ -3183,12 +3194,25 @@ public class MissionServiceDefaultImpl implements MissionService {
 	@Override
 	public void clearParent(UUID childMissionGuid, String groupVector) {
 		Mission child = getMissionService().getMissionByGuid(childMissionGuid, groupVector);
+		String parentGuid = null;
 		if (child != null && child.getParent() != null) {
-			String parentGuid = missionRepository.getParentGuid(childMissionGuid.toString());
-			getMissionService().invalidateMissionCache(UUID.fromString(parentGuid));
+			parentGuid = missionRepository.getParentGuid(childMissionGuid.toString());
 		}
 
-		missionRepository.clearParentByGuid(childMissionGuid.toString(), groupVector);
+		// As with setParent, a null result from the group-scoped conditional UPDATE means
+		// the mission row did not match (removed or out of the caller's groups). Throw
+		// before invalidating caches rather than silently no-op. Clearing an
+		// already-parentless mission still matches the row and returns its id, so this
+		// stays idempotent for that legitimate case.
+		Long updatedId = missionRepository.clearParentByGuid(childMissionGuid.toString(), groupVector);
+		if (updatedId == null) {
+			throw new NotFoundException(
+					"mission not found or not accessible when clearing parent: " + childMissionGuid);
+		}
+
+		if (parentGuid != null) {
+			getMissionService().invalidateMissionCache(UUID.fromString(parentGuid));
+		}
 		getMissionService().invalidateMissionCache(childMissionGuid);
 	}
 	

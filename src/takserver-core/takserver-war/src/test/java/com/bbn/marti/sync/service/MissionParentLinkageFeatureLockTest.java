@@ -1,5 +1,6 @@
 package com.bbn.marti.sync.service;
 
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -12,6 +13,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.bbn.marti.remote.exception.NotFoundException;
 import com.bbn.marti.sync.model.Mission;
 import com.bbn.marti.sync.repository.MissionRepository;
 
@@ -62,6 +64,7 @@ public class MissionParentLinkageFeatureLockTest {
 	@Test
 	public void setParent_whenParentChanges_writesAndInvalidatesBothCaches() {
 		when(missionRepository.getParentMissionGuid(child.toString())).thenReturn(null);
+		when(missionRepository.setParent(child.toString(), parent.toString(), gv)).thenReturn(1L);
 
 		service.setParent(child, parent, gv);
 
@@ -88,6 +91,7 @@ public class MissionParentLinkageFeatureLockTest {
 	public void setParent_whenReparentingToDifferentParent_writesAndInvalidatesBothCaches() {
 		UUID otherParent = UUID.fromString("33333333-3333-3333-3333-333333333333");
 		when(missionRepository.getParentMissionGuid(child.toString())).thenReturn(otherParent.toString());
+		when(missionRepository.setParent(child.toString(), parent.toString(), gv)).thenReturn(1L);
 
 		service.setParent(child, parent, gv);
 
@@ -105,6 +109,7 @@ public class MissionParentLinkageFeatureLockTest {
 		when(childMission.getParent()).thenReturn(parentMission);
 		when(harness.self.getMissionByGuid(child, gv)).thenReturn(childMission);
 		when(missionRepository.getParentGuid(child.toString())).thenReturn(parent.toString());
+		when(missionRepository.clearParentByGuid(child.toString(), gv)).thenReturn(1L);
 
 		service.clearParent(child, gv);
 
@@ -118,6 +123,7 @@ public class MissionParentLinkageFeatureLockTest {
 		Mission childMission = org.mockito.Mockito.mock(Mission.class);
 		when(childMission.getParent()).thenReturn(null);
 		when(harness.self.getMissionByGuid(child, gv)).thenReturn(childMission);
+		when(missionRepository.clearParentByGuid(child.toString(), gv)).thenReturn(1L);
 
 		service.clearParent(child, gv);
 
@@ -126,5 +132,44 @@ public class MissionParentLinkageFeatureLockTest {
 		// No prior parent -> the old-parent cache invalidation path must not run.
 		verify(harness.self, never()).invalidateMissionCache(parent);
 		verify(missionRepository, never()).getParentGuid(anyString());
+	}
+
+	// ---- SECURITY: conditional UPDATE must not silently succeed on a no-match -----
+	// (ZeroPath cluster #5: 0c44819e / f2e065c7, CWE-863/CWE-703/CWE-841). The
+	// group-scoped UPDATE returns null when no row matches (mission removed or moved
+	// out of the caller's groups after the controller's check — TOCTOU). The service
+	// must throw rather than invalidate caches / federate a change that never landed.
+
+	@Test
+	public void setParent_whenUpdateMatchesNoRow_throwsAndSkipsCacheInvalidation() {
+		when(missionRepository.getParentMissionGuid(child.toString())).thenReturn(null);
+		when(missionRepository.setParent(child.toString(), parent.toString(), gv)).thenReturn(null);
+
+		try {
+			service.setParent(child, parent, gv);
+			fail("expected NotFoundException when the conditional UPDATE matched no row");
+		} catch (NotFoundException expected) {
+			// pass
+		}
+
+		verify(harness.self, never()).invalidateMissionCache(child);
+		verify(harness.self, never()).invalidateMissionCache(parent);
+	}
+
+	@Test
+	public void clearParent_whenUpdateMatchesNoRow_throwsAndSkipsCacheInvalidation() {
+		Mission childMission = org.mockito.Mockito.mock(Mission.class);
+		when(childMission.getParent()).thenReturn(null);
+		when(harness.self.getMissionByGuid(child, gv)).thenReturn(childMission);
+		when(missionRepository.clearParentByGuid(child.toString(), gv)).thenReturn(null);
+
+		try {
+			service.clearParent(child, gv);
+			fail("expected NotFoundException when the conditional UPDATE matched no row");
+		} catch (NotFoundException expected) {
+			// pass
+		}
+
+		verify(harness.self, never()).invalidateMissionCache(child);
 	}
 }
