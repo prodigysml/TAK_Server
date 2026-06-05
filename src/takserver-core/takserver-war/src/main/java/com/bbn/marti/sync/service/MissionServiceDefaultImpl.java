@@ -4195,33 +4195,33 @@ public class MissionServiceDefaultImpl implements MissionService {
 
 	@Override
 	@CacheEvict(value = Constants.MISSION_SUBSCRIPTION_CACHE, allEntries = true)
-	public void setRoleByClientUid(Long missionId, String clientUid, Long roleId) {
+	public int setRoleByClientUid(Long missionId, String clientUid, Long roleId) {
 		MapSqlParameterSource namedParameters = new MapSqlParameterSource();
 		namedParameters.addValue("roleId", roleId);
 		namedParameters.addValue("clientUid", clientUid);
 		namedParameters.addValue("missionId", missionId);
 		String sql = "update mission_subscription set role_id = :roleId where client_uid = :clientUid and mission_id = :missionId";
-		new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
+		return new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
 	}
 
 	@Override
 	@CacheEvict(value = Constants.MISSION_SUBSCRIPTION_CACHE, allEntries = true)
-	public void setRoleByUsername(Long missionId, String username, Long roleId) {
+	public int setRoleByUsername(Long missionId, String username, Long roleId) {
 		MapSqlParameterSource namedParameters = new MapSqlParameterSource();
 		namedParameters.addValue("roleId", roleId);
 		namedParameters.addValue("username", username);
 		namedParameters.addValue("missionId", missionId);
 		String sql = "update mission_subscription set role_id = :roleId where username = :username and mission_id = :missionId";
-		new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
+		return new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
 	}
 
 	@Override
 	@CacheEvict(value = Constants.MISSION_SUBSCRIPTION_CACHE, allEntries = true)
-	public void setRoleByClientUidOrUsername(Long missionId, String clientUid, String username, Long roleId) {
+	public int setRoleByClientUidOrUsername(Long missionId, String clientUid, String username, Long roleId) {
 		if (!Strings.isNullOrEmpty(username)) {
-			getMissionService().setRoleByUsername(missionId, username, roleId);
+			return getMissionService().setRoleByUsername(missionId, username, roleId);
 		} else {
-			getMissionService().setRoleByClientUid(missionId, clientUid, roleId);
+			return getMissionService().setRoleByClientUid(missionId, clientUid, roleId);
 		}
 	}
 
@@ -4232,8 +4232,17 @@ public class MissionServiceDefaultImpl implements MissionService {
 			String roleXml = null;
 			if (role != null) {
 				roleXml = commonUtil.toXml(role);
-				getMissionService().setRoleByClientUidOrUsername(
+				// The role UPDATE is keyed on (clientUid|username, missionId). Zero rows means
+				// there is no matching subscription to assign the role to, so the role was NOT
+				// applied. Report failure instead of returning success and broadcasting a
+				// mission-role change for a state that never changed (CWE-252/703/841).
+				int updated = getMissionService().setRoleByClientUidOrUsername(
 						mission.getId(), clientUid, username, role.getId());
+				if (updated == 0) {
+					logger.error("setRole affected no mission_subscription rows for mission {}, clientUid {}, username {}",
+							mission.getId(), clientUid, username);
+					return false;
+				}
 			} else {
 				getMissionService().missionUnsubscribe(
 						UUID.fromString(mission.getGuid()), clientUid, username, groupVector,false);

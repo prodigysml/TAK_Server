@@ -216,11 +216,14 @@ public interface MissionService {
 
     boolean validateRoleAssignment(Mission mission, HttpServletRequest request, MissionRole attemptAssign);
 
-    void setRoleByClientUid(Long missionId, String clientUid, Long roleId);
+    /** @return number of mission_subscription rows updated (0 means no matching subscription). */
+    int setRoleByClientUid(Long missionId, String clientUid, Long roleId);
 
-    void setRoleByUsername(Long missionId, String username, Long roleId);
+    /** @return number of mission_subscription rows updated (0 means no matching subscription). */
+    int setRoleByUsername(Long missionId, String username, Long roleId);
 
-    void setRoleByClientUidOrUsername(Long missionId, String clientUid, String username, Long roleId);
+    /** @return number of mission_subscription rows updated (0 means no matching subscription). */
+    int setRoleByClientUidOrUsername(Long missionId, String clientUid, String username, Long roleId);
 
     boolean setRole(Mission mission, String clientUid, String username, MissionRole role, String groupVector);
 
