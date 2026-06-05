@@ -193,10 +193,19 @@ public class SubmissionApi extends BaseRestController {
 
 				dataFeedRepository.removeAllDataFeedTagsById(dataFeedId);
 				dataFeedRepository.removeAllDataFeedFilterGroupsById(dataFeedId);
-				dataFeedRepository.deleteDataFeed(name, groupVector);
-				result = new ResponseEntity<ApiResponse<DataFeed>>(
-						new ApiResponse<DataFeed>(Constants.API_VERSION, DataFeed.class.getName(), null),
-						HttpStatus.OK);
+				// deleteDataFeed is group-scoped (returning id). A null result means no row
+				// matched - the feed is not in the caller's groups or was already removed -
+				// so report not-found instead of claiming a successful delete.
+				Long deletedId = dataFeedRepository.deleteDataFeed(name, groupVector);
+				if (deletedId == null) {
+					result = new ResponseEntity<ApiResponse<DataFeed>>(
+							new ApiResponse<DataFeed>(Constants.API_VERSION, DataFeed.class.getName(), null),
+							HttpStatus.NOT_FOUND);
+				} else {
+					result = new ResponseEntity<ApiResponse<DataFeed>>(
+							new ApiResponse<DataFeed>(Constants.API_VERSION, DataFeed.class.getName(), null),
+							HttpStatus.OK);
+				}
 			} else {
 				result = new ResponseEntity<ApiResponse<DataFeed>>(new ApiResponse<DataFeed>(Constants.API_VERSION,
 						DataFeed.class.getName(), null), HttpStatus.BAD_REQUEST);

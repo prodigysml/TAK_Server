@@ -264,11 +264,18 @@ public class ProfileAdminAPI extends BaseRestController {
                         requestedGroups.size(), MAX_PROFILE_GROUP_NAMES);
                 return new ResponseEntity(HttpStatus.BAD_REQUEST);
             }
+            Long updatedGroupRows;
             if (profile.getGroupNames().contains("APPLY_TO_ALL_GROUPS")) {
-                profileRepository.updateGroups(profile.getId(), RemoteUtil.getInstance().getBitStringAllGroups());
+                updatedGroupRows = profileRepository.updateGroups(profile.getId(), RemoteUtil.getInstance().getBitStringAllGroups());
             } else {
                 boolean[] groups = remoteUtil.getBitVectorForGroups(groupManager.findGroups(profile.getGroupNames()));
-                profileRepository.updateGroups(profile.getId(), remoteUtil.bitVectorToString(groups));
+                updatedGroupRows = profileRepository.updateGroups(profile.getId(), remoteUtil.bitVectorToString(groups));
+            }
+            if (updatedGroupRows == null) {
+                // The conditional group update matched no existing profile row. save() below
+                // still persists the entity (this endpoint doubles as create-or-update), but
+                // surface the no-op so a failed group change is not silently lost.
+                logger.warn("updateProfile: group update matched no existing profile id {}", profile.getId());
             }
 
             profile.setUpdated(new Date());
@@ -358,7 +365,13 @@ public class ProfileAdminAPI extends BaseRestController {
             @PathVariable("id") @NotNull Long id) {
 
         ProfileFile profileFile = profileFileRepository.getOne(id);
-        profileRepository.updated(profileFile.getProfileId());
+        Long touchedProfile = profileRepository.updated(profileFile.getProfileId());
+        if (touchedProfile == null) {
+            // Parent profile already gone; deleting the orphaned file is still correct, but
+            // record that the updated-timestamp bump matched no row.
+            logger.warn("deleteFile: parent profile id {} not found when bumping updated timestamp",
+                    profileFile.getProfileId());
+        }
         profileFileRepository.deleteById(id);
         return new ResponseEntity(HttpStatus.OK);
     }
