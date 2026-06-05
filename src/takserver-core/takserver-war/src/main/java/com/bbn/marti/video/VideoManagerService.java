@@ -499,7 +499,13 @@ public class VideoManagerService {
 
 	public void deleteVideoConnection(String uid, String groupVector) {
 		try {
-			videoConnectionRepository.delete(uid, groupVector);
+			// Group-scoped delete (returning id). A null result means no row matched - not in
+			// the caller's groups or already deleted. The operation is idempotent, so log the
+			// no-op rather than discarding it.
+			Long deleted = videoConnectionRepository.delete(uid, groupVector);
+			if (deleted == null) {
+				logger.debug("deleteVideoConnection matched no row for uid {} (group-scoped)", uid);
+			}
 		} catch (Exception e) {
 			logger.error("exception in deleteVideoConnection!", e);
 		}

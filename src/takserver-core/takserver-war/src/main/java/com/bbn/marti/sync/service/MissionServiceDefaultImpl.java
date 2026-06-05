@@ -871,7 +871,13 @@ public class MissionServiceDefaultImpl implements MissionService {
 				throw new ForbiddenException("mission layer " + layerUid + " does not belong to mission " + missionName);
 			}
 
-			missionLayerRepository.fixupAfter(layer.getAfter(), layer.getParentUid(), layerUid);
+			// Best-effort relink of the sibling that pointed at the removed layer. Zero rows
+			// is legitimate (e.g. removing the last/only layer in its list), so this is logged
+			// rather than treated as a failure.
+			int relinked = missionLayerRepository.fixupAfter(layer.getAfter(), layer.getParentUid(), layerUid);
+			if (relinked == 0) {
+				logger.debug("removeMissionLayer: no sibling after-pointer to fix up for layer {}", layerUid);
+			}
 
 			removeMissionLayerData(layer,  mission, creatorUid, groupVector);
 

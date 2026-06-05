@@ -41,7 +41,7 @@ public interface MissionLayerRepository extends JpaRepository<MissionLayer, Stri
             "(:uid is null  or (:uid != uid)) and " +
             "((:parent_node_uid is null and parent_node_uid is null) or (:parent_node_uid is not null and parent_node_uid = :parent_node_uid)) and " +
             "((:after is null and after is null) or (:after is not null and after = :after)) ", nativeQuery = true)
-    void fixupAfter(@Param("uid") String uid, @Param("parent_node_uid") String parent_node_uid, @Param("after") String after);
+    int fixupAfter(@Param("uid") String uid, @Param("parent_node_uid") String parent_node_uid, @Param("after") String after);
 
     @Query(value = "select uid, name, type, parent_node_uid, null as mission_id, after " +
             "from mission_layer where uid = :uid ", nativeQuery = true)

@@ -820,7 +820,13 @@ public class RepositoryService extends BaseService {
 							ps_ep.setString(4, callsign);
 							ps_ep.setString(5, uid);
 							ps_ep.setString(6, fusername);
-							ps_ep.executeUpdate();
+							// INSERT ... WHERE NOT EXISTS: zero rows means the endpoint already
+							// exists, so the dependent event insert below stays valid. Inspect the
+							// count so the no-op is observable instead of silently discarded.
+							int epInserted = ps_ep.executeUpdate();
+							if (epInserted == 0 && log.isDebugEnabled()) {
+								log.debug("client endpoint already existed for uid " + uid + " callsign " + callsign);
+							}
 
 							// Insert a client endpoint row
 							try (PreparedStatement ps_epe = conn.prepareStatement(epe_sql)) {
