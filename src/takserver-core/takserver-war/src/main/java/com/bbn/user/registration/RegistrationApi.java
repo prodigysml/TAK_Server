@@ -12,6 +12,7 @@ import org.owasp.esapi.errors.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -114,9 +115,20 @@ public class RegistrationApi {
         }
     }
 
+    /**
+     * Admin-only cap on the user listing. Generous (far above any realistic deployment) so
+     * normal listing is unaffected; bounds memory/serialization if the table grows
+     * pathologically large (CWE-400). Not a client-facing endpoint.
+     */
+    public static final int MAX_ADMIN_USERS = 100_000;
+
     @RequestMapping(value = "/register/admin/users", method = RequestMethod.GET)
     public List<TAKUser> getAllUsers() {
-        return takUserRepository.findAll();
+        List<TAKUser> users = takUserRepository.findAll(PageRequest.of(0, MAX_ADMIN_USERS)).getContent();
+        if (users.size() >= MAX_ADMIN_USERS) {
+            logger.warn("getAllUsers result capped at {}; some users were not returned", MAX_ADMIN_USERS);
+        }
+        return users;
     }
 
     @RequestMapping(value = "/register/admin/invite", method = RequestMethod.POST)

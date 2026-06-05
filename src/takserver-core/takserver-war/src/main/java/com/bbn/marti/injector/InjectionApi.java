@@ -28,6 +28,7 @@ import com.bbn.marti.remote.service.InjectionService;
 import com.google.common.base.Strings;
 
 import tak.server.Constants;
+import tak.server.util.ResultLimits;
 
 /*
  * 
@@ -48,10 +49,21 @@ public class InjectionApi extends BaseRestController {
     /*
      * GET all CoT uid injectors
      */
+    // Admin-only cap (generous; bounds memory/serialization if the injector set grows
+    // pathologically large - CWE-400). Not a client-facing endpoint.
+    public static final int MAX_INJECTORS = 10_000;
+
     @RequestMapping(value = BASE_PATH, method = RequestMethod.GET)
     ApiResponse<Set<InjectorConfig>> getAllCotInjectors() {
 
-        return new ApiResponse<Set<InjectorConfig>>(Constants.API_VERSION, InjectorConfig.class.getSimpleName(), injectionService.getAllInjectors());
+        Set<InjectorConfig> all = injectionService.getAllInjectors();
+        int size = all == null ? 0 : all.size();
+        if (ResultLimits.exceedsCap(size, MAX_INJECTORS)) {
+            logger.warn("getAllCotInjectors result capped at {}; some injectors not returned", MAX_INJECTORS);
+            return new ApiResponse<Set<InjectorConfig>>(Constants.API_VERSION, InjectorConfig.class.getSimpleName(),
+                    new HashSet<>(ResultLimits.bounded(all, MAX_INJECTORS)));
+        }
+        return new ApiResponse<Set<InjectorConfig>>(Constants.API_VERSION, InjectorConfig.class.getSimpleName(), all);
     }
     
     /*

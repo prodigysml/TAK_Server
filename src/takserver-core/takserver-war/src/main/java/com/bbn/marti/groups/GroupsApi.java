@@ -13,6 +13,8 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 
+import tak.server.util.ResultLimits;
+
 import com.google.common.base.Strings;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -55,6 +57,11 @@ import tak.server.cache.ActiveGroupCacheHelper;
 public class GroupsApi extends BaseRestController {
     
     Logger logger = LoggerFactory.getLogger(GroupsApi.class);
+
+    // Admin-only cap on the /users/all listing (generous; bounds the in-memory sorts and
+    // serialization for a pathologically large user set - CWE-400/770). The /groups/all
+    // client-facing endpoint is intentionally NOT capped.
+    public static final int MAX_USERS = 100_000;
 
     @Autowired
     private HttpServletRequest request;
@@ -99,8 +106,15 @@ public class GroupsApi extends BaseRestController {
         
         // first sort by natural ordering (id, connectionId)
         try {
-            userSet = new ConcurrentSkipListSet<User>(groupManager.getAllUsers());
-        } catch (Exception e) { 
+            // Bound the user set before the two in-memory sorts/serialization so a
+            // pathologically large user collection cannot exhaust CPU/memory (CWE-400/770).
+            // Admin-only endpoint; the cap is far above any realistic deployment.
+            Collection<User> allUsers = groupManager.getAllUsers();
+            if (allUsers != null && ResultLimits.exceedsCap(allUsers.size(), MAX_USERS)) {
+                logger.warn("getAllUsers result capped at {}; some users were not returned", MAX_USERS);
+            }
+            userSet = new ConcurrentSkipListSet<User>(ResultLimits.bounded(allUsers, MAX_USERS));
+        } catch (Exception e) {
             logger.debug("exception getting users", e);  
         }
 

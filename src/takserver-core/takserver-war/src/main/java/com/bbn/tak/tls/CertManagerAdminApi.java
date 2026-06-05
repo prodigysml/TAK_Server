@@ -21,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -48,6 +49,10 @@ import tak.server.Constants;
 public class CertManagerAdminApi extends BaseRestController {
 
     public static final Logger logger = LoggerFactory.getLogger(CertManagerAdminApi.class);
+
+    // Admin-only cap on certificate listings (generous; bounds DB scan + serialization for a
+    // pathologically large certificate table - CWE-400/770). Not a client-facing endpoint.
+    public static final int MAX_CERT_RESULTS = 100_000;
 
     @Autowired
     private HttpServletResponse response;
@@ -116,7 +121,14 @@ public class CertManagerAdminApi extends BaseRestController {
     @RequestMapping(value = "/certadmin/cert/revoked", method = RequestMethod.GET)
     ApiResponse<List<TakCert>> getRevoked() throws Exception {
         try {
-            List<TakCert> certs = takCertRepository.findAllByRevocationDateIsLessThanEqual(new Date());
+            // Bound the listing so a pathologically large revoked-cert table cannot drive a
+            // full scan + unbounded serialization (CWE-400/770). Admin-only endpoint; the cap
+            // is far above any realistic deployment.
+            List<TakCert> certs = takCertRepository.findAllByRevocationDateIsLessThanEqual(
+                    new Date(), PageRequest.of(0, MAX_CERT_RESULTS));
+            if (certs.size() >= MAX_CERT_RESULTS) {
+                logger.warn("getRevoked result capped at {}; some revoked certs were not returned", MAX_CERT_RESULTS);
+            }
             return new ApiResponse<List<TakCert>>(Constants.API_VERSION, TakCert.class.getSimpleName(), certs);
         } catch (Exception e) {
             logger.error("exception in getRevoked!", e);

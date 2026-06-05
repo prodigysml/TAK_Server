@@ -37,6 +37,10 @@ public interface TakCertRepository extends JpaRepository<TakCert, Long> {
     @Cacheable(Constants.CERTIFICATE_CACHE)
     List<TakCert> findAllByRevocationDateIsLessThanEqual(Date start);
 
+    // Bounded overload to cap the admin revoked-cert listing (CWE-400/770). Spring Data
+    // applies the Pageable as a SQL LIMIT, so the full table is never loaded.
+    List<TakCert> findAllByRevocationDateIsLessThanEqual(Date start, org.springframework.data.domain.Pageable pageable);
+
     @Cacheable(Constants.CERTIFICATE_CACHE)
     @Query(value = "delete from certificate where id in ( :idList ) returning id", nativeQuery = true)
     List<Long> deleteByIds(@Param("idList") List<Long> idList);
