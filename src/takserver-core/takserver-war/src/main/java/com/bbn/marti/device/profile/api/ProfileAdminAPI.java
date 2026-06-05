@@ -71,6 +71,12 @@ public class ProfileAdminAPI extends BaseRestController {
     static final int MAX_PROFILE_GROUP_NAME_LEN = Integer.getInteger(
             "tak.profile.maxGroupNameLen", 256);
 
+    // Caller-supplied directory list cap: each entry drives a validation + DB insert inside
+    // a transaction, so an oversized list ties up request threads and the DB (CWE-400/770).
+    // Tune via -Dtak.profile.maxDirectories.
+    static final int MAX_PROFILE_DIRECTORIES = Integer.getInteger(
+            "tak.profile.maxDirectories", 256);
+
     /**
      * Returns true if a group-name list is too large to process. Extracted for
      * unit testing.
@@ -387,6 +393,12 @@ public class ProfileAdminAPI extends BaseRestController {
     public ResponseEntity updateDirectories(
             @PathVariable("name") @NotNull String name,
             @PathVariable("directories") @NotNull List<String> directories) {
+
+        if (shouldRejectGroupList(directories.size(), MAX_PROFILE_DIRECTORIES)) {
+            logger.warn("updateDirectories rejecting {} directories (cap {})",
+                    directories.size(), MAX_PROFILE_DIRECTORIES);
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
 
         Profile profile = profileRepository.findByName(name);
         if (profile == null) {

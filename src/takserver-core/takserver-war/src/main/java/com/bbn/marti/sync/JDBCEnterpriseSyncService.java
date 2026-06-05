@@ -64,6 +64,7 @@ import com.bbn.marti.util.CommonUtil;
 import com.google.common.base.Strings;
 
 import tak.server.Constants;
+import tak.server.util.SqlRegexUtils;
 
 /**
  * Implementation of Enterprise Sync using JDBC to persist files in a database.
@@ -1414,7 +1415,11 @@ public class JDBCEnterpriseSyncService implements EnterpriseSyncService {
 				+ Column.uid.toString() + " ~ ? "
 				+ RemoteUtil.getInstance().getGroupAndClause()
 				+ "ORDER BY " + Column.submissiontime.toString() + " DESC;", connection)) {
-			query.setString(1, uid);
+			// The uid is bound into a POSIX regex predicate (uid ~ ?). Escape it so it matches
+			// literally - a raw value lets a caller pass a broad pattern (.*) that scans every
+			// row or a catastrophic-backtracking pattern (ReDoS). Escaping preserves the
+			// existing substring-match behavior for legitimate uids (CWE-400/1333).
+			query.setString(1, SqlRegexUtils.escapePosixEre(uid));
 			query.setString(2, groupVector);
 			log.fine("Executing SQL: " + query.toString());
 
