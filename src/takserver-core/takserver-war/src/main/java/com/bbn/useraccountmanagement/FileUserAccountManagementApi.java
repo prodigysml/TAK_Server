@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bbn.marti.groups.value.FileAuthenticatorControl;
+import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.remote.groups.FileUserManagementInterface;
 import com.bbn.marti.remote.groups.SimpleGroupWithUsersModel;
 import com.bbn.marti.xml.bindings.UserAuthenticationFile;
@@ -232,6 +233,14 @@ iii.	System produces output file with user/pass combos as a one-time accessible 
     @Override
     @RequestMapping(value = "/delete-user/{username}", method = RequestMethod.DELETE)
     public void deleteUser(@PathVariable String username) {
+
+    	// The bootstrap admin must never be deletable - removing it can lock everyone out.
+    	// Guard before the try/catch below so the 403 is not rewrapped as a 500.
+    	if (UsernameUtils.isProtectedAdmin(username)) {
+    		logger.warn("Refused attempt to delete protected admin user: {}", username);
+    		throw new ForbiddenException("User '" + UsernameUtils.PROTECTED_ADMIN_USERNAME
+    				+ "' is protected and cannot be deleted");
+    	}
 
     	FileAuthenticatorControl control;
     	try {

@@ -62,7 +62,8 @@
                     <div class="dropdown-menu" aria-labelledby="dropdownMenuButton_user_{{ x.username }}">
                       <a class="dropdown-item" href="#!user_edit_groups" ng-click="user_edit_groups(x.username)">View/Edit groups</a>
                       <a class="dropdown-item" href="#!user_change_password" ng-click="user_change_password(x.username)">Change password</a>
-                      <a class="dropdown-item" ng-click="user_delete(x.username)">Delete User</a>
+                      <a class="dropdown-item" ng-if="(x.username | lowercase) !== 'takadmin'" ng-click="user_delete(x.username)">Delete User</a>
+                      <span class="dropdown-item text-muted" ng-if="(x.username | lowercase) === 'takadmin'" title="The bootstrap admin account is protected and cannot be deleted.">Delete User (protected)</span>
                     </div>
                 </div>
 

@@ -33,8 +33,10 @@ import org.springframework.security.crypto.bcrypt.BCrypt;
 
 import com.bbn.cluster.ClusterGroupDefinition;
 import tak.server.util.ActiveProfiles;
+import tak.server.util.UsernameUtils;
 import com.bbn.marti.config.Auth;
 import com.bbn.marti.groups.value.FileAuthenticatorControl;
+import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.remote.groups.AuthCallback;
 import com.bbn.marti.remote.groups.AuthResult;
 import com.bbn.marti.remote.groups.AuthStatus;
@@ -369,6 +371,15 @@ public class FileAuthenticator extends AbstractAuthenticator implements Serializ
 
     @Override
     public synchronized FileAuthenticatorControl removeUser(@NotNull String userIdentifier) {
+        // Defense in depth: the bootstrap admin must never be removed, regardless of which
+        // caller reaches this chokepoint. The user-facing endpoints reject it earlier; this
+        // backstops any other (current or future) programmatic deletion path.
+        if (UsernameUtils.isProtectedAdmin(userIdentifier)) {
+            logger.warn("Refused attempt to remove protected admin user: {}", userIdentifier);
+            throw new ForbiddenException("User '" + UsernameUtils.PROTECTED_ADMIN_USERNAME
+                    + "' is protected and cannot be removed");
+        }
+
         // TODO: Disconnect user
         UserAuthenticationFile.User user = userFileMap.remove(userIdentifier);
         

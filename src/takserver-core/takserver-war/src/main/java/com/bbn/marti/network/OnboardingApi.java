@@ -44,6 +44,7 @@ import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.util.CommonUtil;
 
 import tak.server.Constants;
+import tak.server.util.UsernameUtils;
 
 /**
  * Admin-only onboarding and offboarding REST API.
@@ -294,6 +295,14 @@ public class OnboardingApi extends BaseRestController {
 			HttpServletRequest request) throws Exception {
 		requireAdmin(request, "revoke", username);
 		validateUsername(username);
+
+		// The bootstrap admin must never be removable through onboarding/offboarding,
+		// otherwise an operator can revoke the last way back into the server.
+		if (UsernameUtils.isProtectedAdmin(username)) {
+			logger.warn("Refused attempt to revoke protected admin user: {}", username);
+			throw new ForbiddenException("User '" + UsernameUtils.PROTECTED_ADMIN_USERNAME
+					+ "' is protected and cannot be revoked");
+		}
 
 		File clientPem = new File(CERTS_FILES_DIR, username + ".pem");
 		if (clientPem.exists()) {

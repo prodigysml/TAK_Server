@@ -95,7 +95,12 @@
                       ng-click="downloadPack(u.username, 'atak')">ATAK pack</button>
               <button class="btn btn-success btn-sm" ng-show="u.hasCert"
                       ng-click="downloadPack(u.username, 'itak')">iTAK pack</button>
-              <button class="btn btn-danger btn-sm" ng-click="revoke(u.username)">Revoke</button>
+              <button class="btn btn-danger btn-sm"
+                      ng-if="(u.username | lowercase) !== 'takadmin'"
+                      ng-click="revoke(u.username)">Revoke</button>
+              <span class="label label-info"
+                    ng-if="(u.username | lowercase) === 'takadmin'"
+                    title="The bootstrap admin account is protected and cannot be revoked.">Protected</span>
             </td>
           </tr>
         </tbody>
