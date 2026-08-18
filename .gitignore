@@ -1,1 +1,7 @@
-.idea
+.idea/
+build/
+.gradle/
+src/**/build/
+src/.gradle/
+src/takserver-core/src/main/resources/ver.json
+src/takserver-core/src/main/resources/shortver.txt
