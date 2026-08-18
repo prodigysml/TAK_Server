@@ -35,6 +35,7 @@ import com.bbn.marti.network.BaseRestController;
 import com.bbn.marti.remote.exception.NotFoundException;
 import com.bbn.marti.remote.exception.TakException;
 import com.bbn.marti.remote.SubscriptionManagerLite;
+import com.bbn.marti.revocation.RevocationAuditService;
 import com.bbn.tak.tls.repository.TakCertRepository;
 
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,6 +43,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import tak.server.Constants;
 
 
@@ -62,6 +66,9 @@ public class CertManagerAdminApi extends BaseRestController {
 
     @Autowired
     SubscriptionManagerLite subscriptionManager;
+
+    @Autowired
+    private RevocationAuditService revocationAuditService;
 
     @RequestMapping(value = "/certadmin/cert", method = RequestMethod.GET)
     ApiResponse<List<TakCert>> getAll(@RequestParam(value = "username", required = false) String username) throws Exception {
@@ -329,6 +336,68 @@ public class CertManagerAdminApi extends BaseRestController {
             logger.error("exception disconnecting users!", e);
         }
 
+        //
+        // Purge the operational rows that keep a revoked user visible, and record
+        // what was removed. Revoking the certificate alone leaves the user listed
+        // in the client tables and subscribed to missions, which reads to an
+        // operator as "the revocation did not work" long after the cert is dead.
+        //
+        // Ordering matters: the CRL write and the live-session disconnect above
+        // are what actually cut access, so they run first and are never gated on
+        // the bookkeeping below. A failure here leaves a revoked-but-still-listed
+        // user, which is untidy; a failure above would leave a connected one.
+        //
+        try {
+            String username = usernameFor(cert);
+            long auditId = revocationAuditService.purgeAndAudit(
+                    username,
+                    cert.getClientUid(),
+                    cert.getSubjectDn(),
+                    cert.getSerialNumber(),
+                    cert.getHash(),
+                    currentAdmin(),
+                    RevocationAuditService.Source.ADMIN_UI);
+
+            if (auditId < 0) {
+                logger.error("revocation of {} was NOT audited; operational rows left in place", username);
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("revocation of {} audited as row {}", username, auditId);
+            }
+        } catch (Exception e) {
+            logger.error("exception purging revoked user state!", e);
+        }
+    }
+
+    /**
+     * Best-effort username for a certificate. TakCert has no username column; the
+     * CN of the subject DN is what UserManager and UserAuthenticationFile.xml key
+     * on, so that is what the client tables were populated with.
+     */
+    private String usernameFor(TakCert cert) {
+        String dn = cert.getSubjectDn();
+        if (dn == null) {
+            return null;
+        }
+        for (String part : dn.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.regionMatches(true, 0, "CN=", 0, 3)) {
+                return trimmed.substring(3);
+            }
+        }
+        return null;
+    }
+
+    /** Identity of the admin performing the revocation, for the audit row. */
+    private String currentAdmin() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) {
+                return auth.getName();
+            }
+        } catch (Exception e) {
+            logger.debug("could not resolve current admin for revocation audit", e);
+        }
+        return "unknown";
     }
 
     @RequestMapping(value = "/certadmin/cert/{hash}", method = RequestMethod.DELETE)

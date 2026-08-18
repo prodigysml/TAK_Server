@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import com.bbn.marti.mfa.LoginAttemptService;
 import com.bbn.marti.mfa.MfaGateFilter;
 import com.bbn.marti.mfa.MfaService;
+import com.bbn.marti.revocation.RevocationAuditService;
 
 /**
  * Beans referenced by security-context.xml must be resolvable by every
@@ -30,6 +31,17 @@ public class MfaConfiguration {
 	@Bean
 	public MfaService mfaService(ObjectProvider<DataSource> dataSourceProvider) {
 		return new MfaService(dataSourceProvider);
+	}
+
+	/**
+	 * Shares MfaConfiguration rather than living in ApiConfiguration for the same
+	 * reason the MFA beans do: it must resolve under every profile that loads
+	 * ServerConfiguration. Its DataSource is lazy, so the messaging and config
+	 * JVMs wire it without ever opening a connection.
+	 */
+	@Bean
+	public RevocationAuditService revocationAuditService(ObjectProvider<DataSource> dataSourceProvider) {
+		return new RevocationAuditService(dataSourceProvider);
 	}
 
 	@Bean
