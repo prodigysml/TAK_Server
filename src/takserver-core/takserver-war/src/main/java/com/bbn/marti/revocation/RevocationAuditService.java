@@ -172,26 +172,42 @@ public class RevocationAuditService {
 		}
 	}
 
+	/**
+	 * Collect every device UID belonging to a user.
+	 *
+	 * <p>Both tables are consulted, not just client_endpoint. A user who was
+	 * invited to a mission but never connected — or whose client_endpoint rows
+	 * were already cleaned up by hand — has a mission_subscription and nothing
+	 * else. Resolving UIDs from client_endpoint alone silently finds nothing for
+	 * them, and the revocation quietly leaves the subscription (and its bearer
+	 * token) in place, which is exactly the failure this class exists to prevent.
+	 */
 	private List<String> resolveUids(Connection con, String username, String clientUid) throws Exception {
 		List<String> uids = new ArrayList<>();
 		if (clientUid != null && !clientUid.isEmpty()) {
 			uids.add(clientUid);
 		}
 		if (username != null && !username.isEmpty()) {
-			String sql = "SELECT DISTINCT uid FROM client_endpoint WHERE lower(username) = lower(?)";
-			try (PreparedStatement ps = con.prepareStatement(sql)) {
-				ps.setString(1, username);
-				try (ResultSet rs = ps.executeQuery()) {
-					while (rs.next()) {
-						String uid = rs.getString(1);
-						if (uid != null && !uids.contains(uid)) {
-							uids.add(uid);
-						}
+			collectUids(con, "SELECT DISTINCT uid FROM client_endpoint WHERE lower(username) = lower(?)",
+					username, uids);
+			collectUids(con, "SELECT DISTINCT client_uid FROM mission_subscription WHERE lower(username) = lower(?)",
+					username, uids);
+		}
+		return uids;
+	}
+
+	private void collectUids(Connection con, String sql, String username, List<String> uids) throws Exception {
+		try (PreparedStatement ps = con.prepareStatement(sql)) {
+			ps.setString(1, username);
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					String uid = rs.getString(1);
+					if (uid != null && !uid.isEmpty() && !uids.contains(uid)) {
+						uids.add(uid);
 					}
 				}
 			}
 		}
-		return uids;
 	}
 
 	private String snapshotRows(Connection con, String sql, List<String> uids) throws Exception {

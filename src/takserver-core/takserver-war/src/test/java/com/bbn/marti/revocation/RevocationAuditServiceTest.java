@@ -193,6 +193,35 @@ public class RevocationAuditServiceTest {
 				queryString("SELECT succeeded::text FROM certificate_revocation_audit WHERE id = " + id));
 	}
 
+	/**
+	 * Regression: a user with a mission_subscription but no client_endpoint row.
+	 * Resolving device UIDs from client_endpoint alone finds nothing for them, so
+	 * the subscription and its bearer token survive a revocation silently. Seen in
+	 * production on a user who was invited to a mission but never connected.
+	 */
+	@Test
+	public void purgesSubscriptionForUserWithNoClientEndpointRow() throws Exception {
+		final String lonelyUid = "BBBBBBBB-0000-0000-0000-000000000003";
+		try (Connection c = dataSource.getConnection(); Statement st = c.createStatement()) {
+			st.execute("INSERT INTO mission_subscription "
+					+ "(mission_id, client_uid, create_time, uid, token, role_id, username) VALUES "
+					+ "(6, '" + lonelyUid + "', CURRENT_TIMESTAMP, 'sub-3', 'lonely-token', 1, 'SH')");
+		}
+
+		long id = service.purgeAndAudit("SH", null, "CN=SH", "CAFE", "hash2",
+				"admin@example.com", RevocationAuditService.Source.ADMIN_UI);
+
+		assertTrue("audit row should have been created", id > 0);
+		assertEquals("subscription must be purged even with no client_endpoint row",
+				0, count("SELECT count(*) FROM mission_subscription WHERE client_uid = '" + lonelyUid + "'"));
+
+		String snapshot = queryString(
+				"SELECT purged_rows::text FROM certificate_revocation_audit WHERE id = " + id);
+		assertTrue("snapshot should record the subscription", snapshot.contains("sub-3"));
+		assertFalse("the raw token must not survive into the audit table",
+				snapshot.contains("lonely-token"));
+	}
+
 	@Test
 	public void auditsEvenWhenThereIsNothingToPurge() throws Exception {
 		long id = service.purgeAndAudit("NoSuchUser", null, "CN=NoSuchUser", "0000", "hash9",
