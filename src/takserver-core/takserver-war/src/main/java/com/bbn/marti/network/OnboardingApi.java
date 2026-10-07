@@ -1,5 +1,6 @@
 package com.bbn.marti.network;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -7,7 +8,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.security.UnrecoverableKeyException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -259,6 +263,13 @@ public class OnboardingApi extends BaseRestController {
 		String caPass = System.getenv("CA_PASS");
 		String tsPass = caPass == null ? "atakatak" : caPass;
 		byte[] clientBytes = Files.readAllBytes(clientP12.toPath());
+		// The pack carries certPass for the device to open the .p12. A wrong one
+		// still builds a pack, but the device then cannot load its own cert and
+		// never connects, with nothing in the server logs. Refuse it here.
+		if (!certPassOpens(clientBytes, body.certPass)) {
+			logger.warn(AUDIT, "onboarding datapackage refused: wrong certPass for " + username);
+			throw new IllegalArgumentException("certPass does not open the cert for " + username);
+		}
 		byte[] tsBytes = Files.readAllBytes(truststore.toPath());
 		String uid = UUID.randomUUID().toString();
 
@@ -447,6 +458,26 @@ public class OnboardingApi extends BaseRestController {
 				+ "    <Content ignore=\"false\" zipEntry=\"preference.pref\"/>\n"
 				+ "  </Contents>\n"
 				+ "</MissionPackageManifest>\n";
+	}
+
+	/**
+	 * True when {@code certPass} opens the PKCS#12 in {@code p12}. Only a wrong
+	 * password returns false; a file that cannot be read for any other reason
+	 * throws, so a damaged cert is not reported as a password mistake.
+	 */
+	static boolean certPassOpens(byte[] p12, String certPass) {
+		try {
+			KeyStore ks = KeyStore.getInstance("PKCS12");
+			ks.load(new ByteArrayInputStream(p12), certPass.toCharArray());
+			return true;
+		} catch (IOException e) {
+			if (e.getCause() instanceof UnrecoverableKeyException) {
+				return false;
+			}
+			throw new IllegalStateException("user cert could not be read", e);
+		} catch (GeneralSecurityException e) {
+			throw new IllegalStateException("user cert could not be read", e);
+		}
 	}
 
 	private static String xmlAttr(String v) {

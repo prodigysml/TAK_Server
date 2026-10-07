@@ -93,7 +93,14 @@
           window.URL.revokeObjectURL(url);
         }, 100);
       }, function(err) {
-        setStatus('Download failed (HTTP ' + err.status + '). Wrong cert password?', true);
+        if (err.status === 400) {
+          // The server checks the password against the cert. Forget the
+          // stored one so the next click asks again.
+          forgetPass(username);
+          setStatus('Wrong cert password for ' + username + '. Click again to re-enter it.', true);
+        } else {
+          setStatus('Download failed (HTTP ' + err.status + ')', true);
+        }
       });
     };
 
