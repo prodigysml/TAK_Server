@@ -20,15 +20,15 @@
     </springProfile>
 
     <springProfile name="config">
-        <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>logs/takserver-config.log</file>
-            <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-                <fileNamePattern>logs/takserver-config.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-                <maxHistory>90</maxHistory>
-            </rollingPolicy>
-            <if condition="${JSON_FORMAT_ENABLED}">
-                <then>
+        <if condition='${JSON_FORMAT_ENABLED}'>
+            <then>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-config.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-config.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
                         <layout class="${JSON_LAYOUT}">
                             <appendLineSeparator>${LINE_SEPARATED}</appendLineSeparator>
@@ -39,26 +39,34 @@
                             <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
                         </layout>
                     </encoder>
-                </then>
-                <else>
+                </appender>
+            </then>
+            <else>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-config.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-config.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder>
                         <pattern>%d{yyyy-MM-dd-HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
                     </encoder>
-                </else>
-            </if>
-        </appender>
+                </appender>
+            </else>
+        </if>
     </springProfile>
 
     <springProfile name="api">
-        <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>logs/takserver-api.log</file>
-            <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-                <fileNamePattern>logs/takserver-api.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-                <maxHistory>90</maxHistory>
-            </rollingPolicy>
-            <if condition="${JSON_FORMAT_ENABLED}">
-                <then>
+        <if condition='${JSON_FORMAT_ENABLED}'>
+            <then>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-api.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-api.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
                         <layout class="${JSON_LAYOUT}">
                             <appendLineSeparator>${LINE_SEPARATED}</appendLineSeparator>
@@ -69,23 +77,31 @@
                             <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
                         </layout>
                     </encoder>
-                </then>
-                <else>
+                </appender>
+            </then>
+            <else>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-api.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-api.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder>
                         <pattern>%d{yyyy-MM-dd-HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
                     </encoder>
-                </else>
-            </if>
-        </appender>
-        <appender name="http_access_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>logs/takserver-api-access.log</file>
-            <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-                <fileNamePattern>logs/takserver-api-access.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-                <maxHistory>90</maxHistory>
-            </rollingPolicy>
-            <if condition="${JSON_FORMAT_ENABLED}">
-                <then>
+                </appender>
+            </else>
+        </if>
+        <if condition='${JSON_FORMAT_ENABLED}'>
+            <then>
+                <appender name="http_access_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-api-access.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-api-access.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
                         <layout class="${JSON_LAYOUT}">
                             <appendLineSeparator>${LINE_SEPARATED}</appendLineSeparator>
@@ -96,25 +112,43 @@
                             <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
                         </layout>
                     </encoder>
-                </then>
-                <else>
+                </appender>
+            </then>
+            <else>
+                <appender name="http_access_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-api-access.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-api-access.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder>
                         <pattern>%d{yyyy-MM-dd-HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
                     </encoder>
-                </else>
-            </if>
+                </appender>
+            </else>
+        </if>
+        <!-- async appender for http log. It lives in this profile because
+             http_access_log is only defined here: anywhere else the async
+             appender has nothing attached, which logback reports as an error
+             and Spring Boot treats as fatal. -->
+        <appender name="http_access_log_async" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="http_access_log"/>
         </appender>
+        <logger name="http_access_logger" additivity="false">
+            <appender-ref ref="http_access_log_async" />
+        </logger>
     </springProfile>
     <springProfile name="messaging">
-        <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>logs/takserver-messaging.log</file>
-            <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-                <fileNamePattern>logs/takserver-messaging.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-                <maxHistory>90</maxHistory>
-            </rollingPolicy>
-            <if condition="${JSON_FORMAT_ENABLED}">
-                <then>
+        <if condition='${JSON_FORMAT_ENABLED}'>
+            <then>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-messaging.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-messaging.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
                         <layout class="${JSON_LAYOUT}">
                             <appendLineSeparator>${LINE_SEPARATED}</appendLineSeparator>
@@ -125,25 +159,33 @@
                             <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
                         </layout>
                     </encoder>
-                </then>
-                <else>
+                </appender>
+            </then>
+            <else>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver-messaging.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver-messaging.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder>
                         <pattern>%d{yyyy-MM-dd-HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
                     </encoder>
-                </else>
-            </if>
-        </appender>
+                </appender>
+            </else>
+        </if>
     </springProfile>
     <springProfile name="monolith">
-        <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
-            <file>logs/takserver.log</file>
-            <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
-            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-                <fileNamePattern>logs/takserver.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
-                <maxHistory>90</maxHistory>
-            </rollingPolicy>
-            <if condition="${JSON_FORMAT_ENABLED}">
-                <then>
+        <if condition='${JSON_FORMAT_ENABLED}'>
+            <then>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
                         <layout class="${JSON_LAYOUT}">
                             <appendLineSeparator>${LINE_SEPARATED}</appendLineSeparator>
@@ -154,27 +196,35 @@
                             <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
                         </layout>
                     </encoder>
-                </then>
-                <else>
+                </appender>
+            </then>
+            <else>
+                <appender name="application_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                    <file>logs/takserver.log</file>
+                    <filter class="com.bbn.marti.logging.AuditLogMarkerExcludingRootLoggerThresholdFilter" />
+                    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                        <fileNamePattern>logs/takserver.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+                        <maxHistory>90</maxHistory>
+                    </rollingPolicy>
                     <encoder>
                         <pattern>%d{yyyy-MM-dd-HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
                     </encoder>
-                </else>
-            </if>
-        </appender>
+                </appender>
+            </else>
+        </if>
     </springProfile>
     <!-- TAK Server database access / change audit log. The default level is "off" - only audit log markers will appear in this log -->
-    <appender name="audit_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/takserver-db-audit.log</file>
-        <filter class="com.bbn.marti.logging.AuditLogMarkerThresholdFilter">
-            <level>off</level>
-        </filter>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/takserver-db-audit.%d{yyyy-MM-dd-HH}.log.gz</fileNamePattern>
-            <maxHistory>90</maxHistory>
-        </rollingPolicy>
-        <if condition="${JSON_FORMAT_ENABLED}">
-            <then>
+    <if condition='${JSON_FORMAT_ENABLED}'>
+        <then>
+            <appender name="audit_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <file>logs/takserver-db-audit.log</file>
+                <filter class="com.bbn.marti.logging.AuditLogMarkerThresholdFilter">
+                    <level>off</level>
+                </filter>
+                <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                    <fileNamePattern>logs/takserver-db-audit.%d{yyyy-MM-dd-HH}.log.gz</fileNamePattern>
+                    <maxHistory>90</maxHistory>
+                </rollingPolicy>
                 <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
                     <layout class="${JSON_LAYOUT}">
                         <jsonFormatter class="ch.qos.logback.contrib.jackson.JacksonJsonFormatter">
@@ -183,14 +233,24 @@
                         <timestampFormat>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampFormat>
                     </layout>
                 </encoder>
-            </then>
-            <else>
+            </appender>
+        </then>
+        <else>
+            <appender name="audit_log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                <file>logs/takserver-db-audit.log</file>
+                <filter class="com.bbn.marti.logging.AuditLogMarkerThresholdFilter">
+                    <level>off</level>
+                </filter>
+                <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                    <fileNamePattern>logs/takserver-db-audit.%d{yyyy-MM-dd-HH}.log.gz</fileNamePattern>
+                    <maxHistory>90</maxHistory>
+                </rollingPolicy>
                 <encoder>
                     <pattern>%d{yyyy-MM-dd-HH:mm:ss.SSS} [%thread] %level %logger{36} - %msg%n</pattern>
                 </encoder>
-            </else>
-        </if>
-    </appender>
+            </appender>
+        </else>
+    </if>
     <!--  async appender for audit log -->
 	<appender name="audit_log_async" class="ch.qos.logback.classic.AsyncAppender">
       	<appender-ref ref="audit_log"/>
@@ -256,13 +316,6 @@
     <logger name="IntrusionDetector" additivity="false" >
         <appender-ref ref="esapi_log_async" />
     </logger>
-    <!--  async appender for http log -->
-	<appender name="http_access_log_async" class="ch.qos.logback.classic.AsyncAppender">
-      	<appender-ref ref="http_access_log"/>
-    </appender>
-    <logger name="http_access_logger" additivity="false">
-    	<appender-ref ref="http_access_log_async" />
-	</logger>
 	<!--  async appender for application log -->
 	<appender name="application_log_async" class="ch.qos.logback.classic.AsyncAppender">
       	<appender-ref ref="application_log"/>
