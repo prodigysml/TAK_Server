@@ -116,6 +116,12 @@ ext.common_manifest = ['Add-Opens': ext.java_internal_opens.join(' ')]
   // Apply compiler exports and opens
   tasks.withType(JavaCompile.class).configureEach {
     options.compilerArgs += common_javac_args
+    // Keep method parameter names in the class files. Since Spring 6.1,
+    // DefaultParameterNameDiscoverer only reads them from here (the debug-info
+    // fallback is gone), and the takcl CLI (UserManager certmod, etc.) maps
+    // its flags to parameters by name. The Boot plugin already adds this for
+    // the projects that apply it.
+    options.compilerArgs += '-parameters'
   }
 
 
