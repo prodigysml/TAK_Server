@@ -455,30 +455,7 @@ public class TrivialValidator extends MartiValidator {
 	
 	// isValidListItem and getValidListItem use base implementation
 	
-	/**
-	 * Always returns true. Never throws exceptions.
-	 */
-	@Override
-	public boolean isValidSafeHTML(java.lang.String context,
-            java.lang.String input,
-            int maxLength,
-            boolean allowNull)
-     throws IntrusionException {
-		return true;
-	}
-	
-	/**
-		 * Always returns true. Never throws exceptions.
-		 */
-	@Override
-	public boolean isValidSafeHTML(java.lang.String context,
-            java.lang.String input,
-            int maxLength,
-            boolean allowNull,
-            ValidationErrorList errors)
-     throws IntrusionException {
-		return true;
-	}
+	// ESAPI 2.5.2 dropped isValidSafeHTML from the Validator interface.
 
 	// isValidPrintable and getValidPrintable use base implementation
 	

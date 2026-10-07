@@ -40,7 +40,7 @@ dependencies {
 
   // cloudwatch metrics
   api group: 'io.awspring.cloud', name: 'spring-cloud-starter-aws', version: spring_cloud_starter_version
-  implementation group: 'io.micrometer', name: 'micrometer-registry-cloudwatch', version: micrometer_version
+  implementation group: 'io.micrometer', name: 'micrometer-registry-cloudwatch', version: micrometer_cloudwatch_version
   implementation group: 'io.micrometer', name: 'micrometer-core', version: micrometer_version
 
   implementation group: 'commons-codec', name: 'commons-codec', version: commons_codec_version
@@ -117,7 +117,6 @@ dependencies {
   implementation group: 'org.springframework.security', name: 'spring-security-config', version: spring_security_version
   implementation group: 'org.springframework.security', name: 'spring-security-messaging', version: spring_security_version
   implementation group: 'org.springframework.security', name: 'spring-security-web', version: spring_security_version
-  implementation group: 'org.springframework.security', name: 'spring-security-jwt', version: spring_security_jwt_version
   implementation group: 'org.springframework.security', name: 'spring-security-oauth2-core', version: spring_security_version
   implementation group: 'org.springframework.security', name: 'spring-security-oauth2-authorization-server', version: spring_security_oauth2_authorization_server_version
 

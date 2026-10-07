@@ -134,6 +134,18 @@ ext.common_manifest = ['Add-Opens': ext.java_internal_opens.join(' ')]
   dependencies {
     implementation platform("com.fasterxml.jackson:jackson-bom:${rootProject.jackson_version}")
     implementation platform("io.netty:netty-bom:${rootProject.netty_version}")
+
+    // Same idea for libraries that only arrive transitively, at old releases
+    // with known vulnerabilities: httpclient5 and httpcore5 (antisamy),
+    // commons-beanutils (opencsv, commons-validator, esapi) and angus-mail
+    // (jaxws-rt).
+    constraints {
+      implementation "org.apache.httpcomponents.client5:httpclient5:${rootProject.httpcomponents_version}"
+      implementation 'org.apache.httpcomponents.core5:httpcore5:5.4.4'
+      implementation 'org.apache.httpcomponents.core5:httpcore5-h2:5.4.4'
+      implementation 'commons-beanutils:commons-beanutils:1.11.0'
+      implementation 'org.eclipse.angus:angus-mail:2.0.5'
+    }
   }
 
   // Apply test exports and opens
