@@ -66,6 +66,27 @@ public class MfaApi extends BaseRestController {
 		return request.getUserPrincipal().getName();
 	}
 
+	/**
+	 * Marks this login as past the MFA gate: in the servlet session for this
+	 * server, and in the shared database against the access token so the stamp
+	 * survives a move to another server (blue/green cutover, task replacement).
+	 */
+	private void stampVerified(String user, HttpServletRequest request) {
+		HttpSession session = request.getSession(true);
+		session.setAttribute(SESSION_MFA_VERIFIED, Boolean.TRUE);
+		String token = MfaTokens.accessToken(request);
+		if (token == null) {
+			return;
+		}
+		try {
+			mfaService.markTokenVerified(token, user);
+		} catch (RuntimeException e) {
+			// The session stamp still holds on this server; only the move to
+			// another server will ask for a code again.
+			logger.warn("could not record MFA for {} in the database; it will not survive a server change", user);
+		}
+	}
+
 	@GetMapping("/mfa/enroll")
 	public ResponseEntity<ApiResponse<EnrollResponse>> startEnroll(HttpServletRequest request) {
 		String user = currentUsername(request);
@@ -108,8 +129,7 @@ public class MfaApi extends BaseRestController {
 		}
 		attempts.recordSuccess(user);
 		mfaService.markEnrolled(user);
-		HttpSession session = request.getSession(true);
-		session.setAttribute(SESSION_MFA_VERIFIED, Boolean.TRUE);
+		stampVerified(user, request);
 		logger.info(AUDIT, "mfa enroll-OK user={} remote={}", user, request.getRemoteAddr());
 		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
 				String.class.getName(), "enrolled"), HttpStatus.OK);
@@ -164,8 +184,7 @@ public class MfaApi extends BaseRestController {
 		}
 		attempts.recordSuccess(user);
 		mfaService.touchLastUsed(user);
-		HttpSession session = request.getSession(true);
-		session.setAttribute(SESSION_MFA_VERIFIED, Boolean.TRUE);
+		stampVerified(user, request);
 		logger.info(AUDIT, "mfa {}-OK user={} remote={}",
 				action, user, request.getRemoteAddr());
 		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,

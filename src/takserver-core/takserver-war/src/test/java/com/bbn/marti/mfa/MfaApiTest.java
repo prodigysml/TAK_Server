@@ -3,6 +3,7 @@ package com.bbn.marti.mfa;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.security.Principal;
 import java.util.Optional;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
@@ -175,6 +177,33 @@ public class MfaApiTest {
 		MfaApi.CodeRequest body = new MfaApi.CodeRequest();
 		body.code = "123456";
 		api.verify(body, request);
+	}
+
+	@Test
+	public void verifyRecordsTheStampAgainstTheAccessToken() {
+		String secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+		when(mfaService.findByUsername("alice")).thenReturn(Optional.of(newRow("alice", secret, true)));
+		when(request.getCookies()).thenReturn(new Cookie[] { new Cookie("access_token", "tok-123") });
+
+		MfaApi.CodeRequest body = new MfaApi.CodeRequest();
+		body.code = TotpUtil.generateCode(secret, System.currentTimeMillis() / 1000L);
+
+		assertEquals(HttpStatus.OK, api.verify(body, request).getStatusCode());
+		verify(mfaService).markTokenVerified("tok-123", "alice");
+	}
+
+	@Test
+	public void verifyStillSucceedsWhenTheStampCannotBeStored() {
+		String secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+		when(mfaService.findByUsername("alice")).thenReturn(Optional.of(newRow("alice", secret, true)));
+		when(request.getHeader("Authorization")).thenReturn("Bearer tok-456");
+		doThrow(new RuntimeException("db down")).when(mfaService).markTokenVerified("tok-456", "alice");
+
+		MfaApi.CodeRequest body = new MfaApi.CodeRequest();
+		body.code = TotpUtil.generateCode(secret, System.currentTimeMillis() / 1000L);
+
+		assertEquals(HttpStatus.OK, api.verify(body, request).getStatusCode());
+		verify(session).setAttribute(MfaApi.SESSION_MFA_VERIFIED, Boolean.TRUE);
 	}
 
 	private static MfaService.MfaRow newRow(String user, String secretB32, boolean enrolled) {

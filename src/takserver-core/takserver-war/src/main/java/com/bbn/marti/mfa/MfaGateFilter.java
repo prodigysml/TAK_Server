@@ -33,7 +33,8 @@ import org.slf4j.LoggerFactory;
  *   1. Path is on the MFA whitelist (the MFA pages and the MFA API itself
  *      have to be reachable, otherwise the user can never satisfy the gate)
  *      => pass through.
- *   2. Session already stamped mfa_verified=true => pass through.
+ *   2. Session already stamped mfa_verified=true, or the access token was
+ *      stamped in mfa_verified_token by any server => pass through.
  *   3. User row exists and is enrolled => 302 to /Marti/mfa/verify.html
  *      preserving the original URL in the "next" query string.
  *   4. No row OR not yet enrolled => 302 to /Marti/mfa/enroll.html.
@@ -127,6 +128,15 @@ public class MfaGateFilter implements Filter {
 			return;
 		}
 
+		// The session only lives on the server that issued it. After a move to
+		// another server the login token still works, so honour an MFA stamp
+		// recorded against that token, then cache it in this server's session.
+		if (verifiedElsewhere(http, auth.getName())) {
+			http.getSession(true).setAttribute(MfaApi.SESSION_MFA_VERIFIED, Boolean.TRUE);
+			chain.doFilter(req, resp);
+			return;
+		}
+
 		// Only intercept HTML page navigations. XHR/API/JSON requests
 		// follow 302s transparently and would get HTML body returned as
 		// their response payload, breaking client-side flows like
@@ -157,6 +167,20 @@ public class MfaGateFilter implements Filter {
 		} catch (Exception e) {
 			logger.error("mfa gate failure for {}", username, e);
 			hresp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "mfa gate failure");
+		}
+	}
+
+	private boolean verifiedElsewhere(HttpServletRequest http, String username) {
+		String token = MfaTokens.accessToken(http);
+		if (token == null) {
+			return false;
+		}
+		try {
+			return mfaService.isTokenVerified(token, username);
+		} catch (RuntimeException e) {
+			// Fail closed: the user is asked for a code instead of being let through.
+			logger.warn("MFA stamp lookup failed for {}", username);
+			return false;
 		}
 	}
 }

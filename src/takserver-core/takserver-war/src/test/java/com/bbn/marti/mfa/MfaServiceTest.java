@@ -92,6 +92,13 @@ public class MfaServiceTest {
 					+ "last_used_at TIMESTAMP NULL,"
 					+ "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
 					+ ")");
+			st.execute("DROP TABLE IF EXISTS mfa_verified_token");
+			st.execute("CREATE TABLE mfa_verified_token ("
+					+ "token_sha256 CHAR(64) PRIMARY KEY,"
+					+ "username VARCHAR(255) NOT NULL,"
+					+ "verified_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+					+ "expires_at TIMESTAMP WITH TIME ZONE NOT NULL"
+					+ ")");
 		}
 		service = new MfaService(new SingleValueObjectProvider<>(dataSource));
 	}
@@ -104,6 +111,7 @@ public class MfaServiceTest {
 		try (Connection c = dataSource.getConnection();
 				Statement st = c.createStatement()) {
 			st.execute("DROP TABLE IF EXISTS user_totp_secret");
+			st.execute("DROP TABLE IF EXISTS mfa_verified_token");
 		}
 	}
 
@@ -167,6 +175,50 @@ public class MfaServiceTest {
 	public void touchLastUsedSwallowsErrors() {
 		// touch on unknown user should not throw — best-effort
 		service.touchLastUsed("ghost");
+	}
+
+	@Test
+	public void tokenStampIsSeenByAnotherServer() {
+		// Two services on one database stand in for blue and green.
+		MfaService otherServer = new MfaService(new SingleValueObjectProvider<>(dataSource));
+		service.markTokenVerified("token-a", "alice");
+		assertTrue(otherServer.isTokenVerified("token-a", "alice"));
+	}
+
+	@Test
+	public void tokenStampIsBoundToTokenAndUser() {
+		service.markTokenVerified("token-a", "alice");
+		assertFalse("different token", service.isTokenVerified("token-b", "alice"));
+		assertFalse("different user", service.isTokenVerified("token-a", "mallory"));
+	}
+
+	@Test
+	public void expiredTokenStampIsIgnoredAndSwept() throws Exception {
+		service.markTokenVerified("old-token", "alice");
+		try (Connection c = dataSource.getConnection();
+				Statement st = c.createStatement()) {
+			st.execute("UPDATE mfa_verified_token SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 minute'");
+		}
+		assertFalse(service.isTokenVerified("old-token", "alice"));
+		service.markTokenVerified("new-token", "bob");
+		try (Connection c = dataSource.getConnection();
+				Statement st = c.createStatement();
+				java.sql.ResultSet rs = st.executeQuery("SELECT count(*) FROM mfa_verified_token")) {
+			rs.next();
+			assertEquals("expired row swept on the next stamp", 1, rs.getInt(1));
+		}
+	}
+
+	@Test
+	public void tokenIsStoredOnlyAsHash() throws Exception {
+		service.markTokenVerified("secret-token-value", "alice");
+		try (Connection c = dataSource.getConnection();
+				Statement st = c.createStatement();
+				java.sql.ResultSet rs = st.executeQuery("SELECT token_sha256 FROM mfa_verified_token")) {
+			rs.next();
+			assertEquals(MfaService.tokenHash("secret-token-value"), rs.getString(1));
+			assertFalse(rs.getString(1).contains("secret-token-value"));
+		}
 	}
 
 	@Test
