@@ -10,7 +10,7 @@ import org.apache.ignite.services.Service;
 import org.apache.ignite.services.ServiceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.support.CronSequenceGenerator;
+import org.springframework.scheduling.support.CronExpression;
 import tak.server.retention.SpringContextBeanForRetention;
 import tak.server.retention.config.MissionArchivingCronConfig;
 import tak.server.retention.scheduler.SingleTaskSchedulerService;
@@ -87,7 +87,7 @@ public class DistributedMissionArchiveManager implements MissionArchiveManager, 
 		
 		String cronExpression = missionArchiveConfig.getCronExpression();
 
-		if (!CronSequenceGenerator.isValidExpression(cronExpression) && !cronExpression.equals("-")) {
+		if (!CronExpression.isValidExpression(cronExpression) && !cronExpression.equals("-")) {
 			logger.error(" Invalid cron expression " + cronExpression + " schedule not changed");
 		} else {
 			newCronConfig.setMissionCronExpression(cronExpression);

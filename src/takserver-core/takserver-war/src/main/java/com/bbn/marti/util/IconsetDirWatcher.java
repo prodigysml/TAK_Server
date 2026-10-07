@@ -72,13 +72,13 @@ public class IconsetDirWatcher implements DirWatcher, Runnable {
             watcher = FileSystems.getDefault().newWatchService();
 
             // assert that path is set
-            Assert.hasLength(dir);
+            Assert.hasLength(dir, "dir must not be empty");
 
             // make sure there's an executor   
-            Assert.notNull(executor);
+            Assert.notNull(executor, "executor must not be null");
 
             // and an iconsetProcessor
-            Assert.notNull(iconsetProcessor);
+            Assert.notNull(iconsetProcessor, "iconsetProcessor must not be null");
 
             terminateFlag = new AtomicBoolean();
 
