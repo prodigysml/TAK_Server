@@ -71,7 +71,7 @@ dependencies {
 
   api group: 'com.google.guava', name: 'guava', version: guava_version
   api group: 'com.intellij', name: 'annotations', version: intellij_annotations_version // IntelliJ @NotNull annotation
-  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jackson_version
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations'
   implementation group: 'jaxen', name: 'jaxen', version: jaxen_version
   implementation group: 'joda-time', name: 'joda-time', version: joda_version
   implementation group: 'org.slf4j', name: 'slf4j-api', version: slf4j_version

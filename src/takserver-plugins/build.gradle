@@ -42,7 +42,7 @@ dependencies {
   //implementation group: 'javax.persistence', name: 'javax.persistence-api', version: javax_persistence_api_version
   implementation group: 'jakarta.persistence', name: 'jakarta.persistence-api', version: jakarta_persistence_api_version
   implementation group: 'com.intellij', name: 'annotations', version: intellij_annotations_version // IntelliJ @NotNull annotation
-  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jackson_version
+  implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations'
   implementation group: 'joda-time', name: 'joda-time', version: joda_version
   implementation group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: jackson_version
   implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: jackson_version

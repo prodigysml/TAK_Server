@@ -125,6 +125,17 @@ ext.common_manifest = ['Add-Opens': ext.java_internal_opens.join(' ')]
   }
 
 
+  // Floor every module's Netty and Jackson at the patched releases. Without
+  // this each jar keeps whatever its own dependencies asked for, so the plugin
+  // manager, retention service and CLI tools shipped Netty 4.1.100 and Jackson
+  // 2.14 / 2.19 even after the war moved on. A platform only constrains
+  // versions; it adds no dependencies to modules that don't use them. Read
+  // the root values: some modules (fig-core/rol) set their own older ones.
+  dependencies {
+    implementation platform("com.fasterxml.jackson:jackson-bom:${rootProject.jackson_version}")
+    implementation platform("io.netty:netty-bom:${rootProject.netty_version}")
+  }
+
   // Apply test exports and opens
   tasks.withType(Test.class).configureEach {
     jvmArgs += common_java_args

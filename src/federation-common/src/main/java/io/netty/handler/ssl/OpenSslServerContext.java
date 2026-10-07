@@ -22,16 +22,12 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static io.netty.handler.ssl.ReferenceCountedOpenSslServerContext.newSessionContext;
 
@@ -40,24 +36,17 @@ import static io.netty.handler.ssl.ReferenceCountedOpenSslServerContext.newSessi
  * <p>This class will use a finalizer to ensure native resources are automatically cleaned up. To avoid finalizers
  * and manually release the native memory see {@link ReferenceCountedOpenSslServerContext}.
  */
-public final class OpenSslServerContext extends OpenSslContext {	
+public final class OpenSslServerContext extends OpenSslContext {
 	 private X509Certificate[] trustCertCollection;
 	 private TrustManagerFactory trustManagerFactory;
 	 private X509Certificate[] keyCertChain; 
 	 private PrivateKey key;
 	 private String keyPassword;
 	 private KeyManagerFactory keyManagerFactory;
-	 private Iterable<String> ciphers;
-	 private CipherSuiteFilter cipherFilter;
-	 private OpenSslApplicationProtocolNegotiator apn;
 	 private long sessionCacheSize;
 	 private long sessionTimeout;
-	 private ClientAuth clientAuth;
-	 private String[] protocols;
-	 private boolean startTls;
-	 private boolean enableOcsp;
      private String keyStore;
-     private Entry<SslContextOption<?>, Object>[] options;
+     private ResumptionController resumptionController;
 
     private OpenSslServerSessionContext sessionContext;
 
@@ -345,7 +334,8 @@ public final class OpenSslServerContext extends OpenSslContext {
         this(toX509CertificatesInternal(trustCertCollectionFile), trustManagerFactory,
                 toX509CertificatesInternal(keyCertChainFile), toPrivateKeyInternal(keyFile, keyPassword),
                 keyPassword, keyManagerFactory, ciphers, cipherFilter,
-                apn, sessionCacheSize, sessionTimeout, ClientAuth.NONE, null, false, false, KeyStore.getDefaultType());
+                apn, sessionCacheSize, sessionTimeout, ClientAuth.NONE, null, false, false, KeyStore.getDefaultType(),
+                null);
     }
 
     OpenSslServerContext(
@@ -353,11 +343,12 @@ public final class OpenSslServerContext extends OpenSslContext {
             X509Certificate[] keyCertChain, PrivateKey key, String keyPassword, KeyManagerFactory keyManagerFactory,
             Iterable<String> ciphers, CipherSuiteFilter cipherFilter, ApplicationProtocolConfig apn,
             long sessionCacheSize, long sessionTimeout, ClientAuth clientAuth, String[] protocols, boolean startTls,
-            boolean enableOcsp, String keyStore, Map.Entry<SslContextOption<?>, Object>... options)
+            boolean enableOcsp, String keyStore, ResumptionController resumptionController,
+            Map.Entry<SslContextOption<?>, Object>... options)
             throws SSLException {
         this(trustCertCollection, trustManagerFactory, keyCertChain, key, keyPassword, keyManagerFactory, ciphers,
                 cipherFilter, toNegotiator(apn), sessionCacheSize, sessionTimeout, clientAuth, protocols, startTls,
-                enableOcsp, keyStore, options);
+                enableOcsp, keyStore, resumptionController, options);
     }
 
     @SuppressWarnings("deprecation")
@@ -366,10 +357,11 @@ public final class OpenSslServerContext extends OpenSslContext {
             X509Certificate[] keyCertChain, PrivateKey key, String keyPassword, KeyManagerFactory keyManagerFactory,
             Iterable<String> ciphers, CipherSuiteFilter cipherFilter, OpenSslApplicationProtocolNegotiator apn,
             long sessionCacheSize, long sessionTimeout, ClientAuth clientAuth, String[] protocols, boolean startTls,
-            boolean enableOcsp, String keyStore, Map.Entry<SslContextOption<?>, Object>... options)
+            boolean enableOcsp, String keyStore, ResumptionController resumptionController,
+            Map.Entry<SslContextOption<?>, Object>... options)
             throws SSLException {
         super(ciphers, cipherFilter, apn, SSL.SSL_MODE_SERVER, keyCertChain,
-                clientAuth, protocols, startTls, enableOcsp, options);
+                clientAuth, protocols, startTls, enableOcsp, resumptionController, options);
 
         // BBN Update: set these for reuse in updateSslContext(...)
         this.trustCertCollection = trustCertCollection;
@@ -378,14 +370,15 @@ public final class OpenSslServerContext extends OpenSslContext {
         this.sessionCacheSize = sessionCacheSize;
         this.sessionTimeout = sessionTimeout;
         this.keyStore = keyStore;
+        this.resumptionController = resumptionController;
 
         // Create a new SSL_CTX and configure it.
         boolean success = false;
         try {
             OpenSslKeyMaterialProvider.validateKeyMaterialSupported(keyCertChain, key, keyPassword);
-            sessionContext = newSessionContext(this, ctx, engineMap, trustCertCollection, trustManagerFactory,
+            sessionContext = newSessionContext(this, ctx, engines, trustCertCollection, trustManagerFactory,
                                                keyCertChain, key, keyPassword, keyManagerFactory, keyStore,
-                                               sessionCacheSize, sessionTimeout);
+                                               sessionCacheSize, sessionTimeout, resumptionController);
             success = true;
         } finally {
             if (!success) {
@@ -393,6 +386,7 @@ public final class OpenSslServerContext extends OpenSslContext {
             }
         }
     }
+
     // BBN Update: There is no way to update the truststore on an existing server session.
     // This method will allow for hot reloading the truststore by creating a new session context
     // with the passed in truststore manager. 
@@ -402,10 +396,9 @@ public final class OpenSslServerContext extends OpenSslContext {
     	 // Create a new SSL_CTX and configure it.
         boolean success = false;
         try {
-        	sessionContext = newSessionContext(this, ctx, engineMap, trustCertCollection, trustManagerFactory,
+        	sessionContext = newSessionContext(this, ctx, engines, trustCertCollection, trustManagerFactory,
                     keyCertChain, key, keyPassword, keyManagerFactory, keyStore,
-                    sessionCacheSize, sessionTimeout);
-        	
+                    sessionCacheSize, sessionTimeout, resumptionController);
             success = true;
         } finally {
             if (!success) {
