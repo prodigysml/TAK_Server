@@ -23,6 +23,11 @@ dependencies {
   api (group: 'io.grpc', name: 'grpc-stub', version: grpc_version) {
     exclude group: 'io.perfmark', module: 'perfmark-api'
 }
+  // grpc-netty only declares grpc-core as a runtime dependency, but the
+  // vendored io.grpc.netty.NettyChannelBuilder compiles against io.grpc.internal
+  api (group: 'io.grpc', name: 'grpc-core', version: grpc_version) {
+    exclude group: 'io.perfmark', module: 'perfmark-api'
+}
 
   // Google's OpenSSL variant
   // Important Note: be cautious with this dependency version, in combination with the gprc-* above.

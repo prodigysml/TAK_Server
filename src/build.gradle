@@ -145,6 +145,9 @@ ext.common_manifest = ['Add-Opens': ext.java_internal_opens.join(' ')]
       implementation 'org.apache.httpcomponents.core5:httpcore5-h2:5.4.4'
       implementation 'commons-beanutils:commons-beanutils:1.11.0'
       implementation 'org.eclipse.angus:angus-mail:2.0.5'
+      implementation "commons-io:commons-io:${rootProject.commons_io_version}"
+      implementation "org.apache.logging.log4j:log4j-api:${rootProject.log4j_api_version}"
+      implementation "org.apache.logging.log4j:log4j-to-slf4j:${rootProject.log4j_api_version}"
     }
   }
 
