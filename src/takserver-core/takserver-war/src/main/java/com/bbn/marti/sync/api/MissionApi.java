@@ -61,6 +61,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
 
+import com.bbn.marti.config.Network;
 import com.bbn.marti.cot.search.model.ApiResponse;
 import com.bbn.marti.logging.AuditLogUtil;
 import com.bbn.marti.maplayer.model.MapLayer;
@@ -1059,6 +1060,20 @@ public class MissionApi extends BaseRestController {
 		}
 	}
 
+	// MissionRequiresPassword covers missions people create through this API. Missions the
+	// server creates internally (ExCheck, CI-TRAP, Locate, federation, retention, plugins)
+	// call MissionService directly and are not affected.
+	private static boolean isMissionPasswordRequired() {
+		Network network = CoreConfigFacade.getInstance().getRemoteConfiguration().getNetwork();
+		return network != null && network.isMissionRequiresPassword();
+	}
+
+	private static void requireMissionPasswordIfEnforced(String password) {
+		if (isMissionPasswordRequired() && Strings.isNullOrEmpty(password)) {
+			throw new IllegalArgumentException("a mission password is required on this server");
+		}
+	}
+
 	private Mission doInternalCreateMission(
 			Long expiration,
 			String password,
@@ -1084,6 +1099,8 @@ public class MissionApi extends BaseRestController {
 		Mission mission = null;
 
 		logger.info("Creating new mission {}", name);
+
+		requireMissionPasswordIfEnforced(password);
 
 		String passwordHash = null;
 		if (!Strings.isNullOrEmpty(password)) {
@@ -1273,6 +1290,8 @@ public class MissionApi extends BaseRestController {
 		if (Strings.isNullOrEmpty(copyName)) {
 			throw new IllegalArgumentException("empty 'copyName' request parameter");
 		}
+
+		requireMissionPasswordIfEnforced(passwordParam);
 
 		final HttpServletRequest request = requestHolderBean.getRequest();
 		final String sessionId = requestHolderBean.sessionId();
@@ -4557,6 +4576,8 @@ public class MissionApi extends BaseRestController {
 
 		missionName = missionService.trimName(missionName);
 
+		requireMissionPasswordIfEnforced(password);
+
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMission(missionName, groupVector);
 
@@ -4591,6 +4612,8 @@ public class MissionApi extends BaseRestController {
 
 		
 		UUID missionGuid = parseGuid(missionGuidParam);
+
+		requireMissionPasswordIfEnforced(password);
 		
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 		Mission mission = missionService.getMissionByGuid(missionGuid, groupVector);
@@ -4617,6 +4640,10 @@ public class MissionApi extends BaseRestController {
 			@PathVariable(value = "name") @ValidatedBy("MartiSafeString") String missionName,
 			@RequestParam(value = "creatorUid", defaultValue = "") @ValidatedBy("MartiSafeString") String creatorUid,
 			HttpServletRequest request) {
+
+		if (isMissionPasswordRequired()) {
+			throw new ForbiddenException("mission passwords are required on this server and cannot be removed");
+		}
 
 		missionName = missionService.trimName(missionName);
 
@@ -4645,6 +4672,10 @@ public class MissionApi extends BaseRestController {
 			@PathVariable(value = "guid") @ValidatedBy("MartiSafeString") String missionGuidParam,
 			@RequestParam(value = "creatorUid", defaultValue = "") @ValidatedBy("MartiSafeString") String creatorUid,
 			HttpServletRequest request) {
+
+		if (isMissionPasswordRequired()) {
+			throw new ForbiddenException("mission passwords are required on this server and cannot be removed");
+		}
 
 		UUID missionGuid = parseGuid(missionGuidParam);
 		

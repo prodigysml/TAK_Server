@@ -141,6 +141,11 @@
       <xs:attribute name="alwaysArchiveMissionCot" type="xs:boolean" default="false"/>
       <xs:attribute name="MissionCreateGroupsRegex" type="xs:string" use="optional"/>
       <xs:attribute name="MissionDeleteRequiresOwner" type="xs:boolean" default="false"/>
+      <xs:attribute name="MissionRequiresPassword" type="xs:boolean" default="false">
+        <xs:annotation>
+          <xs:documentation>Require a password on every mission created or copied through the mission API, and stop mission passwords from being removed or set to empty. Missions the server creates internally (ExCheck, CI-TRAP, Locate, federation, retention, plugins) are not affected.</xs:documentation>
+        </xs:annotation>
+      </xs:attribute>
     </xs:complexType>
   </xs:element>
 
