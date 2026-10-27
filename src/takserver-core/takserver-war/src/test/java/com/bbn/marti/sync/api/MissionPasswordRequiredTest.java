@@ -1,5 +1,7 @@
 package com.bbn.marti.sync.api;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,26 +9,32 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.bbn.marti.config.Configuration;
 import com.bbn.marti.config.Network;
 import com.bbn.marti.remote.config.CoreConfigFacade;
 import com.bbn.marti.remote.exception.ForbiddenException;
 import com.bbn.marti.sync.model.Mission;
+import com.bbn.marti.sync.model.MissionRole;
+import com.bbn.marti.sync.model.MissionSubscription;
 import com.bbn.marti.sync.repository.MissionRepository;
+import com.bbn.marti.sync.repository.MissionRoleRepository;
 import com.bbn.marti.sync.service.MissionService;
 import com.bbn.marti.util.CommonUtil;
+import com.bbn.marti.util.spring.RequestHolderBean;
 
 /**
  * Tests for the MissionRequiresPassword network setting in {@link MissionApi}.
@@ -161,8 +169,50 @@ public class MissionPasswordRequiredTest {
 	}
 
 	@Test
-	public void createMission_whenRequired_rejectsMissingPasswordBeforeCreating() throws Exception {
+	public void setPasswordByGuid_whenRequired_rejectsEmptyPassword() {
 		setMissionRequiresPassword(true);
+
+		try {
+			api.setPasswordByGuid(GUID, "", "creator", request);
+			fail("expected IllegalArgumentException for an empty password");
+		} catch (IllegalArgumentException expected) {
+			// pass
+		}
+
+		verify(missionRepository, never()).setPasswordHashByGuid(anyString(), any(), anyString());
+	}
+
+	@Test
+	public void copyMission_whenRequired_acceptsPassword() throws Exception {
+		setMissionRequiresPassword(true);
+		harness.inject("requestHolderBean", RequestHolderBean.class);
+		// copyMission reads the caller's name before it defers the copy
+		org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+				new org.springframework.security.authentication.TestingAuthenticationToken("user", null));
+
+		try {
+			// the check runs before the copy is deferred, so getting the Callable back means it passed
+			assertNotNull(api.copyMission(name, "creator", "copy-1", null, null, "secret"));
+		} finally {
+			org.springframework.security.core.context.SecurityContextHolder.clearContext();
+		}
+	}
+
+	/**
+	 * Calls the private create step every create endpoint funnels into, with only the
+	 * password, name, creator and group vectors set. Returns the password hash handed
+	 * to MissionService.createMission, or rethrows what the create step threw.
+	 */
+	private String createAndCapturePasswordHash(String password) throws Throwable {
+		harness.inject("missionRoleRepository", MissionRoleRepository.class);
+		harness.inject("response", HttpServletResponse.class);
+		Mission created = org.mockito.Mockito.mock(Mission.class);
+		when(created.getGuidAsUUID()).thenReturn(UUID.fromString(GUID));
+		when(created.getId()).thenReturn(7L);
+		when(missionService.createMission(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+				any(), any(), any(), any(), any())).thenReturn(created);
+		when(missionService.missionSubscribe(any(UUID.class), any(), any(), any(), any(), any()))
+				.thenReturn(org.mockito.Mockito.mock(MissionSubscription.class));
 
 		Method create = null;
 		for (Method m : MissionApi.class.getDeclaredMethods()) {
@@ -172,15 +222,56 @@ public class MissionPasswordRequiredTest {
 		}
 		create.setAccessible(true);
 
-		// every argument null: no password, and nothing else is reached before the check
+		// doInternalCreateMission(expiration, password, name, inviteOnly, creatorUid, groupVectorMission, ...,
+		// username [13], groupVectorUser [14], ...)
 		Object[] args = new Object[create.getParameterCount()];
+		args[1] = password;
+		args[2] = name;
+		args[4] = "creator";
+		args[5] = gv;
+		args[13] = "user";
+		args[14] = gv;
 		try {
 			create.invoke(api, args);
-			fail("expected IllegalArgumentException when creating without a password");
 		} catch (InvocationTargetException e) {
-			assertTrue(e.getCause() instanceof IllegalArgumentException);
+			throw e.getCause();
 		}
 
-		verifyNoInteractions(missionService);
+		ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+		verify(missionService).createMission(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+				hash.capture(), any(), any(), any(), any());
+		return hash.getValue();
+	}
+
+	@Test
+	public void createMission_whenRequired_rejectsMissingPasswordBeforeCreating() throws Throwable {
+		setMissionRequiresPassword(true);
+
+		try {
+			createAndCapturePasswordHash(null);
+			fail("expected IllegalArgumentException when creating without a password");
+		} catch (IllegalArgumentException expected) {
+			// pass
+		}
+
+		verify(missionService, never()).createMission(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+				any(), any(), any(), any(), any());
+	}
+
+	@Test
+	public void createMission_whenRequired_storesPasswordHash() throws Throwable {
+		setMissionRequiresPassword(true);
+
+		String hash = createAndCapturePasswordHash("secret");
+
+		assertNotNull(hash);
+		assertTrue(org.springframework.security.crypto.bcrypt.BCrypt.checkpw("secret", hash));
+	}
+
+	@Test
+	public void createMission_whenNotRequired_allowsNoPassword() throws Throwable {
+		setMissionRequiresPassword(false);
+
+		assertNull(createAndCapturePasswordHash(null));
 	}
 }
