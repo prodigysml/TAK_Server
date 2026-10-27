@@ -1082,9 +1082,13 @@ public class MissionApi extends BaseRestController {
 	private boolean isCallersDevice(String uid, String username) {
 		try {
 			User user = subscriptionManagerProxy.getSubscriptionManagerForClientUid(uid).getSubscriptionUserByClientUid(uid);
-			return user != null && username != null && username.equals(user.getName());
+			boolean match = user != null && username != null && username.equals(user.getName());
+			if (!match) {
+				logger.info("client uid {} is connected as user {}, not caller {}", uid, user == null ? null : user.getName(), username);
+			}
+			return match;
 		} catch (Exception e) {
-			logger.debug("no live subscription for client uid {}", uid, e);
+			logger.info("could not look up the user connected as client uid {}", uid, e);
 			return false;
 		}
 	}
