@@ -71,7 +71,7 @@ public class MissionPasswordFeatureLockTest {
 		when(missionRepository.setPasswordHash(eq(name), anyString(), eq(gv))).thenReturn(null);
 
 		try {
-			api.setPassword(name, "secret", "creator", request);
+			api.setPassword(name, "secret", null, "creator", request);
 			fail("expected NotFoundException when the password UPDATE matched no row");
 		} catch (NotFoundException expected) {
 			// pass
@@ -91,7 +91,7 @@ public class MissionPasswordFeatureLockTest {
 		when(missionService.getMission(name, gv)).thenReturn(mission);
 		when(missionRepository.setPasswordHash(eq(name), anyString(), eq(gv))).thenReturn(42L);
 
-		api.setPassword(name, "secret", "creator", request);
+		api.setPassword(name, "secret", null, "creator", request);
 
 		verify(missionService).invalidateMissionCache(name);
 		verify(subscriptionManager)

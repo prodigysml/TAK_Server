@@ -346,12 +346,14 @@ public class MissionApi extends BaseRestController {
 	@RequestMapping(value = "/missions/{name:.+}", method = RequestMethod.GET)
 	Callable<ApiResponse<Set<Mission>>> getMission(
 			@PathVariable("name") @NotNull String name,
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@RequestParam(value = "changes", defaultValue = "false") boolean changes,
 			@RequestParam(value = "logs", defaultValue = "false") boolean logs,
 			@RequestParam(value = "secago", required = false) Long secago,
 			@RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
 			@RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		final HttpServletRequest request = requestHolderBean.getRequest();
 
@@ -450,12 +452,14 @@ public class MissionApi extends BaseRestController {
 	@RequestMapping(value = "/missions/guid/{guid:.+}", method = RequestMethod.GET)
 	Callable<ApiResponse<Set<Mission>>> getMissionByGuid(
 			@PathVariable("guid") String guid,
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@RequestParam(value = "changes", defaultValue = "false") boolean changes,
 			@RequestParam(value = "logs", defaultValue = "false") boolean logs,
 			@RequestParam(value = "secago", required = false) Long secago,
 			@RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
 			@RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		final HttpServletRequest request = requestHolderBean.getRequest();
 
@@ -546,13 +550,15 @@ public class MissionApi extends BaseRestController {
 															 @RequestParam(value = "path", defaultValue = "") @ValidatedBy("MartiSafeString") String pathParam,
 															 @RequestParam(value = "classification", defaultValue = "") @ValidatedBy("MartiSafeString") String classificationParam,
 															 @RequestParam(value = "tool", defaultValue = "public") @ValidatedBy("MartiSafeString") String toolParam,
-															 @RequestHeader(value = "MissionPassword", required = false) String passwordParam,
+															 @RequestHeader(value = "MissionPassword", required = false) String passwordParamHeader,
+															 @RequestParam(value = "password", required = false) String passwordParamQuery,
 															 @RequestParam(value = "defaultRole", required = false) @ValidatedBy("MartiSafeString") MissionRole.Role roleParam,
 															 @RequestParam(value = "expiration", required = false) Long expirationParam,
 															 @RequestParam(value = "inviteOnly", defaultValue = "false") Boolean inviteOnlyParam,
 															 @RequestParam(value = "allowGroupChange", defaultValue = "false") Boolean allowGroupChange,
 															 @RequestBody(required = false) byte[] requestBody)
 			throws ValidationException, IntrusionException, RemoteException {
+		final String passwordParam = missionPassword(passwordParamHeader, passwordParamQuery);
 
 		if (Strings.isNullOrEmpty(nameParam)) {
 			throw new IllegalArgumentException("empty 'name' path parameter");
@@ -662,13 +668,15 @@ public class MissionApi extends BaseRestController {
 																	  @RequestParam(value = "path", defaultValue = "") @ValidatedBy("MartiSafeString") String pathParam,
 																	  @RequestParam(value = "classification", defaultValue = "") @ValidatedBy("MartiSafeString") String classificationParam,
 																	  @RequestParam(value = "tool", defaultValue = "public") @ValidatedBy("MartiSafeString") String toolParam,
-																	  @RequestHeader(value = "MissionPassword", required = false) String passwordParam,
+																	  @RequestHeader(value = "MissionPassword", required = false) String passwordParamHeader,
+																	  @RequestParam(value = "password", required = false) String passwordParamQuery,
 																	  @RequestParam(value = "defaultRole", required = false) @ValidatedBy("MartiSafeString") MissionRole.Role roleParam,
 																	  @RequestParam(value = "expiration", required = false) Long expirationParam,
 																	  @RequestParam(value = "inviteOnly", defaultValue = "false") Boolean inviteOnlyParam,
 																	  @RequestParam(value = "allowDupe", defaultValue = "false") boolean allowDupe,
 																	  @RequestBody(required = false) byte[] requestBody)
 			throws ValidationException, IntrusionException, RemoteException {
+		final String passwordParam = missionPassword(passwordParamHeader, passwordParamQuery);
 
 		if (Strings.isNullOrEmpty(nameParam)) {
 			throw new IllegalArgumentException("empty 'name' path parameter");
@@ -1068,6 +1076,15 @@ public class MissionApi extends BaseRestController {
 		return network != null && network.isMissionRequiresPassword();
 	}
 
+	// ATAK, iTAK, WinTAK and the admin UI send the mission password as the 'password' query
+	// parameter, not the MissionPassword header, so accept either. The header wins if both are set.
+	static String missionPassword(String header, String queryParam) {
+		if (!Strings.isNullOrEmpty(header)) {
+			return header;
+		}
+		return Strings.nullToEmpty(queryParam);
+	}
+
 	private static void requireMissionPasswordIfEnforced(String password) {
 		if (isMissionPasswordRequired() && Strings.isNullOrEmpty(password)) {
 			throw new IllegalArgumentException("a mission password is required on this server");
@@ -1280,8 +1297,10 @@ public class MissionApi extends BaseRestController {
 			@RequestParam(value = "copyName", required = true) @ValidatedBy("MartiSafeString") String copyName,
 			@RequestParam(value = "copyPath", required = false) @ValidatedBy("MartiSafeString") String copyPath,
 			@RequestParam(value = "defaultRole", required = false) @ValidatedBy("MartiSafeString") MissionRole.Role roleParam,
-			@RequestHeader(value = "MissionPassword", required = false) String passwordParam)
+			@RequestHeader(value = "MissionPassword", required = false) String passwordParamHeader,
+			@RequestParam(value = "password", required = false) String passwordParamQuery)
 	{
+		final String passwordParam = missionPassword(passwordParamHeader, passwordParamQuery);
 
 		if (Strings.isNullOrEmpty(missionName)) {
 			throw new IllegalArgumentException("empty 'name' path parameter");
@@ -2503,8 +2522,10 @@ public class MissionApi extends BaseRestController {
 	@RequestMapping(value = "/missions/{missionName:.+}/token", method = RequestMethod.GET)
 	@ResponseStatus(HttpStatus.CREATED)
 	public ApiResponse<String>  getReadOnlyAccessToken(
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@PathVariable("missionName") String missionName) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		missionName = missionService.trimName(missionName);
 
@@ -2584,11 +2605,13 @@ public class MissionApi extends BaseRestController {
 	public Callable<ApiResponse<MissionSubscription>> createMissionSubscription(
 			@RequestParam(value = "uid", defaultValue = "") String uid,
 			@RequestParam(value = "topic", defaultValue = "") String topic,
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@RequestParam(value = "secago", required = false) Long secago,
 			@RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
 			@RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end,
 			@PathVariable("missionName") String missionNameParam) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		final HttpServletRequest request = requestHolderBean.getRequest();
 
@@ -2727,11 +2750,13 @@ public class MissionApi extends BaseRestController {
 	public Callable<ApiResponse<MissionSubscription>> createMissionSubscriptionByGuid(
 			@RequestParam(value = "uid", defaultValue = "") String uid,
 			@RequestParam(value = "topic", defaultValue = "") String topic,
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@RequestParam(value = "secago", required = false) Long secago,
 			@RequestParam(value = "start", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date start,
 			@RequestParam(value = "end", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date end,
 			@PathVariable("missionGuid") String missionGuidParam) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		final HttpServletRequest request = requestHolderBean.getRequest();
 
@@ -4570,9 +4595,11 @@ public class MissionApi extends BaseRestController {
 	@ResponseStatus(HttpStatus.OK)
 	public void setPassword(
 			@PathVariable(value = "name") @ValidatedBy("MartiSafeString") String missionName,
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@RequestParam(value = "creatorUid", defaultValue = "") @ValidatedBy("MartiSafeString") String creatorUid,
 			HttpServletRequest request) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		missionName = missionService.trimName(missionName);
 
@@ -4606,9 +4633,11 @@ public class MissionApi extends BaseRestController {
 	@ResponseStatus(HttpStatus.OK)
 	public void setPasswordByGuid(
 			@PathVariable(value = "guid") @ValidatedBy("MartiSafeString") String missionGuidParam,
-			@RequestHeader(value = "MissionPassword", defaultValue = "") String password,
+			@RequestHeader(value = "MissionPassword", required = false) String passwordHeader,
+			@RequestParam(value = "password", required = false) String passwordQuery,
 			@RequestParam(value = "creatorUid", defaultValue = "") @ValidatedBy("MartiSafeString") String creatorUid,
 			HttpServletRequest request) {
+		final String password = missionPassword(passwordHeader, passwordQuery);
 
 		
 		UUID missionGuid = parseGuid(missionGuidParam);

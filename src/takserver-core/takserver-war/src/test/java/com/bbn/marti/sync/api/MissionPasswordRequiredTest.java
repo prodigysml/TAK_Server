@@ -135,7 +135,7 @@ public class MissionPasswordRequiredTest {
 		setMissionRequiresPassword(true);
 
 		try {
-			api.setPassword(name, "", "creator", request);
+			api.setPassword(name, "", null, "creator", request);
 			fail("expected IllegalArgumentException for an empty password");
 		} catch (IllegalArgumentException expected) {
 			// pass
@@ -151,7 +151,7 @@ public class MissionPasswordRequiredTest {
 		when(missionService.getMission(name, gv)).thenReturn(mission);
 		when(missionRepository.setPasswordHash(eq(name), anyString(), eq(gv))).thenReturn(42L);
 
-		api.setPassword(name, "secret", "creator", request);
+		api.setPassword(name, "secret", null, "creator", request);
 
 		verify(missionRepository).setPasswordHash(eq(name), anyString(), eq(gv));
 	}
@@ -161,7 +161,7 @@ public class MissionPasswordRequiredTest {
 		setMissionRequiresPassword(true);
 
 		try {
-			api.copyMission(name, "creator", "copy-1", null, null, null);
+			api.copyMission(name, "creator", "copy-1", null, null, null, null);
 			fail("expected IllegalArgumentException when copying without a password");
 		} catch (IllegalArgumentException expected) {
 			assertTrue(expected.getMessage().contains("password is required"));
@@ -173,7 +173,7 @@ public class MissionPasswordRequiredTest {
 		setMissionRequiresPassword(true);
 
 		try {
-			api.setPasswordByGuid(GUID, "", "creator", request);
+			api.setPasswordByGuid(GUID, "", null, "creator", request);
 			fail("expected IllegalArgumentException for an empty password");
 		} catch (IllegalArgumentException expected) {
 			// pass
@@ -192,7 +192,7 @@ public class MissionPasswordRequiredTest {
 
 		try {
 			// the check runs before the copy is deferred, so getting the Callable back means it passed
-			assertNotNull(api.copyMission(name, "creator", "copy-1", null, null, "secret"));
+			assertNotNull(api.copyMission(name, "creator", "copy-1", null, null, "secret", null));
 		} finally {
 			org.springframework.security.core.context.SecurityContextHolder.clearContext();
 		}
