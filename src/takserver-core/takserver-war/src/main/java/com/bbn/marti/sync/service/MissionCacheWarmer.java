@@ -41,7 +41,7 @@ public class MissionCacheWarmer {
 
 				for (Mission mission : missions) {
 					if (mission != null && mission.getName() != null) {
-						cacheHelper.getCacheManager().getCache(mission.getName());
+						cacheHelper.getCacheManager().getCache(MissionCacheHelper.getCacheName(mission.getName()));
 						logger.info("init cache for mission " + mission.getName());
 					} else {
 						logger.warn("null mission or mission name");

@@ -71,7 +71,7 @@ public class MissionCacheHelper {
 
 		Mission mission = null;
 
-		ValueWrapper wrapper = getCacheManager().getCache(missionName).get(key);
+		ValueWrapper wrapper = getCacheManager().getCache(getCacheName(missionName)).get(key);
 		mission = unwrapMission(wrapper);
 		
 		if (mission != null) {
@@ -92,7 +92,7 @@ public class MissionCacheHelper {
 			lock.acquire();
 
 			// double-checked cache get
-			wrapper = getCacheManager().getCache(missionName).get(key);	
+			wrapper = getCacheManager().getCache(getCacheName(missionName)).get(key);	
 			mission = unwrapMission(wrapper);
 
 			if (mission != null) {
@@ -110,7 +110,7 @@ public class MissionCacheHelper {
 				UnproxyHelper.unproxyMission(mission);
 
 				// cache the mission with the appropriate key
-				getCacheManager().getCache(missionName).put(key, mission);
+				getCacheManager().getCache(getCacheName(missionName)).put(key, mission);
 			}
 		} catch (InterruptedException e) {
 			logger.error("interrupted", e);
@@ -248,6 +248,16 @@ public class MissionCacheHelper {
 
 		
 		return mission;
+	}
+
+	/**
+	 * Name of the cache that holds a mission looked up by name. It is lowercased because
+	 * MissionCacheResolver evicts the lowercased name when a mission changes. Caching under
+	 * the name as typed left any mission with a capital letter stale after a change, such
+	 * as a new password, until the entry expired.
+	 */
+	public static String getCacheName(String missionName) {
+		return missionName.toLowerCase();
 	}
 
 	public static String getKey(String missionName, boolean hydrateDetails) {
