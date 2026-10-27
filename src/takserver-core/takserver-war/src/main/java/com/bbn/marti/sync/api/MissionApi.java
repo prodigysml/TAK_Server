@@ -1076,6 +1076,19 @@ public class MissionApi extends BaseRestController {
 		return network != null && network.isMissionRequiresPassword();
 	}
 
+	// ATAK, iTAK and WinTAK send their device UID as 'uid', not the username. Accept a uid
+	// whose live connection is authenticated as the caller, so a device can join or leave a
+	// mission for itself but not on behalf of someone else's device.
+	private boolean isCallersDevice(String uid, String username) {
+		try {
+			User user = subscriptionManagerProxy.getSubscriptionManagerForClientUid(uid).getSubscriptionUserByClientUid(uid);
+			return user != null && username != null && username.equals(user.getName());
+		} catch (Exception e) {
+			logger.debug("no live subscription for client uid {}", uid, e);
+			return false;
+		}
+	}
+
 	// ATAK, iTAK, WinTAK and the admin UI send the mission password as the 'password' query
 	// parameter, not the MissionPassword header, so accept either. The header wins if both are set.
 	static String missionPassword(String header, String queryParam) {
@@ -2685,7 +2698,7 @@ public class MissionApi extends BaseRestController {
 			// bound to another user's UID and manipulate invitation state
 			// (CWE-862).
 			{
-				boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+				boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username) && !isCallersDevice(uid, username);
 				boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
 				if (uidIsOther || topicIsOther) {
 					MissionRole callerRoleSub = missionService.getRoleForRequest(mission, request);
@@ -2829,7 +2842,7 @@ public class MissionApi extends BaseRestController {
 			// bound to another user's UID and manipulate invitation state
 			// (CWE-862).
 			{
-				boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+				boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username) && !isCallersDevice(uid, username);
 				boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
 				if (uidIsOther || topicIsOther) {
 					MissionRole callerRoleSub = missionService.getRoleForRequest(mission, request);
@@ -3009,7 +3022,7 @@ public class MissionApi extends BaseRestController {
 			// SECURITY: verify caller owns this subscription or is mission owner.
 			// Check applies to BOTH uid and topic parameters — previously topic was
 			// unchecked, letting any authenticated user unsubscribe another user.
-			boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+			boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username) && !isCallersDevice(uid, username);
 			boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
 			if (uidIsOther || topicIsOther) {
 				MissionRole roleForRequest = missionService.getRoleForRequest(mission, finalRequest);
@@ -3060,7 +3073,7 @@ public class MissionApi extends BaseRestController {
 			// SECURITY: verify caller owns this subscription or is mission owner.
 			// Check applies to BOTH uid and topic parameters — previously topic was
 			// unchecked, letting any authenticated user unsubscribe another user.
-			boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username);
+			boolean uidIsOther = !Strings.isNullOrEmpty(uid) && !uid.equals(username) && !isCallersDevice(uid, username);
 			boolean topicIsOther = !Strings.isNullOrEmpty(topic) && !topic.equals(username);
 			if (uidIsOther || topicIsOther) {
 				MissionRole roleForRequest = missionService.getRoleForRequest(mission, finalRequest);
