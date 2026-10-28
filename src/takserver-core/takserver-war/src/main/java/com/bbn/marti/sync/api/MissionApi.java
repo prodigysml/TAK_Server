@@ -1078,19 +1078,27 @@ public class MissionApi extends BaseRestController {
 
 	// ATAK, iTAK and WinTAK send their device UID as 'uid', not the username. Accept a uid
 	// whose live connection is authenticated as the caller, so a device can join or leave a
-	// mission for itself but not on behalf of someone else's device.
+	// mission for itself but not on behalf of someone else's device. The subscription list is
+	// used because it carries the login as 'username'; a single subscription looked up by
+	// client uid reaches the API without its user.
 	private boolean isCallersDevice(String uid, String username) {
+		String connectedAs = null;
 		try {
-			User user = subscriptionManagerProxy.getSubscriptionManagerForClientUid(uid).getSubscriptionUserByClientUid(uid);
-			boolean match = user != null && username != null && username.equals(user.getName());
-			if (!match) {
-				logger.info("client uid {} is connected as user {}, not caller {}", uid, user == null ? null : user.getName(), username);
+			for (RemoteSubscription sub : subscriptionManagerProxy.getSubscriptionManagerForClientUid(uid).getSubscriptionList()) {
+				if (uid.equals(sub.clientUid)) {
+					connectedAs = sub.getUsername();
+					break;
+				}
 			}
-			return match;
 		} catch (Exception e) {
 			logger.info("could not look up the user connected as client uid {}", uid, e);
 			return false;
 		}
+		boolean match = username != null && username.equals(connectedAs);
+		if (!match) {
+			logger.info("client uid {} is connected as user {}, not caller {}", uid, connectedAs, username);
+		}
+		return match;
 	}
 
 	// ATAK, iTAK, WinTAK and the admin UI send the mission password as the 'password' query

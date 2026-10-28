@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,9 +21,9 @@ import org.junit.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.bbn.marti.remote.RemoteSubscription;
 import com.bbn.marti.remote.SubscriptionManagerLite;
 import com.bbn.marti.remote.exception.ForbiddenException;
-import com.bbn.marti.remote.groups.User;
 import com.bbn.marti.sync.model.Mission;
 import com.bbn.marti.sync.service.MissionService;
 import com.bbn.marti.util.CommonUtil;
@@ -59,6 +61,7 @@ public class MissionSubscriptionDeviceUidTest {
 		SubscriptionManagerProxyHandler proxy = harness.inject("subscriptionManagerProxy", SubscriptionManagerProxyHandler.class);
 		subscriptionManagerLite = org.mockito.Mockito.mock(SubscriptionManagerLite.class);
 		when(proxy.getSubscriptionManagerForClientUid(anyString())).thenReturn(subscriptionManagerLite);
+		when(subscriptionManagerLite.getSubscriptionList()).thenReturn(Collections.emptyList());
 
 		when(martiUtil.getGroupVectorBitString(request)).thenReturn(gv);
 		when(missionService.trimName(name)).thenReturn(name);
@@ -77,10 +80,16 @@ public class MissionSubscriptionDeviceUidTest {
 		MissionApiTestHarness.tearDown();
 	}
 
+	// The subscription list is what reaches the API process: the user is stripped and the
+	// login is carried as 'username' (see RemoteSubscription.prepareForSerialization).
 	private void deviceConnectedAs(String username) {
-		User user = org.mockito.Mockito.mock(User.class);
-		when(user.getName()).thenReturn(username);
-		when(subscriptionManagerLite.getSubscriptionUserByClientUid(DEVICE)).thenReturn(user);
+		RemoteSubscription other = new RemoteSubscription();
+		other.clientUid = "ANDROID-other";
+		other.setUsername("carol");
+		RemoteSubscription device = new RemoteSubscription();
+		device.clientUid = DEVICE;
+		device.setUsername(username);
+		when(subscriptionManagerLite.getSubscriptionList()).thenReturn(List.of(other, device));
 	}
 
 	@Test
@@ -122,7 +131,7 @@ public class MissionSubscriptionDeviceUidTest {
 
 	@Test
 	public void unsubscribe_whenLookupFails_isForbidden() throws Exception {
-		when(subscriptionManagerLite.getSubscriptionUserByClientUid(DEVICE)).thenThrow(new RuntimeException("not found"));
+		when(subscriptionManagerLite.getSubscriptionList()).thenThrow(new RuntimeException("lookup failed"));
 
 		try {
 			api.deleteMissionSubscription(DEVICE, "", true, name).call();
