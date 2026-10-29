@@ -260,8 +260,11 @@ public class OnboardingApi extends BaseRestController {
 			throw new IllegalStateException("truststore-intermediate.p12 missing on EFS");
 		}
 
-		String caPass = System.getenv("CA_PASS");
-		String tsPass = caPass == null ? "atakatak" : caPass;
+		String tsPass = System.getenv("CA_PASS");
+		if (tsPass == null || tsPass.isEmpty()) {
+			// no well-known default: a pack must not ship a truststore password guessed from the docs
+			throw new IllegalStateException("CA_PASS env var not set on container");
+		}
 		byte[] clientBytes = Files.readAllBytes(clientP12.toPath());
 		// The pack carries certPass for the device to open the .p12. A wrong one
 		// still builds a pack, but the device then cannot load its own cert and

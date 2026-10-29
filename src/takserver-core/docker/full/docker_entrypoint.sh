@@ -128,7 +128,9 @@ else
 	echo Using existing ${ADMIN_CERT_NAME} certificate.
 fi
 
-chmod -R 777 ${TR}/data/
+# Owner-only: data/ is bind-mounted from the host and holds the CA signing key
+# and server keys, which must not be world-readable or world-writable there.
+chmod -R u+rwX,go-rwx ${TR}/data/
 
 python3 ${TR}/coreConfigEnvHelper.py "${CONFIG}" "${CONFIG}"
 

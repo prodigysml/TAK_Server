@@ -13,7 +13,12 @@ CITY=${CITY}
 ORGANIZATION=${ORGANIZATION:-TAK}
 ORGANIZATIONAL_UNIT=${ORGANIZATIONAL_UNIT}
 
-CAPASS=${CAPASS:-atakatak}
+# No default: "atakatak" is in the public docs, so a CA or keystore made with it
+# can be opened by anyone who gets the file. Set CAPASS (and optionally PASS).
+if [ -z "${CAPASS}" ]; then
+  echo "CAPASS is not set. Export CAPASS=<CA keystore password> and run again." >&2
+  exit 1
+fi
 PASS=${PASS:-$CAPASS}
 
 ## subdirectory to put all the actual certs and keys in
