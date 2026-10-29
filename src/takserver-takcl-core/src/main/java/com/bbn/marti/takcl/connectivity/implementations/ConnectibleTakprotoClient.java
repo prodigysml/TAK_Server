@@ -332,7 +332,7 @@ public class ConnectibleTakprotoClient implements ConnectingInterface {
 
 		private static final int MAX_SIZE = 65536;
 		private static final String STORETYPE = "JKS";
-		private static final String CLIENT_CERT_PASSWORD = "atakatak";
+		private static final String CLIENT_CERT_PASSWORD = SSLHelper.CERT_PASSWORD;
 		private static final String TAKPROTO_PATH = "/takproto/1";
 
 		@Override

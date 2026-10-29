@@ -123,12 +123,23 @@ public class SSLHelper {
 			"user003"
 	);
 
+	// -Dtakcl.insecureTrustAll=true accepts any server/client certificate (MITM-able; tests only)
+	static final String INSECURE_TRUST_ALL_PROPERTY = "takcl.insecureTrustAll";
+
+	// -Dtakcl.certPassword=... overrides the password of the stores TAKCL generates and reads
+	public static final String CERT_PASSWORD = System.getProperty("takcl.certPassword", "atakatak");
+
 	private static X509TrustManager initTrustManager(String storeType, String password, File trustSoreFile) throws GeneralSecurityException, IOException {
 		KeyStore tmks = KeyStore.getInstance(storeType);
 		tmks.load(new FileInputStream(trustSoreFile), password.toCharArray());
 		TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
 		trustManagerFactory.init(tmks);
 		X509TrustManager manager = (X509TrustManager) trustManagerFactory.getTrustManagers()[0];
+		// Check peers against the truststore. Accepting any certificate is a
+		// test-only escape hatch and has to be asked for explicitly.
+		if (!Boolean.getBoolean(INSECURE_TRUST_ALL_PROPERTY)) {
+			return manager;
+		}
 		TrustManager[] trustAllCerts = new TrustManager[] {(TrustManager) new X509ExtendedTrustManager() {
             public java.security.cert.X509Certificate[] getAcceptedIssuers() {
                 return manager.getAcceptedIssuers();
@@ -289,12 +300,12 @@ public class SSLHelper {
 	}
 
 	public final String getTruststorePass() {
-		return "atakatak";
+		return CERT_PASSWORD;
 	}
 
 
 	public final String getKeystorePass() {
-		return "atakatak";
+		return CERT_PASSWORD;
 	}
 
 	public final String getServerFingerprint(@NotNull String serverIdentifier) {
@@ -579,7 +590,7 @@ public class SSLHelper {
 	public static class TakClientSslContext {
 
 		private static final String STORETYPE = "JKS";
-		private static final String CLIENT_CERT_PASSWORD = "atakatak";
+		private static final String CLIENT_CERT_PASSWORD = CERT_PASSWORD;
 
 		private final File truststoreJksPath;
 		private final File userCertPrivateJksPath;

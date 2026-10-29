@@ -18,6 +18,10 @@ public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBro
 	}
 	
 	// disable CSRF token requirement
+	// Cross-site use of the session is still refused: /Marti/api/cop is registered
+	// with no allowed origins (WebSocketConfiguration.registerStompEndpoints), so
+	// Spring's origin check at the handshake (WebSocket and SockJS) accepts only
+	// same-origin pages. Don't add allowed origins there without turning this back on.
 	// http://docs.spring.io/spring-security/site/docs/current/reference/html/websocket.html#websocket-sameorigin
 	// Turn this back on when we've put it in the STOMP headers:
 	// http://docs.spring.io/spring-security/site/docs/current/reference/html/websocket.html#websocket-sameorigin-csrf
