@@ -34,15 +34,7 @@ public class CustomizeEmbeddedTomcatContainer implements WebServerFactoryCustomi
 
 		if (loggingConf != null && loggingConf.isHttpAccessEnabled()) {
 
-			TomcatSlf4jAccessValve accessLogValve = new TomcatSlf4jAccessValve();
-			accessLogValve.setEnabled(true);
-
-			/**
-			 * for pattern format see https://tomcat.apache.org/tomcat-7.0-doc/api/org/apache/catalina/valves/AccessLogValve.html
-			 */
-			accessLogValve.setPattern("request: method=%m uri=\"%U\" response: statuscode=%s bytes=%b duration=%D(ms) client: remoteip=%a user=%u useragent=\"%{User-Agent}i\"");
-
-			factory.addContextValves(accessLogValve);
+			factory.addContextValves(accessLogValve());
 		}
 	}
 
@@ -64,6 +56,21 @@ public class CustomizeEmbeddedTomcatContainer implements WebServerFactoryCustomi
 		valve.setPortHeader(null);
 		valve.setHostHeader(null);
 		return valve;
+	}
+
+	static TomcatSlf4jAccessValve accessLogValve() {
+		TomcatSlf4jAccessValve accessLogValve = new TomcatSlf4jAccessValve();
+		accessLogValve.setEnabled(true);
+		// The entry is written after the request completes, when RemoteIpValve
+		// has already put the proxy's address back; read the client address it
+		// saved in the request attributes instead.
+		accessLogValve.setRequestAttributesEnabled(true);
+
+		/**
+		 * for pattern format see https://tomcat.apache.org/tomcat-7.0-doc/api/org/apache/catalina/valves/AccessLogValve.html
+		 */
+		accessLogValve.setPattern("request: method=%m uri=\"%U\" response: statuscode=%s bytes=%b duration=%D(ms) client: remoteip=%a user=%u useragent=\"%{User-Agent}i\"");
+		return accessLogValve;
 	}
 
 	public static class TomcatSlf4jAccessValve extends AbstractAccessLogValve {

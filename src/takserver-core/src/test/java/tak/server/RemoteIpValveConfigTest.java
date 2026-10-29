@@ -1,6 +1,7 @@
 package tak.server;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,6 +64,14 @@ public class RemoteIpValveConfigTest {
 		String[] seen = run("127.0.0.1", "203.0.113.7");
 		assertEquals("https", seen[1]);
 		assertEquals("8446", seen[2]);
+	}
+
+	@Test
+	public void accessLogReadsTheAddressTheValveSaved() {
+		// otherwise the entry, written after RemoteIpValve restores the
+		// connection address, shows the proxy
+		assertTrue(CustomizeEmbeddedTomcatContainer.accessLogValve().getRequestAttributesEnabled());
+		assertTrue(CustomizeEmbeddedTomcatContainer.remoteIpValve().getRequestAttributesEnabled());
 	}
 
 	@Test
