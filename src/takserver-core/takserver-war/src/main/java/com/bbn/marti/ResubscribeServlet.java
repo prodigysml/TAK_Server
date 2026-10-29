@@ -96,7 +96,30 @@ public class ResubscribeServlet extends EsapiServlet {
 			return;
 		}
 
-		response.sendRedirect(referer);
+		response.sendRedirect(sameOriginTarget(referer));
+	}
+
+	static final String DEFAULT_REDIRECT = "/Marti/";
+
+	/**
+	 * Path and query of the referer, so the redirect stays on this server. The
+	 * Referer header is client-controlled; redirecting to it as-is was an open
+	 * redirect.
+	 */
+	static String sameOriginTarget(String referer) {
+		if (referer == null) {
+			return DEFAULT_REDIRECT;
+		}
+		try {
+			java.net.URI uri = new java.net.URI(referer);
+			String path = uri.getRawPath();
+			if (path == null || !path.startsWith("/") || path.startsWith("//") || path.contains("\\")) {
+				return DEFAULT_REDIRECT;
+			}
+			return uri.getRawQuery() == null ? path : path + "?" + uri.getRawQuery();
+		} catch (java.net.URISyntaxException e) {
+			return DEFAULT_REDIRECT;
+		}
 	}
 
 	private void removeSubscription(String id) {
