@@ -65,6 +65,35 @@ public class ContentServlet extends EnterpriseSyncServlet {
 			System.getProperty("tak.enterpriseSync.maxOffset",
 					Integer.toString(1 * 1024 * 1024 * 1024))); // 1 GiB
 
+	// Types a browser can run script from. Uploads labelled with one are served as
+	// opaque bytes instead (stored XSS otherwise: anyone who can upload a file
+	// could plant a page that runs in an admin's session).
+	private static final List<String> ACTIVE_TYPES = Arrays.asList(
+			"text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml",
+			"text/xsl", "application/xslt+xml", "text/javascript", "application/javascript",
+			"application/ecmascript", "text/ecmascript", "multipart/x-mixed-replace");
+
+	// Types that are safe to show in the browser rather than download.
+	private static final List<String> INLINE_SAFE_TYPES = Arrays.asList(
+			"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "application/pdf", "text/plain");
+
+	// Media type without parameters, lower case, e.g. "Text/HTML; charset=x" -> "text/html".
+	static String baseType(String mimeType) {
+		if (mimeType == null) {
+			return "";
+		}
+		int semi = mimeType.indexOf(';');
+		return (semi < 0 ? mimeType : mimeType.substring(0, semi)).trim().toLowerCase(java.util.Locale.ROOT);
+	}
+
+	static String servedContentType(String mimeType) {
+		return ACTIVE_TYPES.contains(baseType(mimeType)) ? "application/octet-stream" : mimeType;
+	}
+
+	static boolean isInlineSafe(String mimeType) {
+		return INLINE_SAFE_TYPES.contains(baseType(mimeType));
+	}
+
 	private void getResource(AsyncContext async, HttpMethod method) throws ServletException, IOException {
 		
 		HttpServletRequest request = (HttpServletRequest) async.getRequest();
@@ -138,13 +167,18 @@ public class ContentServlet extends EnterpriseSyncServlet {
 
 			String mimeType = match.getFirst(Metadata.Field.MIMEType);
 			if (validator != null && validator.isValidInput("MIME Type", mimeType, "MartiSafeString", DEFAULT_PARAMETER_LENGTH, false)) {
-				// Set MIME type of HTTP response
+				// Set MIME type of HTTP response. The uploader chose it, so never
+				// one a browser would run as a page in the server's origin.
 				if (response.containsHeader("Content-Type")) {
-					response.setHeader("Content-Type", mimeType);
+					response.setHeader("Content-Type", servedContentType(mimeType));
 				} else {
-					response.addHeader("Content-Type", mimeType);
+					response.addHeader("Content-Type", servedContentType(mimeType));
 				}
 			}
+			// Stop the browser guessing a type, and run anything it does render with
+			// no scripts and no access to the server's origin.
+			response.setHeader("X-Content-Type-Options", "nosniff");
+			response.setHeader("Content-Security-Policy", "sandbox");
 
 			// Set file name of HTTP response
 			String filename = match.getFirstSafely(Metadata.Field.DownloadPath);
@@ -161,7 +195,7 @@ public class ContentServlet extends EnterpriseSyncServlet {
 				logger.debug("enterprise sync filename: " + filename);
 			}
 
-			String contentDisposition = "inline; filename=" + filename;
+			String contentDisposition = (isInlineSafe(mimeType) ? "inline" : "attachment") + "; filename=" + filename;
 			if (validator != null && validator.isValidInput("Content Disposition", contentDisposition, "Filename", DEFAULT_PARAMETER_LENGTH, false)) {
 				if (response.containsHeader("Content-Disposition")) {
 					response.setHeader("Content-Disposition", contentDisposition);
