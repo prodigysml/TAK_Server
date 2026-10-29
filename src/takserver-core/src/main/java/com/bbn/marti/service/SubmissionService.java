@@ -965,8 +965,11 @@ public class SubmissionService extends BaseService implements MessagingConfigura
                 	if (logger.isDebugEnabled()) {
                 		logger.debug("subscription in subscriptionLifecycleCallback " + subscription);
                 	}
-                    // set user on subscription, so that message brokering will be able to find the user
-                    subMgr.setUserForSubscription(user, subMgr.getSubscription(handler.netProtocolName() + ":" + uid));
+                    // set user on subscription, so that message brokering will be able to find the user.
+                    // If X509 auth finished first and already did it, it also did the rest.
+                    if (!subMgr.setUserForSubscriptionIfAbsent(user, subscription)) {
+                        return subscription;
+                    }
 
                     if (config.getBuffer().getLatestSA().isEnable()) {
                         try {

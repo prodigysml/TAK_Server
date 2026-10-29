@@ -108,6 +108,12 @@ public interface SubscriptionManager extends SubscriptionManagerLite {
 	User getSubscriptionUserByClientUid(String cUid);
 
 	Subscription setUserForSubscription(User user, Subscription subscription);
+
+	/**
+	 * Sets the user on a subscription that has none yet, atomically with any other
+	 * caller. Returns true only for the call that set it.
+	 */
+	boolean setUserForSubscriptionIfAbsent(User user, Subscription subscription);
 	
 	CotEventContainer makeDeleteMessage(String linkUid, String linkType);
 

@@ -6,6 +6,8 @@ import java.nio.ByteBuffer;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
@@ -13,9 +15,11 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.bbn.marti.config.DataFeed;
 import com.bbn.marti.config.Input;
 import com.bbn.marti.groups.DummyAuthenticator;
 import com.bbn.marti.groups.GroupFederationUtil;
+import com.bbn.marti.groups.MessagingUtilImpl;
 import com.bbn.marti.groups.X509Authenticator;
 import com.bbn.marti.nio.channel.ChannelHandler;
 import com.bbn.marti.nio.channel.base.AbstractBroadcastingChannelHandler;
@@ -28,8 +32,13 @@ import com.bbn.marti.remote.exception.TakException;
 import com.bbn.marti.remote.groups.AuthStatus;
 import com.bbn.marti.remote.groups.AuthenticatedUser;
 import com.bbn.marti.remote.groups.ConnectionInfo;
+import com.bbn.marti.remote.groups.Direction;
+import com.bbn.marti.remote.groups.Group;
 import com.bbn.marti.remote.groups.User;
 import com.bbn.marti.remote.util.X509UsernameExtractor;
+import com.bbn.marti.service.DistributedSubscriptionManager;
+import com.bbn.marti.service.Subscription;
+import com.bbn.marti.service.SubscriptionStore;
 import com.bbn.marti.util.concurrent.executor.OrderedExecutor;
 import com.bbn.marti.util.concurrent.future.AsyncFuture;
 
@@ -240,6 +249,45 @@ public class X509AuthCodec extends AbstractAuthCodec implements ByteCodec {
         });
     }
 
+    /**
+     * Auth runs off the I/O thread, so the connection's subscription can be created
+     * before it finishes. SubmissionService.createSubscriptionFromConnection only
+     * attaches a user that is already authenticated, so without this the
+     * subscription keeps no user: the device can't join a mission by its UID and
+     * gets no latest SA or protocol negotiation. Does what that method does for a
+     * user, unless it already has.
+     */
+    private void attachUserToSubscription() {
+        User user = groupManager.getUserByConnectionId(connectionInfo.getConnectionId());
+        Subscription subscription = SubscriptionStore.getInstance().getSubscriptionByConnectionInfo(connectionInfo);
+        if (user == null || subscription == null) {
+            return; // not authenticated, or createSubscriptionFromConnection hasn't run and will attach it
+        }
+
+        // make data feed users read only, as createSubscriptionFromConnection does
+        if (connectionInfo.getInput() instanceof DataFeed) {
+            Set<Group> readOnlyGroups = groupManager.getGroups(user).stream()
+                    .filter(g -> g.getDirection() == Direction.IN).collect(Collectors.toSet());
+            groupManager.updateGroups(user, readOnlyGroups);
+        }
+
+        DistributedSubscriptionManager subscriptionManager = DistributedSubscriptionManager.getInstance();
+        if (!subscriptionManager.setUserForSubscriptionIfAbsent(user, subscription)) {
+            return;
+        }
+        logger.info("attached user {} to subscription {} after X509 auth finished", user.getId(), subscription.uid);
+
+        if (enableLatestSa) {
+            try {
+                MessagingUtilImpl.getInstance().sendLatestReachableSA(user);
+            } catch (Exception e) {
+                logger.error("sendLatestSA threw exception: " + e.getMessage(), e);
+            }
+        }
+
+        subscriptionManager.startProtocolNegotiation(subscription);
+    }
+
     private synchronized void doTlsAuthSync() {
 
         logger.debug("doTlsAuth");
@@ -291,6 +339,10 @@ public class X509AuthCodec extends AbstractAuthCodec implements ByteCodec {
             logger.debug("Core X509 auth status: " + tlsAuthStatus);
 
             authStatus.set(tlsAuthStatus);
+
+            if (tlsAuthStatus == AuthStatus.SUCCESS) {
+                attachUserToSubscription();
+            }
 
         } catch (Exception e) {
             

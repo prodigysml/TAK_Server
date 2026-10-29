@@ -1644,6 +1644,18 @@ public class DistributedSubscriptionManager implements SubscriptionManager, org.
 		return subscriptionStore().getSubscriptionByUsersDisplayName(displayName);
 	}
 
+	// X509 auth finishes on its own thread (X509AuthCodec), so it can race the
+	// connection's subscription being created: whichever comes second attaches the
+	// user. Same monitor as setUserForSubscription, so only one of them does it.
+	@Override
+	synchronized public boolean setUserForSubscriptionIfAbsent(User user, Subscription subscription) {
+		if (user == null || subscription == null || subscription.getUser() != null) {
+			return false;
+		}
+		setUserForSubscription(user, subscription);
+		return true;
+	}
+
 	// TODO: does this really need to be synchronized
 	synchronized public Subscription setUserForSubscription(User user, Subscription subscription) {
 	    
