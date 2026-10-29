@@ -38,6 +38,10 @@ public class FederationConfigApi extends BaseRestController{
     public ResponseEntity<ApiResponse<FederationConfigInfo>> getFederationConfig(){
         try {
             FederationConfigInfo info = federationInterface.getFederationConfig();
+            // never send the truststore password to the browser; a save without one keeps it
+            if (info != null) {
+                info.setTruststorePass(null);
+            }
             return new ResponseEntity<ApiResponse<FederationConfigInfo>>(new ApiResponse<FederationConfigInfo>(Constants.API_VERSION, FederationConfigInfo.class.getName(), info), HttpStatus.OK);
         }
         catch(Exception e){

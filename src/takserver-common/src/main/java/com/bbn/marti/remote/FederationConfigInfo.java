@@ -333,7 +333,7 @@ public class FederationConfigInfo implements Serializable {
 	public String toString() {
 		return "FederationConfigInfo [isEnabled=" + isEnabled + ", serverPortEnabled=" + serverPortEnabled
 				+ ", serverPortv1=" + serverPortv1 + ", serverPortv2=" + serverPortv2 + ", serverPortEnabledv2="
-				+ serverPortEnabledv2 + ", truststorePath=" + truststorePath + ", truststorePass=" + truststorePass
+				+ serverPortEnabledv2 + ", truststorePath=" + truststorePath
 				+ ", tlsVersion=" + tlsVersion + ", webBaseURL=" + webBaseURL + ", allowMissionFederation="
 				+ allowMissionFederation + ", allowDataFeedFederation=" + allowDataFeedFederation
 				+ ", allowFederatedDelete=" + allowFederatedDelete + ", enableMissionFederationDisruptionTolerance="

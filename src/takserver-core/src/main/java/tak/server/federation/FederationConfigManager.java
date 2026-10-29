@@ -73,7 +73,11 @@ public class FederationConfigManager implements FederationConfigInterface {
         fedConfig.getFederationServer().setV1Enabled(info.isServerPortEnabled());
         fedConfig.getFederationServer().setV2Enabled(info.isServerPortEnabledv2());
         fedConfig.getFederationServer().getTls().setTruststoreFile(info.getTruststorePath());
-        fedConfig.getFederationServer().getTls().setTruststorePass(info.getTruststorePass());
+        // GET /federationconfig never returns the password, so an empty one on save
+        // means "unchanged", not "clear it"
+        if (info.getTruststorePass() != null && !info.getTruststorePass().isEmpty()) {
+            fedConfig.getFederationServer().getTls().setTruststorePass(info.getTruststorePass());
+        }
         fedConfig.getFederationServer().getTls().setContext(info.getTlsVersion());
         fedConfig.getFederationServer().setWebBaseUrl(info.getWebBaseURL());
         fedConfig.setAllowMissionFederation(info.isAllowMissionFederation());
