@@ -6,7 +6,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.Assert.assertTrue;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,7 +43,7 @@ public class MfaGateFilterTest {
 	@Before
 	public void setUp() {
 		mfaService = mock(MfaService.class);
-		filter = new MfaGateFilter(mfaService);
+		filter = new MfaGateFilter(mfaService, port -> port == 8443);
 		request = mock(HttpServletRequest.class);
 		response = mock(HttpServletResponse.class);
 		session = mock(HttpSession.class);
@@ -103,5 +106,69 @@ public class MfaGateFilterTest {
 
 		verify(mfaService, never()).isTokenVerified(anyString(), anyString());
 		verify(response).sendRedirect(startsWith("/Marti/mfa/verify.html"));
+	}
+
+	@Test
+	public void apiCallOnPasswordPortWithoutMfaIsRefused() throws Exception {
+		when(request.getRequestURI()).thenReturn("/Marti/api/onboarding/users");
+		when(request.getHeader("Accept")).thenReturn("application/json");
+		when(request.getLocalPort()).thenReturn(8446);
+		StringWriter body = new StringWriter();
+		when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+		filter.doFilter(request, response, chain);
+
+		verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+		verify(chain, never()).doFilter(request, response);
+		verify(response, never()).sendRedirect(anyString());
+		assertTrue(body.toString().contains("mfa_required"));
+	}
+
+	@Test
+	public void xhrOnPasswordPortWithoutMfaIsRefused() throws Exception {
+		when(request.getRequestURI()).thenReturn("/Marti/api/missions");
+		when(request.getHeader("X-Requested-With")).thenReturn("XMLHttpRequest");
+		when(request.getLocalPort()).thenReturn(8446);
+		when(response.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
+
+		filter.doFilter(request, response, chain);
+
+		verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+		verify(chain, never()).doFilter(request, response);
+	}
+
+	@Test
+	public void apiCallOnCertPortStillPasses() throws Exception {
+		// devices call the APIs on 8443 with their certificate; that is their second factor
+		when(request.getRequestURI()).thenReturn("/Marti/api/missions");
+		when(request.getHeader("Accept")).thenReturn("application/json");
+		when(request.getLocalPort()).thenReturn(8443);
+
+		filter.doFilter(request, response, chain);
+
+		verify(chain).doFilter(request, response);
+	}
+
+	@Test
+	public void apiCallWithMfaPasses() throws Exception {
+		when(request.getRequestURI()).thenReturn("/Marti/api/onboarding/users");
+		when(request.getHeader("Accept")).thenReturn("application/json");
+		when(request.getLocalPort()).thenReturn(8446);
+		when(mfaService.isTokenVerified("tok-1", "alice")).thenReturn(true);
+
+		filter.doFilter(request, response, chain);
+
+		verify(chain).doFilter(request, response);
+	}
+
+	@Test
+	public void landingPageLookupNeedsNoMfa() throws Exception {
+		when(request.getRequestURI()).thenReturn("/Marti/api/home");
+		when(request.getHeader("Accept")).thenReturn("*/*");
+		when(request.getLocalPort()).thenReturn(8446);
+
+		filter.doFilter(request, response, chain);
+
+		verify(chain).doFilter(request, response);
 	}
 }

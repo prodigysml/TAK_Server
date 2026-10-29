@@ -2,6 +2,7 @@ package com.bbn.marti.mfa;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.IntPredicate;
 
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -39,8 +40,12 @@ import org.slf4j.LoggerFactory;
  *      preserving the original URL in the "next" query string.
  *   4. No row OR not yet enrolled => 302 to /Marti/mfa/enroll.html.
  *
- * Cert-authenticated requests (X509 principal) intentionally skip the
- * gate — the cert itself is the second factor for those flows.
+ * Requests that reach a connector requiring a client certificate (8443) keep
+ * the old rule: only HTML page navigations are redirected, because devices call
+ * the APIs there with their certificate and the certificate is the second
+ * factor. On any other connector (8446, the password / OAuth port the admin UI
+ * uses) every request needs MFA; an API call without it gets 401, so a password
+ * or password-grant token alone cannot drive the admin APIs.
  */
 public class MfaGateFilter implements Filter {
 
@@ -62,10 +67,19 @@ public class MfaGateFilter implements Filter {
 			"/Marti/menubar.html",
 			"/Marti/footer.jsp");
 
-	private final MfaService mfaService;
+	// Exact paths the post-login landing page needs before MFA: it asks where to
+	// go, then navigates there and meets the gate. Neither returns user data.
+	private static final Set<String> WHITELIST_EXACT = Set.of(
+			"/Marti/api/home",
+			"/Marti/api/ver");
 
-	public MfaGateFilter(MfaService mfaService) {
+	private final MfaService mfaService;
+	// true for a local port whose connector requires a client certificate
+	private final IntPredicate certRequiredPort;
+
+	public MfaGateFilter(MfaService mfaService, IntPredicate certRequiredPort) {
 		this.mfaService = mfaService;
+		this.certRequiredPort = certRequiredPort;
 		logger.info("MfaGateFilter constructed; gate active on /Marti/** for password-auth users");
 	}
 
@@ -105,6 +119,10 @@ public class MfaGateFilter implements Filter {
 				chain.doFilter(req, resp);
 				return;
 			}
+		}
+		if (WHITELIST_EXACT.contains(path)) {
+			chain.doFilter(req, resp);
+			return;
 		}
 
 		if (!isAuthd) {
@@ -148,7 +166,13 @@ public class MfaGateFilter implements Filter {
 		boolean htmlNav = (accept != null && accept.contains("text/html"))
 				&& !"XMLHttpRequest".equalsIgnoreCase(requestedWith);
 		if (!htmlNav) {
-			chain.doFilter(req, resp);
+			if (certRequiredPort.test(http.getLocalPort())) {
+				chain.doFilter(req, resp);
+				return;
+			}
+			hresp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+			hresp.setContentType("application/json");
+			hresp.getWriter().write("{\"error\":\"mfa_required\"}");
 			return;
 		}
 

@@ -1,5 +1,7 @@
 package tak.server.config;
 
+import java.util.Locale;
+
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -7,9 +9,11 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.bbn.marti.config.Network;
 import com.bbn.marti.mfa.LoginAttemptService;
 import com.bbn.marti.mfa.MfaGateFilter;
 import com.bbn.marti.mfa.MfaService;
+import com.bbn.marti.remote.config.CoreConfigFacade;
 import com.bbn.marti.revocation.RevocationAuditService;
 
 /**
@@ -51,7 +55,26 @@ public class MfaConfiguration {
 
 	@Bean(name = "mfaGateFilter")
 	public MfaGateFilter mfaGateFilter(MfaService mfaService) {
-		return new MfaGateFilter(mfaService);
+		return new MfaGateFilter(mfaService, MfaConfiguration::certRequiredPort);
+	}
+
+	/**
+	 * True when the connector on this local port makes Tomcat require a client
+	 * certificate (CoreConfig clientAuth="true", the default). An unknown port
+	 * counts as not requiring one, so MFA is enforced there.
+	 */
+	static boolean certRequiredPort(int port) {
+		try {
+			for (Network.Connector c : CoreConfigFacade.getInstance().getRemoteConfiguration().getNetwork().getConnector()) {
+				if (c.getPort() == port) {
+					String auth = c.getClientAuth() == null ? "" : c.getClientAuth().toLowerCase(Locale.ENGLISH);
+					return c.isTls() && (auth.equals("true") || auth.equals("required"));
+				}
+			}
+		} catch (RuntimeException e) {
+			// fall through: enforce MFA
+		}
+		return false;
 	}
 
 	/**
