@@ -3,6 +3,7 @@ package tak.server;
 import java.io.CharArrayWriter;
 
 import org.apache.catalina.valves.AbstractAccessLogValve;
+import org.apache.catalina.valves.RemoteIpValve;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
@@ -20,6 +21,9 @@ public class CustomizeEmbeddedTomcatContainer implements WebServerFactoryCustomi
 
 	@Override
 	public void customize(TomcatServletWebServerFactory factory) {
+
+		// Engine valve, so it runs before the access log and authentication.
+		factory.addEngineValves(remoteIpValve());
 
 		Logging loggingConf = CoreConfigFacade.getInstance().getRemoteConfiguration().getLogging();
 
@@ -40,6 +44,26 @@ public class CustomizeEmbeddedTomcatContainer implements WebServerFactoryCustomi
 
 			factory.addContextValves(accessLogValve);
 		}
+	}
+
+	/**
+	 * Requests proxied by a reverse proxy on the same host (an nginx sidecar in
+	 * front of 8446, for example) arrive from 127.0.0.1, so logs, MFA audit
+	 * entries and rate limits all saw the proxy instead of the client. This valve
+	 * takes the client address from X-Forwarded-For, but only when the
+	 * connection itself comes from loopback; a remote client's own
+	 * X-Forwarded-For is ignored. Scheme, port and host are left as they are
+	 * (no protocol or port header), so URLs and redirects don't change.
+	 */
+	static RemoteIpValve remoteIpValve() {
+		RemoteIpValve valve = new RemoteIpValve();
+		valve.setInternalProxies("127\\.0\\.0\\.1|0:0:0:0:0:0:0:1|::1");
+		valve.setTrustedProxies(null);
+		valve.setRemoteIpHeader("X-Forwarded-For");
+		valve.setProtocolHeader(null);
+		valve.setPortHeader(null);
+		valve.setHostHeader(null);
+		return valve;
 	}
 
 	public static class TomcatSlf4jAccessValve extends AbstractAccessLogValve {
