@@ -1,8 +1,16 @@
 package tak.server.federation;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
 
 //import org.apache.http.client.HttpClient;
 //import org.apache.http.config.Registry;
@@ -30,7 +38,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.LayeredConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
-import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.config.Registry;
 import org.apache.hc.core5.http.config.RegistryBuilder;
@@ -77,11 +85,11 @@ public class FederateHttpClientExecutor {
                 	logger.trace("sslContext: " + sslContext);
                 }
 
-                // disable hostname validation
-                sslSocketFactory = new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
-               
-                // this would be how to do it leaving hostname verifcation on. But we are using the remote host IP address from the federate, so this would never work  
-                // sslSocketFactory = new SSLConnectionSocketFactory(sslContext);
+                // The URL uses the federate's IP address, which its certificate rarely
+                // names, so plain hostname verification would refuse most federates.
+                // Accepting any certificate the federation truststore trusts (as this
+                // used to) lets any federate's cert impersonate another. See peerVerifier.
+                sslSocketFactory = new SSLConnectionSocketFactory(sslContext, peerVerifier(new DefaultHostnameVerifier()));
                 
             } catch (SecurityException e) {
                 throw new TakException("exception initializing federate TLS http executor", e);
@@ -103,6 +111,65 @@ public class FederateHttpClientExecutor {
         connectionManager.setValidateAfterInactivity(TimeValue.ofMilliseconds(1000));
         //federateHttpClient = HttpClientBuilder.create(). (connectionManager).build();
         federateHttpClient = HttpClients.custom().setConnectionManager(connectionManager).build();
+    }
+
+    // SHA-256 fingerprints of the certificates each federate address has
+    // authenticated with on its federation connection
+    private static final Map<String, Set<String>> knownPeers = new ConcurrentHashMap<>();
+
+    /**
+     * Records the certificate a federate authenticated with on its federation
+     * connection, so an HTTPS call to that address may present the same one.
+     */
+    public static void expectPeer(String address, X509Certificate cert) {
+        String fingerprint = fingerprint(cert);
+        if (address != null && fingerprint != null) {
+            knownPeers.computeIfAbsent(address, k -> ConcurrentHashMap.newKeySet()).add(fingerprint);
+        }
+    }
+
+    /**
+     * Accepts the HTTPS peer when its certificate names the host (normal hostname
+     * verification), or when it is the certificate the federate at that address
+     * authenticated with on its federation connection.
+     */
+    static HostnameVerifier peerVerifier(HostnameVerifier hostnameVerifier) {
+        return (host, session) -> {
+            if (hostnameVerifier.verify(host, session)) {
+                return true;
+            }
+            String presented = peerFingerprint(session);
+            Set<String> expected = knownPeers.get(host);
+            if (presented != null && expected != null && expected.contains(presented)) {
+                return true;
+            }
+            logger.error("refusing federate HTTPS peer {}: its certificate neither names the host nor matches the federate's federation connection", host);
+            return false;
+        };
+    }
+
+    private static String peerFingerprint(SSLSession session) {
+        try {
+            Certificate[] chain = session.getPeerCertificates();
+            return chain.length > 0 && chain[0] instanceof X509Certificate ? fingerprint((X509Certificate) chain[0]) : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static String fingerprint(X509Certificate cert) {
+        if (cert == null) {
+            return null;
+        }
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (byte b : MessageDigest.getInstance("SHA-256").digest(cert.getEncoded())) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public static Executor newInstance() {

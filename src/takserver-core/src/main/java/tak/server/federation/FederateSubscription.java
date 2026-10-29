@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import javax.naming.NamingException;
 
@@ -54,6 +55,9 @@ import tak.server.cluster.ClusterManager;
 import tak.server.cot.CotEventContainer;
 
 public class FederateSubscription extends Subscription {
+
+    // a mission package hash as announced by a federate: a SHA-256 digest in hex
+    static final Pattern SHA256_HEX = Pattern.compile("[0-9a-fA-F]{64}");
     private static final Logger logger = LoggerFactory.getLogger(FederateSubscription.class);
     private static final long serialVersionUID = 3437435640686758857L;
     final Set<String> localContactUid = new HashSet<>();
@@ -191,6 +195,11 @@ public class FederateSubscription extends Subscription {
                     throw new TakException("invalid mission package announce CoT message - empty hash or filename");
                 }
 
+                // the federate chose the hash and it goes into the URL below
+                if (!SHA256_HEX.matcher(hash).matches()) {
+                    throw new TakException("invalid mission package announce CoT message - hash is not a SHA-256 hex digest");
+                }
+
                 final int port = CoreConfigFacade.getInstance().getRemoteConfiguration().getFederation().getFederationServer().getHttpsPort();
 
                 String missionPackageUrl = "";
@@ -204,6 +213,7 @@ public class FederateSubscription extends Subscription {
                     }
 
                     final String remoteAddress = ((TcpChannelHandler) FederateSubscription.this.getHandler()).getConnectionInfo().getAddress();
+                    FederateHttpClientExecutor.expectPeer(remoteAddress, ((TcpChannelHandler) FederateSubscription.this.getHandler()).getConnectionInfo().getCert());
 
                     String fedGetMissionPackageUrl = "https://" + remoteAddress + ":" + port + "/Marti/sync/missionquery?hash=" + hash;
 
