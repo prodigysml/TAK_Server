@@ -115,8 +115,9 @@ public class RemoteUtil {
                     continue;
                 }
 
-                if (group.getBitpos() >= RemoteUtil.GROUPS_BIT_VECTOR_LEN) {
-                    logger.error("group bit vector offset too large: " + group.getBitpos() + " exceeds " + (RemoteUtil.GROUPS_BIT_VECTOR_LEN - 1));
+                if (group.getBitpos() < 0 || group.getBitpos() >= RemoteUtil.GROUPS_BIT_VECTOR_LEN) {
+                    logger.error("group bit vector offset out of range - skipping: " + group.getBitpos() + " not in 0.." + (RemoteUtil.GROUPS_BIT_VECTOR_LEN - 1));
+                    continue;
                 }
 
                 groupsBitVector[group.getBitpos()] = true;
@@ -139,8 +140,13 @@ public class RemoteUtil {
 
         groupsBitVector = new StringBuilder(groupsBitVector).reverse().toString();
         for (Group nextGroup : groupsToSearch) {
-                if (groupsBitVector.charAt(nextGroup.getBitpos()) == '1') {
-                    results.add(nextGroup);
+            Integer bitpos = nextGroup.getBitpos();
+            // a group past the end of a shorter (older) vector is not in it
+            if (bitpos == null || bitpos < 0 || bitpos >= groupsBitVector.length()) {
+                continue;
+            }
+            if (groupsBitVector.charAt(bitpos) == '1') {
+                results.add(nextGroup);
             }
         }
 
