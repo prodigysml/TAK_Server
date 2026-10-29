@@ -30,6 +30,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import tak.server.federation.FederateIdentity;
 import tak.server.federation.FederationException;
+import tak.server.federation.GuardedStreamHolder;
 
 public class NioNettyFederationHubServerHandler extends SimpleChannelInboundHandler<byte[]> {
     private final static Logger logger = LoggerFactory.getLogger(NioNettyFederationHubServerHandler.class);
@@ -275,7 +276,8 @@ public class NioNettyFederationHubServerHandler extends SimpleChannelInboundHand
                     brokerService.sendFederatedEventV1(federatedMessage);
 
                     if (event != null && event.hasContact()) {
-                        cache.add(event);
+                        // bounded like the v2 stream cache: it is replayed to every new federate
+                        GuardedStreamHolder.addToCacheBounded(cache, event, GuardedStreamHolder.MAX_CACHE_SIZE);
                         if (logger.isDebugEnabled()) {
                             logger.debug("Caching " + event +
                                 "  for " + federateIdentity.getFedId());

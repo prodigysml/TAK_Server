@@ -70,9 +70,10 @@ public class GuardedStreamHolder<T> {
     }
 
     /**
-     * Package-private static for unit-test access. Pure function of (cache, event, max).
+     * Static so the v1 federation handler can bound its own contact cache the
+     * same way. Pure function of (cache, event, max).
      */
-    static <E> boolean addToCacheBounded(Set<E> cache, E event, int max) {
+    public static <E> boolean addToCacheBounded(Set<E> cache, E event, int max) {
         if (event == null) return false;
         while (cache.size() >= max) {
             E first = null;

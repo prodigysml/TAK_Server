@@ -31,12 +31,33 @@ public class HubConnectionStore {
     private final Map<String, HubConnectionInfo> connectionInfos = new ConcurrentHashMap<>();
     
     private final Map<String, List<ROL>> tempRolCache = new ConcurrentHashMap<>();
-    
-    public void cacheRol( ROL rol, String id) {
-    	if (!tempRolCache.containsKey(id)) 
-    		tempRolCache.put(id, new ArrayList<>());
-    	
-    	tempRolCache.get(id).add(rol);
+
+    // ROL that arrives before the session's ROL stream is registered is held here.
+    // A federate that never registers the stream could otherwise grow it without
+    // limit, so it is capped per session by count and serialized bytes.
+    static final int MAX_CACHED_ROL_PER_SESSION = Integer.getInteger("tak.fed.maxCachedRolPerSession", 100);
+    static final long MAX_CACHED_ROL_BYTES_PER_SESSION = Long.getLong("tak.fed.maxCachedRolBytesPerSession", 16L * 1024 * 1024);
+
+    /** Returns false, without caching, when the session's cache is full. */
+    public boolean cacheRol( ROL rol, String id) {
+    	return cacheRol(rol, rol.getSerializedSize(), id, MAX_CACHED_ROL_PER_SESSION, MAX_CACHED_ROL_BYTES_PER_SESSION);
+    }
+
+    boolean cacheRol(ROL rol, long rolBytes, String id, int maxCount, long maxBytes) {
+    	boolean[] added = { false };
+    	tempRolCache.compute(id, (k, list) -> {
+    		List<ROL> l = list == null ? new ArrayList<>() : list;
+    		long bytes = rolBytes;
+    		for (ROL cached : l) {
+    			bytes += cached.getSerializedSize();
+    		}
+    		if (l.size() < maxCount && bytes <= maxBytes) {
+    			l.add(rol);
+    			added[0] = true;
+    		}
+    		return l;
+    	});
+    	return added[0];
     }
     
     public Collection<HubConnectionInfo> getConnectionInfos() {
@@ -79,12 +100,11 @@ public class HubConnectionStore {
     
     public void addRolStream(String id, GuardedStreamHolder<ROL> holder) {
     	this.clientROLStreamMap.put(id, holder);
-    	List<ROL> cachedRol = tempRolCache.get(id);
+    	List<ROL> cachedRol = tempRolCache.remove(id);
     	if (cachedRol != null) {
     		FederationHubDependencyInjectionProxy.getSpringContext()
     			.publishEvent(new StreamReadyEvent<ROL>(this, StreamReadyEvent.StreamReadyType.ROL, id, new ArrayList<ROL>(cachedRol)));
     	}
-    	tempRolCache.remove(id);
     }
     
     public void removeRolStream(String id) {

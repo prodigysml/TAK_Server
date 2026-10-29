@@ -1551,7 +1551,12 @@ static boolean shouldRejectRolProgram(String program, int maxBytes) {
                         // sometimes rol comes in before we're completely ready.
                         // temporarily cache rol until the stream holder gets added
                         if (streamHolder == null) {
-                        	hubConnectionStore.cacheRol(clientROL, sessionId);
+                        	// same size cap parseRol applies, before it sits in memory
+                        	if (shouldRejectRolProgram(clientROL.getProgram(), MAX_ROL_PROGRAM_BYTES)) {
+                        		logger.warn("dropping ROL from {} before its stream is ready: program size over cap {}", sessionId, MAX_ROL_PROGRAM_BYTES);
+                        	} else if (!hubConnectionStore.cacheRol(clientROL, sessionId)) {
+                        		logger.warn("dropping ROL from {} before its stream is ready: cache for the session is full", sessionId);
+                        	}
                         } else {
                         	parseRol(clientROL, sessionId);
                         }

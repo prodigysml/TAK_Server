@@ -583,6 +583,11 @@ public class FederationHubUIService implements ApplicationListener<ContextRefres
     
     @RequestMapping(value = "/fig/updateBrokerConfig", method = RequestMethod.POST)
    	public ResponseEntity<FederationHubServerConfig> updateBrokerConfig(@RequestBody FederationHubServerConfig brokerConfig) {
+		// Rewrites the broker's ports, database and keystore settings, so it needs
+		// the same gate as the other privileged /fig/* endpoints.
+		if (!isUpdateActiveFederation()) {
+			return new ResponseEntity<>(new HttpHeaders(), HttpStatus.FORBIDDEN);
+		}
     	return new ResponseEntity<FederationHubServerConfig>(fedHubBroker.saveFederationHubServerConfig(brokerConfig), new HttpHeaders(), HttpStatus.OK);
     }
     
