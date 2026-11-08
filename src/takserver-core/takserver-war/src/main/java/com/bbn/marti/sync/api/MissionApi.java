@@ -4330,6 +4330,7 @@ public class MissionApi extends BaseRestController {
 
 		missionService.validateMissionByGuid(childMission);
 		missionService.validateMissionByGuid(parentMission);
+		requireWriteOnParent(parentMission, request);
 
 		missionService.setParent(childMission.getGuidAsUUID(), parentMission.getGuidAsUUID(), martiUtil.getGroupVectorBitString(request));
 	}
@@ -4349,8 +4350,20 @@ public class MissionApi extends BaseRestController {
 
 		missionService.validateMissionByGuid(childMission);
 		missionService.validateMissionByGuid(parentMission);
+		requireWriteOnParent(parentMission, request);
 
 		missionService.setParent(childMission.getGuidAsUUID(), parentMission.getGuidAsUUID(), martiUtil.getGroupVectorBitString(request));
+	}
+
+	// @PreAuthorize above only checks the caller's role on the child mission (the
+	// first mission in the path). Attaching a child changes the parent's hierarchy
+	// too, so the caller also needs write access on the parent; group membership
+	// alone (e.g. read-only, or a password/invite-only mission) is not enough.
+	private void requireWriteOnParent(Mission parentMission, HttpServletRequest request) {
+		MissionRole parentRole = missionService.getRoleForRequest(parentMission, request);
+		if (parentRole == null || !parentRole.hasPermission(MissionPermission.Permission.MISSION_WRITE)) {
+			throw new ForbiddenException("Caller lacks MISSION_WRITE permission on parent mission " + parentMission.getName());
+		}
 	}
 
 	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
