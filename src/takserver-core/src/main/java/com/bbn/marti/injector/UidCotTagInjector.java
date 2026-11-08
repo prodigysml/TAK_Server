@@ -1,6 +1,7 @@
 package com.bbn.marti.injector;
 
 import java.io.Serializable;
+import java.io.StringReader;
 import java.rmi.RemoteException;
 import java.util.Collection;
 import java.util.Comparator;
@@ -12,7 +13,6 @@ import com.bbn.marti.config.Filter;
 import com.bbn.marti.config.Injectionfilter;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
-import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.Node;
 import org.jetbrains.annotations.NotNull;
@@ -27,6 +27,7 @@ import com.bbn.marti.remote.exception.TakException;
 import com.bbn.marti.remote.injector.Injector;
 import com.bbn.marti.remote.injector.InjectorConfig;
 import com.bbn.marti.remote.util.ConcurrentMultiHashMap;
+import com.bbn.marti.remote.util.SecureXmlParser;
 import com.bbn.marti.remote.util.SpringContextBeanForApi;
 import com.google.common.base.Strings;
 import com.google.common.collect.ComparisonChain;
@@ -61,7 +62,7 @@ public class UidCotTagInjector implements Injector<RemoteSubscription, CotEventC
     }
 
     public boolean addInjector(UidInject uidInject) throws DocumentException {
-        Document document = DocumentHelper.parseText(uidInject.getToInject());
+        Document document = parseInject(uidInject.getToInject());
 
         Element element = document.getRootElement();
 
@@ -294,10 +295,18 @@ public class UidCotTagInjector implements Injector<RemoteSubscription, CotEventC
         else return "<" + toInject + "/>";
     }
     
+    // Injector XML comes from the admin injector API / CoreConfig and is re-parsed on
+    // the messaging path. DocumentHelper.parseText uses an unhardened Xerces reader: a
+    // ~600 byte "billion laughs" toInject exhausts the heap (CWE-776). A tag snippet
+    // never needs a DOCTYPE, so use the shared hardened reader.
+    private static Document parseInject(String xml) throws DocumentException {
+        return SecureXmlParser.newSecureSAXReader().read(new StringReader(xml));
+    }
+
     protected Element getElementToInject(String toInject) {
         
         try {
-            Document document = DocumentHelper.parseText(padToInject(toInject));
+            Document document = parseInject(padToInject(toInject));
             return document.getRootElement();
         } catch (DocumentException e) {
             throw new TakException(e);

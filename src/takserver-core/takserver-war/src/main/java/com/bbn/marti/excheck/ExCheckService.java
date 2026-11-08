@@ -129,6 +129,10 @@ public class ExCheckService {
     public Checklist checklistFromXml(String xml) {
         try {
             SAXParserFactory spf = SAXParserFactory.newInstance();
+            // Secure processing alone only caps Xerces at 100k entity expansions; one large
+            // entity referenced 50k times still unmarshals to GBs (CWE-776). Checklists
+            // never carry a DOCTYPE, so refuse it outright.
+            spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
             spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
@@ -151,6 +155,10 @@ public class ExCheckService {
     public ChecklistTask checklistTaskFromXml(String xml) {
         try {
             SAXParserFactory spf = SAXParserFactory.newInstance();
+            // Secure processing alone only caps Xerces at 100k entity expansions; one large
+            // entity referenced 50k times still unmarshals to GBs (CWE-776). Checklists
+            // never carry a DOCTYPE, so refuse it outright.
+            spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             spf.setFeature("http://xml.org/sax/features/external-general-entities", false);
             spf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             spf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
