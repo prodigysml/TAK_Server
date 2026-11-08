@@ -96,11 +96,15 @@
 	  	      <sec:intercept-url pattern="/Marti/api/inputs/**" access="ROLE_ADMIN" />
 	  	      <sec:intercept-url pattern="/Marti/api/inputs/**" method="DELETE" access="ROLE_ADMIN" />
 	  	      
-	  	      <!-- data sync API: mission DELETE needs a logged-in user (cert or basic auth),
-	  	           never the anonymous token. Not a role check: ordinary users only have
-	  	           ROLE_ANONYMOUS, and the per-mission role checks in MissionApi decide who
-	  	           may delete, leave or change a mission. -->
-	  	      <sec:intercept-url pattern="/Marti/api/missions/**" method="DELETE" access="IS_AUTHENTICATED_FULLY" />
+	  	      <!-- data sync API: mission DELETE needs a logged-in user (cert or basic auth).
+	  	           ROLE_ANONYMOUS, same as every other mission method (rule further down):
+	  	           AuthenticatorUtil gives it to every authenticated user, and ordinary users
+	  	           have nothing more. Not IS_AUTHENTICATED_FULLY: an unauthenticated request
+	  	           on 8446/8447 is pre-authenticated with only ROLE_NO_CLIENT_CERT, which
+	  	           Spring counts as fully authenticated, so that rule let strangers reach
+	  	           mission DELETE (only the MFA gate stopped them). The per-mission role
+	  	           checks in MissionApi decide who may delete, leave or change a mission. -->
+	  	      <sec:intercept-url pattern="/Marti/api/missions/**" method="DELETE" access="ROLE_ANONYMOUS" />
 	  	      
 	  	      <!-- Map Layer API -->
               <sec:intercept-url pattern="/Marti/api/maplayers/**" method="DELETE" access="ROLE_ADMIN" />
