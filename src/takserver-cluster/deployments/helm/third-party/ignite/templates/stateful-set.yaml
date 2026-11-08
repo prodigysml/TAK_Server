@@ -19,6 +19,10 @@ spec:
         app: {{ include "ignite.fullname" . }}
     spec:
       serviceAccountName: {{ include "ignite.serviceAccountName" . }}
+{{- with .Values.podSecurityContext }}
+      securityContext:
+{{ toYaml . | indent 8 }}
+{{- end }}
 {{- if .Values.priorityClassName }}
       priorityClassName: "{{ .Values.priorityClassName }}"
 {{- end }}
@@ -45,6 +49,10 @@ spec:
         {{- if .Values.image.pullPolicy }}
         imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
         {{ end -}}
+{{- with .Values.securityContext }}
+        securityContext:
+{{ toYaml . | indent 10 }}
+{{- end }}
         resources:
 {{ toYaml .Values.resources | indent 10 }}
 {{- if .Values.envVars }}

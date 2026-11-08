@@ -76,6 +76,12 @@ class PyTAKStreamingCot:
 
         with p12_to_pem(self.certfile, self.password) as cert:
             self.ssl_context.load_cert_chain(cert)
+            # Authenticate the server against the CA chain bundled in the client .p12
+            # (same trust as the HTTPS helpers). Hostname is not checked because
+            # test servers are usually addressed by IP.
+            self.ssl_context.load_verify_locations(cert)
+            self.ssl_context.check_hostname = False
+            self.ssl_context.verify_mode = ssl.CERT_REQUIRED
 
         self.location = (random.uniform(-90, 90), random.uniform(-180, 180))
         self.data_dict = data_dict if data_dict is not None else dict()

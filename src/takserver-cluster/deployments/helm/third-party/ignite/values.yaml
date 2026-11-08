@@ -6,6 +6,21 @@ image:
   tag: 2.15.0-jdk11
   pullPolicy: IfNotPresent
 
+# The apacheignite/ignite image has no USER, but makes IGNITE_HOME and libs/
+# world-writable so it runs under an arbitrary uid. fsGroup lets that uid write
+# the /wal and /persistence volumes when persistence is enabled.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
 nameOverride: ""
 fullnameOverride: ""
 
