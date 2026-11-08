@@ -207,6 +207,7 @@ public class CertManagerAdminApi extends BaseRestController {
     @RequestMapping(value = "/certadmin/cert/revoke/{ids}", method = RequestMethod.DELETE)
     public ResponseEntity revokeCertificates(
             @PathVariable("ids") String ids) throws IOException {
+        List<String> failed = new ArrayList<>();
         try {
             for (String id : Arrays.asList(ids.split(","))) {
 
@@ -218,7 +219,15 @@ public class CertManagerAdminApi extends BaseRestController {
 
                 takCertRepository.revokeByHash(cert.getHash());
 
-                revokeCertificate(cert);
+                try {
+                    revokeCertificate(cert);
+                } catch (TakException e) {
+                    failed.add(id);
+                }
+            }
+
+            if (!failed.isEmpty()) {
+                throw new TakException("CRL not updated for cert ids " + failed);
             }
 
             return new ResponseEntity(HttpStatus.OK);
@@ -274,6 +283,11 @@ public class CertManagerAdminApi extends BaseRestController {
     }
 
     private void revokeCertificate(TakCert cert) throws IOException, InterruptedException {
+        // Set when the CRL write did not happen. The disconnect and purge below still
+        // run, but the caller is then told the revocation failed: in this deployment the
+        // CRL is what rejects the cert at the TLS handshake, so a 200 here would tell
+        // the operator a still-valid cert was revoked.
+        String crlFailure = null;
         try {
             //
             // save the pem file to a temporary directory
@@ -319,7 +333,11 @@ public class CertManagerAdminApi extends BaseRestController {
             ProcessBuilder pb = new ProcessBuilder(revokeCmd);
             pb.directory(new File("/opt/tak/certs/"));
             Process process = pb.start();
-            process.waitFor();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                crlFailure = "revokeCert.sh exited " + exitCode + "; CRL not updated";
+                logger.error("{} for {}", crlFailure, cert.getSubjectDn());
+            }
 
             //
             // cleanup the temp pem file
@@ -328,6 +346,7 @@ public class CertManagerAdminApi extends BaseRestController {
 
         } catch (Exception e) {
             logger.error("exception calling revokeCert.sh!", e);
+            crlFailure = "exception calling revokeCert.sh; CRL not updated";
         }
 
         try {
@@ -365,6 +384,10 @@ public class CertManagerAdminApi extends BaseRestController {
             }
         } catch (Exception e) {
             logger.error("exception purging revoked user state!", e);
+        }
+
+        if (crlFailure != null) {
+            throw new TakException(crlFailure);
         }
     }
 

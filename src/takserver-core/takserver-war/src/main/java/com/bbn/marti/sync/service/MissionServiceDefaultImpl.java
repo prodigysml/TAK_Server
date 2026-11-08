@@ -4471,7 +4471,7 @@ public class MissionServiceDefaultImpl implements MissionService {
 
 		namedParameters.addValue("missionGuid", missionGuid.toString());
 
-		String sql = "update mission set expiration = :expiration where guid = uuid(:missionName)";
+		String sql = "update mission set expiration = :expiration where guid = uuid(:missionGuid)";
 		int updated = new NamedParameterJdbcTemplate(dataSource).update(sql, namedParameters);
 		if (logger.isDebugEnabled()) {
 			logger.debug(" did the mission get updated " + updated);
