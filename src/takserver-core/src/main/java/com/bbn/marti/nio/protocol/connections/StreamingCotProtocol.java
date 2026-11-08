@@ -222,6 +222,16 @@ public class StreamingCotProtocol extends AbstractBroadcastingProtocol<CotEventC
 
 			// have some end tag to seek to
 			int closeIndex = indexOfEnd + END_OF_COT_MSG_STR.length();
+
+			// end tag with no start tag before it: drop the stray data up to the end tag
+			// and keep scanning, instead of throwing from substring() and leaving the
+			// junk in the buffer to corrupt the next message on this connection
+			if (openIndex < 0 || openIndex > indexOfEnd) {
+				messageStringBuffer.delete(0, closeIndex);
+				prevLen = 0;
+				continue;
+			}
+
 			final String msg = messageStringBuffer.substring(openIndex, closeIndex);
 
 			if (msg.length() <= INDIVIDUAL_COT_MSG_SIZE_LIMIT) {
