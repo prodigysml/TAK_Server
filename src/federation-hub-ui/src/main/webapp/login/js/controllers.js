@@ -29,14 +29,11 @@ loginControllers.controller('loginController', ['$scope', '$location', '$window'
         }
 
         $scope.onSubmit = async function () {
-            console.log(username.value, password.value)
-
             $http.post('/oauth/token', {
                 username: username.value,
                 password: password.value
             })
             .success(function(apiResponse) {
-                console.log(apiResponse)
                 if (apiResponse.accessToken) {
                     $window.location.href = '/home'
                 }

@@ -106,7 +106,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 					}
 
 					if (claims == null) {
-						throw new InvalidBearerTokenException("Unable to parse claims from token : " + cookieToken);
+						throw new InvalidBearerTokenException("Unable to parse claims from token");
 					}
 										
 					// make sure the keycloak token has an email and contains the admin claim

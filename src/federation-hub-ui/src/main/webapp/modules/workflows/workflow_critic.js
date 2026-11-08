@@ -3,8 +3,14 @@
 //We may want to run this script severside with out complications.
 //Therefore use only native Javascript with no reliance on 3rd party libraries.
 var criticResults = [];
+// Results are shown in an html:true popover; shape names are user input.
+var escapeCriticHtml = function(str) {
+  return String(str).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+};
 var addCritic = function(level, message) {
-  criticResults.push(level + " - " + message);
+  criticResults.push(escapeCriticHtml(level + " - " + message));
   // criticResults.push({
   //   level: level,
   //   message: message

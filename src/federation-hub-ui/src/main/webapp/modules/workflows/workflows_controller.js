@@ -311,7 +311,9 @@ function workflowsController($scope, $rootScope, $window, $state, $stateParams, 
     JointPaper.paper.toSVG(function(imageData) {
       console.log("SVG: " + imageData.length);
       var newWindow = window.open('', 'svg_output', 'menubar=no,location=no,resizable=yes,scrollbars=yes,status=no');
-      newWindow.document.write(imageData);
+      // Show the SVG as an image so script in it cannot run in this origin.
+      var svgUri = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(imageData)));
+      newWindow.document.write("<html><body><img src='" + svgUri + "'/></body></html>");
     });
   };
 
