@@ -170,6 +170,12 @@ public class PluginDataApi extends BaseRestController {
 				throw new IllegalArgumentException("null data updated in plugin - ignoring.");
 			}
 
+			// Same cap as the PUT submit handlers above.
+			if (requestBodyBytes.length > MAX_PLUGIN_PAYLOAD_SIZE) {
+				logger.error("Plugin update payload rejected: size {} exceeds maximum {}", requestBodyBytes.length, MAX_PLUGIN_PAYLOAD_SIZE);
+				return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
+			}
+
 			String contentType =  requestHolderBean.getRequest().getHeader("content-type");
 
 			String requestBodyString = new String(requestBodyBytes, Charsets.UTF_8);
