@@ -36,6 +36,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import static com.bbn.marti.util.CommonUtil.xmlEscape;
+
 import com.atakmap.Tak.CRUD;
 import com.atakmap.Tak.ContactListEntry;
 import com.atakmap.Tak.FederatedEvent;
@@ -472,18 +474,20 @@ public class GroupFederationUtil {
 		
 		String time = DateUtil.toCotTime(System.currentTimeMillis()); // now
 		String staleTime = DateUtil.toCotTime(System.currentTimeMillis()+100000); // 100 seconds from now
+		// SECURITY: ResourceDetails and the destinations JSON come from the federate; escape
+		// them so a crafted filename/callsign cannot add elements or destinations.
 		String cot = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
-				+ "<event version='2.0' uid='"+uid+"' type='b-f-t-r' time='"+time+"' start='"+time+"' stale='"+staleTime+"' how='h-e'>"
+				+ "<event version='2.0' uid='"+xmlEscape(uid)+"' type='b-f-t-r' time='"+time+"' start='"+time+"' stale='"+staleTime+"' how='h-e'>"
 				+ "<point lat='0.0' lon='0.0' hae='9999999.0' ce='9999999' le='9999999' />"
 				+ "<detail>"
-				+ "<fileshare sha256='"+shaHash+"' senderUid='"+uid+"' name='"+filename+"' filename='"+filename+"' senderUrl='"+ localMpUrl +"' sizeInBytes='"+sizeInBytes+"' senderCallsign='"+callsign+"'/>"
+				+ "<fileshare sha256='"+xmlEscape(shaHash)+"' senderUid='"+xmlEscape(uid)+"' name='"+xmlEscape(filename)+"' filename='"+xmlEscape(filename)+"' senderUrl='"+ xmlEscape(localMpUrl) +"' sizeInBytes='"+sizeInBytes+"' senderCallsign='"+xmlEscape(callsign)+"'/>"
 				+ "<marti>";
 		for (String uidDest : uids) {
-			cot += "<dest uid='" + uidDest + "'/>";
+			cot += "<dest uid='" + xmlEscape(uidDest) + "'/>";
 		}
 		
 		for (String callsignDest : callsigns) {
-			cot += "<dest callsign='" + callsignDest + "'/>";
+			cot += "<dest callsign='" + xmlEscape(callsignDest) + "'/>";
 		}
 		//+ "<ackrequest uid='02629afa-ab2e-44a8-9048-2f517b72b221' ackrequested='true' tag='MP-Grizzly' endpoint='192.168.1.9:4242:tcp'/>"
 		//+ "<precisionlocation geopointsrc='???' altsrc='???'/>"

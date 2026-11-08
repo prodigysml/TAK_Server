@@ -140,12 +140,24 @@ public class AuditLogUtil {
         }
     }
 
+    // Headers that carry credentials (basic auth password, bearer token, the
+    // access_token cookie). Their values must never reach the audit log.
+    private static final Set<String> SENSITIVE_HEADERS = Set.of(
+            "authorization", "proxy-authorization", "cookie", "set-cookie", "x-keystore-password");
+
+    static String redactHeader(String name, String value) {
+        if (name != null && SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+            return "[REDACTED]";
+        }
+        return value;
+    }
+
     public static void setMdc(HttpServletRequest req, HttpServletResponse resp) {
         // request
         setMdcUsernameAndRoles(req);
 
         Collections.list(req.getHeaderNames())
-                .forEach(name -> MDC.put((String) name, (String) req.getHeader((String) name)));
+                .forEach(name -> MDC.put((String) name, redactHeader((String) name, (String) req.getHeader((String) name))));
         MDC.put("source-ip", req.getRemoteAddr());
         MDC.put("session", req.getRequestedSessionId());
         MDC.put("method", req.getMethod());
@@ -153,7 +165,7 @@ public class AuditLogUtil {
 
         // response
         MDC.put("response-status", String.valueOf(resp.getStatus()));
-        resp.getHeaderNames().forEach(name -> MDC.put("response-"+(String) name, (String) resp.getHeader((String) name)));
+        resp.getHeaderNames().forEach(name -> MDC.put("response-"+(String) name, redactHeader((String) name, (String) resp.getHeader((String) name))));
         MDC.put("response-body", new String(new ContentCachingResponseWrapper(resp).getContentAsByteArray(), StandardCharsets.UTF_8));
     }
 
