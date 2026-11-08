@@ -85,6 +85,21 @@ public class IconsetIconApi extends BaseRestController {
     // export the icon path so that other components, like the MissionKMLServlet, can identify custom icon urls
     public static final String ICON_API_PATH = "api/icon";
 
+    // SECURITY: the stored icon MIME type is guessed from the zip entry name at
+    // upload time, so an iconset entry named e.g. x.html or x.svg would be served
+    // as active content (CWE-644 / stored XSS). Only raster image types are echoed
+    // back; anything else is served as image/png.
+    static final Set<String> ALLOWED_ICON_MIME_TYPES = Set.of(
+            "image/png", "image/jpeg", "image/gif", "image/bmp", "image/x-icon",
+            "image/vnd.microsoft.icon", "image/webp");
+
+    static String safeIconMimeType(String mimeType) {
+        if (!Strings.isNullOrEmpty(mimeType) && ALLOWED_ICON_MIME_TYPES.contains(mimeType.trim().toLowerCase(java.util.Locale.ROOT))) {
+            return mimeType.trim().toLowerCase(java.util.Locale.ROOT);
+        }
+        return "image/png";
+    }
+
     /*
      * handle POST with a file payload. Save the uploaded file in temporary storage, in the location specified by the servlet container.
      * 
@@ -164,11 +179,7 @@ public class IconsetIconApi extends BaseRestController {
         if (icon != null) {
             HttpHeaders responseHeaders = new HttpHeaders();
             
-            if (!Strings.isNullOrEmpty(icon.getMimeType())) {
-                responseHeaders.add("Content-Type", icon.getMimeType());
-            } else {
-                responseHeaders.add("Content-Type", "image/png");
-            }
+            responseHeaders.add("Content-Type", safeIconMimeType(icon.getMimeType()));
             
             
             return new ResponseEntity<byte[]>(icon.getBytes(), responseHeaders, HttpStatus.OK);
@@ -333,16 +344,9 @@ public class IconsetIconApi extends BaseRestController {
              }
 
              if (icon != null) {
-                 if (!Strings.isNullOrEmpty(icon.getMimeType())) {
-                     responseHeaders.remove("Content-Type");
-                     responseHeaders.add("Content-Type", icon.getMimeType());
-                 } else {
-                     
-                     // default to PNG if the mime type is not stored
-                     
-                     responseHeaders.remove("Content-Type");
-                     responseHeaders.add("Content-Type", "image/png");
-                 }
+                 // defaults to PNG if the mime type is not stored or not an allowed image type
+                 responseHeaders.remove("Content-Type");
+                 responseHeaders.add("Content-Type", safeIconMimeType(icon.getMimeType()));
                  
                  return new ResponseEntity<byte[]>(icon.getBytes(), responseHeaders, HttpStatus.OK);
              } 

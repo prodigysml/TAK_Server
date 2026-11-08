@@ -2,7 +2,7 @@ package com.bbn.marti.sync.api;
 
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.bbn.marti.network.BaseRestController;
 import com.bbn.marti.remote.exception.TakException;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 
 /*
  *
@@ -28,12 +30,23 @@ import com.bbn.marti.remote.exception.TakException;
 public class SequenceApi extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(SequenceApi.class);
-    private static HashMap<String, Integer> sequenceMap = new HashMap<String, Integer>();
+    // SECURITY: /Marti/api/sync/** is open to any authenticated user and the key
+    // is caller-chosen, so an unbounded map lets one client exhaust the heap
+    // with distinct keys (CWE-400). Bound both the key count and key length.
+    static final int MAX_SEQUENCE_KEYS = 10_000;
+    static final int MAX_SEQUENCE_KEY_LENGTH = 256;
+    static final Cache<String, Integer> sequenceCache = Caffeine.newBuilder()
+            .maximumSize(MAX_SEQUENCE_KEYS)
+            .build();
+    private static final Map<String, Integer> sequenceMap = sequenceCache.asMap();
     private static Object lock = new Object();
 
     @RequestMapping(value = "/sync/sequence/{key}", method = RequestMethod.GET)
     ResponseEntity<String> getNextInSequence(@PathVariable("key") @NotNull String key)
             throws IOException, TakException {
+        if (key.length() > MAX_SEQUENCE_KEY_LENGTH) {
+            throw new IllegalArgumentException("sequence key exceeds " + MAX_SEQUENCE_KEY_LENGTH + " characters");
+        }
         try {
             Integer next;
             synchronized (lock) {

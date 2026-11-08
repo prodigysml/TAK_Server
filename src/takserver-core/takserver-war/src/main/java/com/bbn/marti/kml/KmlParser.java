@@ -35,6 +35,12 @@ public class KmlParser {
                 saxParserFactoryThreadLocal.get().setFeature("http://xml.org/sax/features/external-general-entities", false);
                 saxParserFactoryThreadLocal.get().setFeature("http://xml.org/sax/features/external-parameter-entities", false);
                 saxParserFactoryThreadLocal.get().setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+                // SECURITY: block internal-entity expansion ("billion laughs", CWE-776).
+                // takserver.war bundles xercesImpl 2.12.2, so SAXParserFactory.newInstance()
+                // resolves to org.apache.xerces, which has no entity expansion limit unless
+                // secure processing is on. KML never needs a DOCTYPE, so reject it outright.
+                saxParserFactoryThreadLocal.get().setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+                saxParserFactoryThreadLocal.get().setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             }
 
             if (saxParserThreadLocal.get() == null) {
