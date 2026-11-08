@@ -37,10 +37,20 @@ CONFIG=../config.cfg
 cp "$1.pem" "$1-revoke.pem"
 sed -i '/^$/d' "$1-revoke.pem"
 
-openssl ca -config $CONFIG -revoke "$1-revoke.pem" -keyfile "$2".key $KEYPASS -cert "$3".pem
-openssl ca -config $CONFIG -gencrl -keyfile "$2".key $KEYPASS -cert "$3".pem -out "$3".crl
+# Exit non-zero if either openssl step fails. Without this the script's status was
+# that of the final rm, so callers (CertManagerAdminApi, revoke-user) saw success
+# for a cert that never reached the CRL.
+# "Already revoked" is not a failure: the serial is in the index, and the CRL is
+# regenerated below either way.
+RC=0
+if ! REVOKE_OUT=$(openssl ca -config $CONFIG -revoke "$1-revoke.pem" -keyfile "$2".key $KEYPASS -cert "$3".pem 2>&1); then
+  echo "$REVOKE_OUT" >&2
+  echo "$REVOKE_OUT" | grep -q "Already revoked" || RC=1
+fi
+openssl ca -config $CONFIG -gencrl -keyfile "$2".key $KEYPASS -cert "$3".pem -out "$3".crl || RC=1
 
 rm -f "$1-revoke.pem"
+exit $RC
 
 ## the command below will print the CRL in a readable form
 # openssl crl -text -in *.crl

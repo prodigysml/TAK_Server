@@ -303,7 +303,11 @@ public class RevocationAuditService {
 		try (PreparedStatement ps = con.prepareStatement(sql)) {
 			ps.setString(1, notes);
 			ps.setLong(2, auditId);
-			ps.executeUpdate();
+			if (ps.executeUpdate() != 1) {
+				// The row was inserted moments ago on this connection; if it is gone the
+				// purge happened but the audit trail now says it did not.
+				logger.error("revocation audit row {} not found; purge ran but was not marked succeeded", auditId);
+			}
 		} catch (Exception e) {
 			logger.error("failed to mark revocation audit row {} succeeded", auditId, e);
 		}
