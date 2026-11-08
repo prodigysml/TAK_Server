@@ -378,6 +378,18 @@ public class NioNettyTlsServerHandler extends NioNettyHandlerBase {
 					}
 				}
 
+				// SECURITY: the declared frame length bounds how much we
+				// buffer in leftovers; reject anything over the per-message
+				// cap instead of accumulating up to 2 GiB (CWE-770). Checked
+				// on every pass so reads racing the close are dropped too.
+				if (shouldDropOversizedTcp(nextSize, MAX_TCP_MESSAGE_BYTES)) {
+					log.warn("closing connection: declared protobuf frame size " + nextSize
+							+ " exceeds cap " + MAX_TCP_MESSAGE_BYTES);
+					leftovers = null;
+					channelHandler.forceClose();
+					return;
+				}
+
 				// do we have enough left in the buffer to read out a full message?
 				if (fullBuf.remaining() < nextSize) {
 					// haven't got enough for a message, stash the fullbuf in leftovers for next
