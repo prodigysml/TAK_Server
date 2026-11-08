@@ -2,6 +2,7 @@ package com.bbn.file;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,6 +33,10 @@ public class FileConfigurationApi {
 		}
     }
     
+    // Admin only: /files/api/** has no intercept-url rule, so it falls to the
+    // catch-all /** ROLE_ANONYMOUS and any logged-in user could change this
+    // server-wide setting.
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     @RequestMapping(value = "/config", method = RequestMethod.POST)
     public void setFileConfiguration(@RequestBody FileConfigurationModel fileConfigurationModel) {
     	
