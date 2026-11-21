@@ -82,6 +82,7 @@ import com.bbn.marti.remote.groups.User;
 import com.bbn.marti.remote.service.RetentionPolicyConfig;
 import com.bbn.marti.remote.sync.MissionContent;
 import com.bbn.marti.remote.util.RemoteUtil;
+import com.bbn.marti.remote.util.ExpirationWindow;
 import com.bbn.marti.sync.EnterpriseSyncService;
 import com.bbn.marti.sync.Metadata;
 import com.bbn.marti.sync.model.ExternalMissionData;
@@ -4785,16 +4786,11 @@ public class MissionApi extends BaseRestController {
 		// (CWE-400). Accept null (clears expiration), 0 (clears), or a
 		// timestamp within +/- 10 years of now. Tune via
 		// -Dtak.mission.maxExpirationWindowSeconds.
-		final long maxWindow = Long.getLong(
-				"tak.mission.maxExpirationWindowSeconds", 10L * 365L * 24L * 3600L);
-		if (expiration != null && expiration > 0) {
-			long now = System.currentTimeMillis() / 1000L;
-			if (expiration < now - maxWindow || expiration > now + maxWindow) {
-				logger.warn("setExpiration rejecting out-of-range expiration {} for mission {}",
-						expiration, missionName);
-				response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-				return;
-			}
+		if (!ExpirationWindow.isAllowed(expiration)) {
+			logger.warn("setExpiration rejecting out-of-range expiration {} for mission {}",
+					expiration, missionName);
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			return;
 		}
 
 		try {
@@ -4828,16 +4824,11 @@ public class MissionApi extends BaseRestController {
 		// setExpiration above). Extreme values churn the retention scheduler
 		// (CWE-400). Accept null/0 (clears), or a timestamp within +/- the
 		// configured window of now. Tune via -Dtak.mission.maxExpirationWindowSeconds.
-		final long maxWindow = Long.getLong(
-				"tak.mission.maxExpirationWindowSeconds", 10L * 365L * 24L * 3600L);
-		if (expiration != null && expiration > 0) {
-			long now = System.currentTimeMillis() / 1000L;
-			if (expiration < now - maxWindow || expiration > now + maxWindow) {
-				logger.warn("setExpirationByGuid rejecting out-of-range expiration {} for mission {}",
-						expiration, missionGuid);
-				response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-				return;
-			}
+		if (!ExpirationWindow.isAllowed(expiration)) {
+			logger.warn("setExpirationByGuid rejecting out-of-range expiration {} for mission {}",
+					expiration, missionGuid);
+			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+			return;
 		}
 
 		try {
