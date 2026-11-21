@@ -14,8 +14,10 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
@@ -56,6 +58,53 @@ public class ProfileService {
     private static final Logger logger = LoggerFactory.getLogger(ProfileService.class);
     public static final String profilesRoot = "profiles";
     public static final String defaultFilename = "profile.zip";
+
+    // Each relativePath can load up to the sync size limit into memory, so
+    // bound how many distinct paths one request may ask for.
+    static final int MAX_RELATIVE_PATHS = Integer.getInteger("tak.profile.maxRelativePaths", 64);
+
+    /** Drops duplicate relative paths, keeping first-seen order. */
+    static List<String> dedupeRelativePaths(String[] relativePaths) {
+        if (relativePaths == null) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(new LinkedHashSet<>(Arrays.asList(relativePaths)));
+    }
+
+    /**
+     * Tracks bytes loaded for one request: every file must be under the
+     * per-file limit and all files together under the total limit.
+     */
+    static class ContentSizeBudget {
+        private final long perFileLimitBytes;
+        private final long totalLimitBytes;
+        private long usedBytes = 0;
+
+        ContentSizeBudget(long perFileLimitBytes, long totalLimitBytes) {
+            this.perFileLimitBytes = perFileLimitBytes;
+            this.totalLimitBytes = totalLimitBytes;
+        }
+
+        /** Reserves room for a file of the given length or throws if it doesn't fit. */
+        void reserve(long length) {
+            if (length > perFileLimitBytes || usedBytes + length > totalLimitBytes) {
+                throw new ContentTooLargeException();
+            }
+            usedBytes += length;
+        }
+
+        long getUsedBytes() {
+            return usedBytes;
+        }
+    }
+
+    static class ContentTooLargeException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        ContentTooLargeException() {
+            super("requested profile content exceeds the size limit");
+        }
+    }
 
     @Autowired
     private ProfileRepository profileRepository;
@@ -296,7 +345,8 @@ public class ProfileService {
     }
 
     private void loadDirectoryContents(
-            File file, ProfileDirectory profileDirectory, List<ProfileDirectoryContent> profileDirectoryContents)
+            File file, ProfileDirectory profileDirectory, List<ProfileDirectoryContent> profileDirectoryContents,
+            ContentSizeBudget budget)
             throws IOException {
         if (file.isFile()) {
 
@@ -306,6 +356,9 @@ public class ProfileService {
                 return;
             }
 
+            // check size before loading into memory
+            budget.reserve(file.length());
+
             byte[] contents = Files.readAllBytes(Paths.get(file.getCanonicalPath()));
             ProfileDirectoryContent profileDirectoryContent = new ProfileDirectoryContent();
             profileDirectoryContent.file = file;
@@ -314,7 +367,7 @@ public class ProfileService {
             profileDirectoryContents.add(profileDirectoryContent);
         } else {
             for (File child : file.listFiles()) {
-                loadDirectoryContents(child, profileDirectory, profileDirectoryContents);
+                loadDirectoryContents(child, profileDirectory, profileDirectoryContents, budget);
             }
         }
     }
@@ -340,11 +393,10 @@ public class ProfileService {
    }
 
     private List<ProfileDirectoryContent> getProfileDirectoryContent(
-            String relativePath, List<ProfileDirectory> directories)
+            String relativePath, List<ProfileDirectory> directories, ContentSizeBudget budget)
             throws IOException, NotFoundException {
 
         List<ProfileDirectoryContent> results = new LinkedList<>();
-        final int uploadSizeLimitMB = CoreConfigFacade.getInstance().getRemoteConfiguration().getNetwork().getEnterpriseSyncSizeLimitMB();
 
         for (ProfileDirectory profileDirectory : directories) {
 
@@ -366,16 +418,13 @@ public class ProfileService {
 
             if (file.isDirectory()) {
 
-                loadDirectoryContents(file, profileDirectory, results);
+                loadDirectoryContents(file, profileDirectory, results, budget);
                 return results;
 
             } else {
 
-                // make sure the file with under our max size before loading into memory
-                if (file.length() > uploadSizeLimitMB * 1e6) {
-                    logger.error("attempt to load file past size limit! : " + relativePath);
-                    return null;
-                }
+                // make sure the file is under our max size before loading into memory
+                budget.reserve(file.length());
 
                 byte[] contents = Files.readAllBytes(Paths.get(file.getCanonicalPath()));
 
@@ -463,12 +512,25 @@ public class ProfileService {
             throws ValidationException, IntrusionException, RemoteException {
         try {
 
+            List<String> uniqueRelativePaths = dedupeRelativePaths(relativePaths);
+            if (uniqueRelativePaths.size() > MAX_RELATIVE_PATHS) {
+                logger.warn("rejecting profile file request with " + uniqueRelativePaths.size()
+                        + " relative paths (max " + MAX_RELATIVE_PATHS + ")");
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                return null;
+            }
+
+            // the sync size limit applies per file and to the request as a whole
+            final long sizeLimitBytes = (long) (CoreConfigFacade.getInstance().getRemoteConfiguration()
+                    .getNetwork().getEnterpriseSyncSizeLimitMB() * 1e6);
+            ContentSizeBudget budget = new ContentSizeBudget(sizeLimitBytes, sizeLimitBytes);
+
             //
             // validate each relativePath and collect up contents, keep track of the most recent modified time
             //
             long lastModified = Long.MIN_VALUE;
             ArrayList<ProfileDirectoryContent> contents = new ArrayList<>();
-            for (String relativePath : relativePaths) {
+            for (String relativePath : uniqueRelativePaths) {
 
                 String groupVector = martiUtil.getGroupVectorBitString(request);
                 List<ProfileDirectory> directories = getProfileDirectoriesForTool(groupVector,
@@ -479,8 +541,15 @@ public class ProfileService {
                     return null;
                 }
 
-                List<ProfileDirectoryContent> profileDirectoryContents = getProfileDirectoryContent(
-                        relativePath, directories);
+                List<ProfileDirectoryContent> profileDirectoryContents;
+                try {
+                    profileDirectoryContents = getProfileDirectoryContent(relativePath, directories, budget);
+                } catch (ContentTooLargeException e) {
+                    logger.warn("rejecting profile file request over the size limit of "
+                            + sizeLimitBytes + " bytes");
+                    response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+                    return null;
+                }
                 if (profileDirectoryContents == null) {
                     response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                     return null;
