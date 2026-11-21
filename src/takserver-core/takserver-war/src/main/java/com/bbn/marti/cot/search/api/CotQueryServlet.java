@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.SimpleTimeZone;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Logger;
 
 import jakarta.servlet.ServletException;
@@ -28,6 +29,7 @@ import com.bbn.marti.cot.search.model.query.Column;
 import com.bbn.marti.cot.search.model.query.DeliveryProtocol;
 import com.bbn.marti.cot.search.model.query.GeospatialQuery;
 import com.bbn.marti.cot.search.model.query.ImageOption;
+import com.bbn.marti.cot.search.service.CotQueryLimits;
 import com.bbn.marti.cot.search.service.CotQueryParameter;
 import com.bbn.marti.cot.search.service.CotSearchService;
 import com.bbn.security.web.MartiValidator;
@@ -140,6 +142,18 @@ public class CotQueryServlet extends EsapiServlet {
             portNumber = Integer.parseInt(portString);
         } catch (NumberFormatException ex) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid port number");
+            return;
+        }
+
+        // Results are pushed to hostName:port. Only allow the requesting client's own
+        // address, so the query cannot be used to make the server connect elsewhere.
+        // getRemoteAddr is the real client IP here (RemoteIpValve).
+        String deliveryAddress;
+        try {
+            deliveryAddress = CotQueryLimits.validateDeliveryTarget(hostName, portNumber, request.getRemoteAddr());
+        } catch (IllegalArgumentException ex) {
+            logger.warn("rejecting CoT query delivery target from {}: {}", request.getRemoteAddr(), ex.getMessage());
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
             return;
         }
 
@@ -290,7 +304,7 @@ public class CotQueryServlet extends EsapiServlet {
         try {
 
             // spawn a thread, and asynchronously execute CoT sql query. Return the query id.
-            String queryId = cotSearchService.executeCotQueryAsync(hostName, portNumber, protocol, predicateBuilder.toString(), queryParameters, maximumResults, latestByUid, imageOption, replayMode, replaySpeed);
+            String queryId = cotSearchService.executeCotQueryAsync(deliveryAddress, portNumber, protocol, predicateBuilder.toString(), queryParameters, maximumResults, latestByUid, imageOption, replayMode, replaySpeed);
 
             // Set response content type
             response.setContentType("text/html");
@@ -320,6 +334,9 @@ public class CotQueryServlet extends EsapiServlet {
             os.flush();
             os.close();
 
+        } catch (RejectedExecutionException e) {
+            logger.warn("CoT query rejected: too many queries in progress");
+            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "too many queries in progress; try again later");
         } catch (Exception e) {
             logger.error("exception writing servlet response", e);
         }

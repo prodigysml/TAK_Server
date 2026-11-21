@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import tak.server.retention.service.LocalQueryService;
 
 import com.bbn.marti.remote.service.RetentionQueryService;
+import com.bbn.marti.remote.util.ExpirationWindow;
 
 @Service
 public class ExpirationTaskService {
@@ -78,7 +79,7 @@ public class ExpirationTaskService {
     }
 
     public void scheduleMissionExpiryTask(String taskName, Long seconds) {
-        Date date = new Date(Long.valueOf(seconds) * 1000);
+        Date date = new Date(ExpirationWindow.toMillis(seconds));
         ScheduledFuture<?> scheduledTask = taskScheduler.schedule(new MissionExpiryTask(taskName, seconds), date);
         scheduledTasks.put(taskName, scheduledTask);
         logger.info(" Schedule new mission task: " + taskName + " at time " + date);
@@ -86,14 +87,14 @@ public class ExpirationTaskService {
     }
 
     public void scheduleMissionPackageExpiryTask(String taskName, Long seconds) {
-        Date date = new Date(Long.valueOf(seconds) * 1000);
+        Date date = new Date(ExpirationWindow.toMillis(seconds));
         ScheduledFuture<?> scheduledTask = taskScheduler.schedule(new MissionPackageExpiryTask(taskName, seconds), date);
         scheduledTasks.put(taskName, scheduledTask);
         logger.info(" Schedule new mission task: " + taskName + " at time " + date);
     }
 
     public void scheduleResourceExpiryTask(String taskName, Long seconds) {
-        Date date = new Date(Long.valueOf(seconds) * 1000);
+        Date date = new Date(ExpirationWindow.toMillis(seconds));
         ScheduledFuture<?> scheduledTask = taskScheduler.schedule(new ResourceExpiryTask(taskName, seconds), date);
         scheduledTasks.put(taskName, scheduledTask);
         logger.info(" Schedule new  resource task: " + taskName + " at time " + date);

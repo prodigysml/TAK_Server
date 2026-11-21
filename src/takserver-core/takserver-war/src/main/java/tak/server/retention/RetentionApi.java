@@ -25,8 +25,10 @@ import tak.server.Constants;
 import com.bbn.marti.cot.search.model.ApiResponse;
 import com.bbn.marti.network.BaseRestController;
 import com.bbn.marti.remote.MissionArchiveConfig;
+import com.bbn.marti.remote.exception.NotFoundException;
 import com.bbn.marti.remote.service.MissionArchiveManager;
 import com.bbn.marti.remote.service.RetentionPolicyConfig;
+import com.bbn.marti.remote.util.ExpirationWindow;
 import com.bbn.marti.sync.EnterpriseSyncService;
 import com.bbn.marti.sync.service.MissionService;
 import com.bbn.marti.util.CommonUtil;
@@ -166,9 +168,14 @@ public class RetentionApi extends BaseRestController {
         }
 
         if (seconds != null) {
+            requireExpirationInWindow(seconds, missionName);
+            String groupVector = martiUtil.getGroupVectorBitString(request);
+            // Only schedule a task for a mission that exists; otherwise every unknown
+            // name would leave a task behind in the scheduler.
+            if (!missionService.setExpiration(missionName, seconds, groupVector)) {
+                throw new NotFoundException("mission not found");
+            }
             try {
-            	String groupVector = martiUtil.getGroupVectorBitString(request);
-                missionService.setExpiration(missionName, seconds, groupVector);
                 retentionPolicyConfig.setMissionExpiryTask(missionName, seconds);
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
@@ -192,12 +199,27 @@ public class RetentionApi extends BaseRestController {
         }
 
         if (seconds != null) {
+            requireExpirationInWindow(seconds, name);
+            boolean updated;
             try {
-                syncStore.updateExpiration(name, seconds);
-                retentionPolicyConfig.setResourceExpiryTask(name, seconds);
+                // updateExpiration also schedules the retention task, and only when the
+                // resource exists, so no separate scheduling call here.
+                updated = syncStore.updateExpiration(name, seconds);
             } catch (Exception e) {
-            	logger.error("Exception accessing retentionPolicyConfig. Retention Service schedule is not accessible ", e);
+            	logger.error("Exception updating resource expiration", e);
+            	throw new IllegalStateException("could not update resource expiration");
             }
+            if (!updated) {
+                throw new NotFoundException("resource not found");
+            }
+        }
+    }
+
+    /** 400 for an expiration outside the window MissionApi also enforces. */
+    private static void requireExpirationInWindow(long seconds, String name) {
+        if (!ExpirationWindow.isAllowed(seconds)) {
+            logger.warn("rejecting out-of-range expiration {} for {}", seconds, name);
+            throw new IllegalArgumentException("expiration out of range");
         }
     }
     
