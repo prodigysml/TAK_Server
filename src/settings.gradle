@@ -25,5 +25,6 @@ include 'federation-hub-policy'
 include 'federation-hub-ui'
 include 'takserver-protobuf'
 include 'takserver-tool-ui'
+include 'takserver-admin-ui'
 //include 'testing:tak-db-profiler'
 
