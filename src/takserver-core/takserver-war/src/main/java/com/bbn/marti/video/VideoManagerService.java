@@ -56,6 +56,41 @@ public class VideoManagerService {
 		return size > cap;
 	}
 
+	/**
+	 * Rejects a create request that exceeds the same connection/feed caps the
+	 * read path uses. Each connection costs a DB insert and an XML marshal, so
+	 * an unbounded request is checked before any work is done.
+	 *
+	 * @throws IllegalArgumentException if the request is over either cap
+	 */
+	static void validateCreateRequest(VideoCollections videoCollections, int maxConnections, int maxFeeds) {
+		if (videoCollections == null || videoCollections.getVideoConnections() == null) {
+			return;
+		}
+		if (videoCollections.getVideoConnections().size() > maxConnections) {
+			throw new IllegalArgumentException("too many video connections in request (max " + maxConnections + ")");
+		}
+		for (VideoConnection videoConnection : videoCollections.getVideoConnections()) {
+			if (videoConnection != null && videoConnection.getFeeds() != null
+					&& videoConnection.getFeeds().size() > maxFeeds) {
+				throw new IllegalArgumentException("too many feeds in a video connection (max " + maxFeeds + ")");
+			}
+		}
+	}
+
+	// JAXBContext is thread-safe and expensive to build; Marshallers/Unmarshallers
+	// are not thread-safe and are still created per use.
+	private static volatile JAXBContext videoConnectionJaxbContext;
+
+	private static JAXBContext videoConnectionJaxbContext() throws JAXBException {
+		JAXBContext ctx = videoConnectionJaxbContext;
+		if (ctx == null) {
+			ctx = JAXBContext.newInstance(VideoConnection.class);
+			videoConnectionJaxbContext = ctx;
+		}
+		return ctx;
+	}
+
 	@Autowired
 	private JDBCQueryAuditLogHelper wrapper;
 	
@@ -376,7 +411,7 @@ public class VideoManagerService {
 
 	private void inflateFeedsFromXml(VideoConnection videoConnection) {
 		try {
-			JAXBContext jaxbContext = JAXBContext.newInstance(VideoConnection.class);
+			JAXBContext jaxbContext = videoConnectionJaxbContext();
 			Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 			Document doc = SecureXmlParser.makeDocument(videoConnection.getXml());
 			VideoConnection tmpVideoConnection = (VideoConnection) jaxbUnmarshaller.unmarshal(doc);
@@ -388,7 +423,7 @@ public class VideoManagerService {
 
 	private String videoConnectionToXml(VideoConnection videoConnection) {
 		try {
-			JAXBContext jaxbContext = JAXBContext.newInstance(VideoConnection.class);
+			JAXBContext jaxbContext = videoConnectionJaxbContext();
 			Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
 			StringWriter sw = new StringWriter();
 			jaxbMarshaller.marshal(videoConnection, sw);
