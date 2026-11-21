@@ -110,7 +110,7 @@ public class CotApi extends BaseRestController {
 
     		HttpHeaders headers = new HttpHeaders();
 
-    		headers.setContentType(org.springframework.http.MediaType.APPLICATION_XML);
+    		CotXmlHeaders.apply(headers);
 
     		//
     		// convert to xml and return
@@ -196,7 +196,7 @@ public class CotApi extends BaseRestController {
     		result.append("</events>");
 
     		HttpHeaders headers = new HttpHeaders();
-    		headers.setContentType(org.springframework.http.MediaType.APPLICATION_XML);
+    		CotXmlHeaders.apply(headers);
     		return new ResponseEntity<String>(result.toString(), headers, HttpStatus.OK);
     	};
     }
@@ -244,7 +244,7 @@ public class CotApi extends BaseRestController {
     			result.append("</events>");
 
     			HttpHeaders headers = new HttpHeaders();
-    			headers.setContentType(org.springframework.http.MediaType.APPLICATION_XML);
+    			CotXmlHeaders.apply(headers);
 
     			return new ResponseEntity<String>(result.toString(), headers, HttpStatus.OK);
 
@@ -306,7 +306,7 @@ public class CotApi extends BaseRestController {
     		result.append("</events>");
 
     		HttpHeaders headers = new HttpHeaders();
-    		headers.setContentType(org.springframework.http.MediaType.APPLICATION_XML);
+    		CotXmlHeaders.apply(headers);
     		return new ResponseEntity<String>(result.toString(), headers, HttpStatus.OK);
     	};
     }
