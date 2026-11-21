@@ -1846,19 +1846,38 @@ public class SubmissionService extends BaseService implements MessagingConfigura
                 setIncognito(c, false);
                 break;
             default:
-                // validate that the caller owns the subscription being deleted
+                // The remaining control types (t-b-a, t-b-c, t-x-c-t-r) delete a subscription.
+                // A client may only ever delete its own.
                 ChannelHandler defaultHandler = c.getContext(Constants.SOURCE_TRANSPORT_KEY, ChannelHandler.class);
-                if (defaultHandler != null) {
-                    Subscription defaultSub = subscriptionStore.getByHandler(defaultHandler);
-                    if (defaultSub != null && !Strings.isNullOrEmpty(defaultSub.clientUid)
-                            && !defaultSub.clientUid.equals(c.getUid())) {
-                        logger.error("Rejecting subscription deletion: message uid {} does not match authenticated uid {}",
-                                c.getUid(), defaultSub.clientUid);
-                        return;
-                    }
+                Subscription sender = defaultHandler == null ? null : subscriptionStore.getByHandler(defaultHandler);
+                String toDelete = ownSubscriptionUidToDelete(sender == null ? null : sender.uid, c.getUid());
+                if (toDelete == null) {
+                    logger.warn("Ignoring {} control message for subscription uid {}: it is not the sender's own subscription",
+                            c.getType(), c.getUid());
+                    return;
                 }
-                subMgr.deleteSubscription(c.getUid());
+                subMgr.deleteSubscription(toDelete);
         }
+    }
+
+    /**
+     * Returns the subscription uid a subscription-deleting control message may delete,
+     * or null if it must be ignored.
+     *
+     * deleteSubscription() is keyed by subscription uid, which for streaming clients is
+     * the sequential "&lt;protocol&gt;:&lt;n&gt;" assigned at connect, not the client uid the
+     * device reports in its SA. Comparing the message uid against the sender's client uid
+     * therefore proved nothing: a sender that had not sent an SA yet skipped the check,
+     * and a sender can claim any client uid in an SA. Either way it could name another
+     * connection's subscription uid and force-close it, or remove a static subscription
+     * from CoreConfig. Only the sender's own subscription uid is accepted here, and a
+     * message with no originating connection (senderSubscriptionUid null) is refused.
+     */
+    static String ownSubscriptionUidToDelete(String senderSubscriptionUid, String messageUid) {
+        if (Strings.isNullOrEmpty(senderSubscriptionUid) || Strings.isNullOrEmpty(messageUid)) {
+            return null;
+        }
+        return senderSubscriptionUid.equals(messageUid) ? senderSubscriptionUid : null;
     }
 
     private void setIncognito(CotEventContainer msg, boolean incognito) {

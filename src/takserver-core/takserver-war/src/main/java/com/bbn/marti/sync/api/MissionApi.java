@@ -3951,7 +3951,7 @@ public class MissionApi extends BaseRestController {
 		String cot = missionService.getCachedCot(missionName, mission.getUids(), groupVector);
 
 		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(org.springframework.http.MediaType.APPLICATION_XML);
+		CotXmlHeaders.apply(headers);
 
 		return new ResponseEntity<String>(cot, headers, HttpStatus.OK);
 	}
@@ -3978,7 +3978,7 @@ public class MissionApi extends BaseRestController {
 		String cot = missionService.getCachedCot(missionGuid, mission.getUids(), groupVector);
 
 		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(org.springframework.http.MediaType.APPLICATION_XML);
+		CotXmlHeaders.apply(headers);
 
 		return new ResponseEntity<String>(cot, headers, HttpStatus.OK);
 	}
