@@ -37,6 +37,29 @@ public class LatestKMLServlet extends EsapiServlet {
 	// slf4j logger
 	private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(LatestKMLServlet.class);
 
+	static final int DEFAULT_MAX_SEC_AGO = 30 * 24 * 3600;
+
+	/** Longest KML query window in seconds, overridable with -Dtak.kml.maxSecAgo. */
+	static int maxSecAgo() {
+		return Integer.getInteger("tak.kml.maxSecAgo", DEFAULT_MAX_SEC_AGO);
+	}
+
+	/**
+	 * Maps a requested secago to the window actually queried: 0 (unbounded in
+	 * the DAO) and anything over the cap become the cap.
+	 *
+	 * @throws IllegalArgumentException if requested is negative
+	 */
+	static int effectiveSecAgo(int requested, int max) {
+		if (requested < 0) {
+			throw new IllegalArgumentException("secago must be >= 0");
+		}
+		if (requested == 0 || requested > max) {
+			return max;
+		}
+		return requested;
+	}
+
 	// The bean for these services are obtained from the spring context
 	@Autowired
 	private KMLService kmlService;
@@ -160,15 +183,17 @@ public class LatestKMLServlet extends EsapiServlet {
 		// Bound secago window to prevent broad KML queries. Downstream
 		// kmlService.process iterates every matching CoT in the window
 		// (CWE-400). Default cap: 30 days.
-		final int maxSecAgo = Integer.getInteger("tak.kml.maxSecAgo", 30 * 24 * 3600);
+		// secago 0 / missing used to mean "all history" in the DAO, so it is
+		// treated as the cap too.
+		final int maxSecAgo = maxSecAgo();
 		if (secAgoInt < 0) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "secago must be >= 0");
 			return;
 		}
 		if (secAgoInt > maxSecAgo) {
 			log.warning("LatestKMLServlet clamping secago " + secAgoInt + " -> " + maxSecAgo);
-			secAgoInt = maxSecAgo;
 		}
+		secAgoInt = effectiveSecAgo(secAgoInt, maxSecAgo);
 
 		OutputStream servletReponseOutputStream = null;
 		String contentDisposition = "filename=" + DEFAULT_FILENAME_BASE + "-" + cotType + ".kml";

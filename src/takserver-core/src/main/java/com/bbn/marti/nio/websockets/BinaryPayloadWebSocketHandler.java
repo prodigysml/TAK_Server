@@ -10,13 +10,11 @@ import org.apache.ignite.cluster.ClusterGroup;
 import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.lang.IgnitePredicate;
-import org.apache.tomcat.websocket.WsSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.adapter.standard.StandardWebSocketSession;
 import org.springframework.web.socket.handler.BinaryWebSocketHandler;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator.OverflowStrategy;
@@ -41,7 +39,6 @@ public class BinaryPayloadWebSocketHandler extends BinaryWebSocketHandler {
 	private ConcurrentHashMap<String, WebSocketSession> websocketMap = new ConcurrentHashMap<>();
 	private ConcurrentHashMap<String, String> websocketMessagingMap = new ConcurrentHashMap<>();
 	private ConcurrentHashMap<String, String> websocketGroupVectorMap = new ConcurrentHashMap<>();
-	private ConcurrentHashMap<String, String> websocketSessionIdMap = new ConcurrentHashMap<>();
 	private MessageDeliveryStrategy mds = null;
 
 	private MessageDeliveryStrategy mds() {
@@ -116,9 +113,6 @@ public class BinaryPayloadWebSocketHandler extends BinaryWebSocketHandler {
 
 		try {
 
-			String sessionId = ((WsSession) ((StandardWebSocketSession) session).getNativeSession()).getHttpSessionId();
-			websocketSessionIdMap.put(hashCode(session), sessionId);
-						
 			SubscriptionManagerLite subMgr = smp().getSubscriptionManagerForClientUid(clientUid);
 			
 			if (subMgr == null) {

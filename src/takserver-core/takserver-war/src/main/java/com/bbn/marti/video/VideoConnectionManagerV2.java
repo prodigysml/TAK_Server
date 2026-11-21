@@ -51,6 +51,15 @@ public class VideoConnectionManagerV2 extends BaseRestController {
     @RequestMapping(value = "/video", method = RequestMethod.POST)
     public void createVideoConnection(
             @RequestBody VideoCollections videoCollection) {
+        // outside the try so an over-cap request maps to 400, not 500
+        try {
+            VideoManagerService.validateCreateRequest(videoCollection,
+                    VideoManagerService.MAX_VIDEO_CONNECTIONS_PER_RESPONSE,
+                    VideoManagerService.MAX_VIDEO_FEEDS_PER_CONNECTION);
+        } catch (IllegalArgumentException e) {
+            logger.warn("rejecting video create request: {}", e.getMessage());
+            throw e;
+        }
         try {
             String groupVector = martiUtil.getGroupVectorBitString(request);
             videoManagerService.createVideoCollections(videoCollection, groupVector);

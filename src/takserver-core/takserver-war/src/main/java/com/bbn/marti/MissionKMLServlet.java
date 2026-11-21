@@ -685,6 +685,9 @@ public class MissionKMLServlet extends LatestKMLServlet {
     	} catch (ParseException ex) {
     		log.warning(ex.getMessage());
     		response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid timestamp format");
+    	} catch (KMLServletParameterException ex) {
+    		log.warning(ex.getMessage());
+    		response.sendError(HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
     	}
     }
 
@@ -920,8 +923,21 @@ public class MissionKMLServlet extends LatestKMLServlet {
     		// should never happen
     		log.severe("Logic error parsing HTTP input parameters for time limits");
     	}
+
+    	// results are buffered in memory, so bound the export window
+    	if (isWindowTooLong(start, end, maxSecAgo())) {
+    		throw new KMLServletParameterException("Time window exceeds the maximum of " + maxSecAgo() + " seconds.");
+    	}
     
     	return new TimeInterval(start, end);
+    }
+
+    /** True if both ends are set and the window is longer than maxSeconds. */
+    static boolean isWindowTooLong(Timestamp start, Timestamp end, long maxSeconds) {
+    	if (start == null || end == null) {
+    		return false;
+    	}
+    	return end.getTime() - start.getTime() > maxSeconds * 1000L;
     }
     
     public long parseResultsForCotElements(Set<CotElement> cotResultSet, ResultSet results) throws SQLException, InterruptedException {

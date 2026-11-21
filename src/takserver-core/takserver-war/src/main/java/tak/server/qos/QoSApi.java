@@ -29,6 +29,10 @@ public class QoSApi extends BaseRestController {
 	
 		private static final Logger logger = LoggerFactory.getLogger(QoSApi.class);
 
+		// Rules are persisted to CoreConfig, pushed to every node and walked on each
+		// client-count change, so keep the list short. Override with -Dtak.qos.maxRules.
+		static final int MAX_RATE_LIMIT_RULES = Integer.getInteger("tak.qos.maxRules", 100);
+
 	    @Autowired
 	    private QoSManager qosManager; 
 	    
@@ -40,6 +44,7 @@ public class QoSApi extends BaseRestController {
 	    
 	    @RequestMapping(value = "/qos/delivery/set", method = RequestMethod.PUT)
 	    public void setDelivery(@RequestBody List<RateLimitRule> rateLimitRule) {
+	    	validateRateLimitRules(rateLimitRule);
 	    	MessagingIgniteBroker.brokerVoidServiceCalls(service -> ((QoSManager) service).setDeliveryRules(rateLimitRule),
 	    			 Constants.DISTRIBUTED_QOS_MANAGER, QoSManager.class);
 	    }
@@ -52,10 +57,37 @@ public class QoSApi extends BaseRestController {
 	    
 	    @RequestMapping(value = "/qos/read/set", method = RequestMethod.PUT)
 	    public void setRead(@RequestBody List<RateLimitRule> rateLimitRule) {
+	    	validateRateLimitRules(rateLimitRule);
 	    	MessagingIgniteBroker.brokerVoidServiceCalls(service -> ((QoSManager) service).setReadRules(rateLimitRule),
 	    			 Constants.DISTRIBUTED_QOS_MANAGER, QoSManager.class);
 	    }
 	    
+	    /**
+	     * Rejects a rule list that would break or bog down the rate limiter: empty (the
+	     * delivery strategy refuses to start without rules), too long, or with missing or
+	     * negative values. Thrown IllegalArgumentException maps to 400.
+	     */
+	    static void validateRateLimitRules(List<RateLimitRule> rules) {
+	    	if (rules == null || rules.isEmpty()) {
+	    		throw reject("at least one rate limit rule is required");
+	    	}
+	    	if (rules.size() > MAX_RATE_LIMIT_RULES) {
+	    		throw reject("too many rate limit rules (max " + MAX_RATE_LIMIT_RULES + ")");
+	    	}
+	    	for (RateLimitRule rule : rules) {
+	    		if (rule == null
+	    				|| rule.getClientThresholdCount() == null || rule.getClientThresholdCount() < 0
+	    				|| rule.getReportingRateLimitSeconds() == null || rule.getReportingRateLimitSeconds() < 0) {
+	    			throw reject("each rule needs a non-negative clientThresholdCount and reportingRateLimitSeconds");
+	    		}
+	    	}
+	    }
+
+	    private static IllegalArgumentException reject(String message) {
+	    	logger.warn("rejected QoS rate limit rules: {}", message);
+	    	return new IllegalArgumentException(message);
+	    }
+
 	    @RequestMapping(value = "/qos/dos/enable", method = RequestMethod.PUT)
 	    public void enableDOS(@RequestBody boolean enable) {
 	    	 MessagingIgniteBroker.brokerVoidServiceCalls(service -> ((QoSManager) service).setDOSLimiterEnabled(enable),

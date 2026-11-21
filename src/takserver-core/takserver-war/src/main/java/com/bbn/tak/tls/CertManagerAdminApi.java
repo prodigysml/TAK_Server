@@ -8,9 +8,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -57,6 +57,14 @@ public class CertManagerAdminApi extends BaseRestController {
     // Admin-only cap on certificate listings (generous; bounds DB scan + serialization for a
     // pathologically large certificate table - CWE-400/770). Not a client-facing endpoint.
     public static final int MAX_CERT_RESULTS = 100_000;
+
+    // Caps on the comma-separated id lists in the bulk download/delete/revoke paths, so
+    // one request cannot fan out into an unbounded number of DB rows or revokeCert.sh runs.
+    static final int MAX_BULK_IDS = Integer.getInteger("tak.certadmin.maxBulkIds", 100);
+    static final int MAX_REVOKE_IDS = Integer.getInteger("tak.certadmin.maxRevokeIds", 50);
+
+    // revokeCert.sh normally finishes in a second or two; a hung run must not pin the request.
+    static final long REVOKE_SCRIPT_TIMEOUT_SECONDS = Long.getLong("tak.certadmin.revokeTimeoutSeconds", 60L);
 
     @Autowired
     private HttpServletResponse response;
@@ -148,10 +156,7 @@ public class CertManagerAdminApi extends BaseRestController {
     ResponseEntity<byte[]> downloadCertificates(
             @PathVariable("ids") String ids) throws IOException {
         try {
-            List<Long> certIds = new ArrayList<>();
-            for (String id : Arrays.asList(ids.split(","))) {
-                certIds.add(Long.parseLong(id));
-            }
+            List<Long> certIds = parseIdList(ids, MAX_BULK_IDS);
 
             List<TakCert> certs = takCertRepository.findAllById(certIds);
 
@@ -178,6 +183,10 @@ public class CertManagerAdminApi extends BaseRestController {
                     "attachment; filename=" + filename);
 
             return new ResponseEntity<byte[]>(baos.toByteArray(), HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            logger.warn("downloadCertificates rejected: {}", e.getMessage());
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            return null;
         } catch (Exception e) {
             logger.error("exception in downloadCertificates!", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -189,14 +198,15 @@ public class CertManagerAdminApi extends BaseRestController {
     public ResponseEntity deleteCertificates(
             @PathVariable("ids") String ids) throws IOException {
         try {
-            List<Long> certIds = new ArrayList<>();
-            for (String id : Arrays.asList(ids.split(","))) {
-                certIds.add(Long.parseLong(id));
-            }
+            List<Long> certIds = parseIdList(ids, MAX_BULK_IDS);
 
             List<Long> temp = takCertRepository.deleteByIds(certIds);
 
             return new ResponseEntity(HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            logger.warn("deleteCertificates rejected: {}", e.getMessage());
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            return null;
         } catch (Exception e) {
             logger.error("exception in deleteCertificates!", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -207,11 +217,11 @@ public class CertManagerAdminApi extends BaseRestController {
     @RequestMapping(value = "/certadmin/cert/revoke/{ids}", method = RequestMethod.DELETE)
     public ResponseEntity revokeCertificates(
             @PathVariable("ids") String ids) throws IOException {
-        List<String> failed = new ArrayList<>();
+        List<Long> failed = new ArrayList<>();
         try {
-            for (String id : Arrays.asList(ids.split(","))) {
+            for (Long id : parseIdList(ids, MAX_REVOKE_IDS)) {
 
-                TakCert cert = takCertRepository.findOneById(Long.decode(id));
+                TakCert cert = takCertRepository.findOneById(id);
                 if (cert == null) {
                     logger.error("unable to find cert for " + id);
                     continue;
@@ -231,6 +241,10 @@ public class CertManagerAdminApi extends BaseRestController {
             }
 
             return new ResponseEntity(HttpStatus.OK);
+        } catch (IllegalArgumentException e) {
+            logger.warn("revokeCertificates rejected: {}", e.getMessage());
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            return null;
         } catch (Exception e) {
             logger.error("exception in revokeCertificates!", e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -332,10 +346,18 @@ public class CertManagerAdminApi extends BaseRestController {
             //
             ProcessBuilder pb = new ProcessBuilder(revokeCmd);
             pb.directory(new File("/opt/tak/certs/"));
+            // Nobody reads the script's output; discard it so a chatty run cannot fill
+            // the pipe and block forever.
+            pb.redirectErrorStream(true);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             Process process = pb.start();
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                crlFailure = "revokeCert.sh exited " + exitCode + "; CRL not updated";
+            if (!process.waitFor(REVOKE_SCRIPT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                crlFailure = "revokeCert.sh timed out after " + REVOKE_SCRIPT_TIMEOUT_SECONDS
+                        + "s; CRL not updated";
+                logger.error("{} for {}", crlFailure, cert.getSubjectDn());
+            } else if (process.exitValue() != 0) {
+                crlFailure = "revokeCert.sh exited " + process.exitValue() + "; CRL not updated";
                 logger.error("{} for {}", crlFailure, cert.getSubjectDn());
             }
 
@@ -389,6 +411,38 @@ public class CertManagerAdminApi extends BaseRestController {
         if (crlFailure != null) {
             throw new TakException(crlFailure);
         }
+    }
+
+    /**
+     * Parses a comma-separated list of certificate ids from a path segment.
+     *
+     * Trailing commas are ignored.
+     *
+     * @throws IllegalArgumentException if the list is empty, has more than {@code max}
+     *         entries, or contains something that is not a number
+     */
+    static List<Long> parseIdList(String ids, int max) {
+        // the admin UI sends a trailing comma ("1,2,3,")
+        int end = ids == null ? 0 : ids.length();
+        while (end > 0 && ids.charAt(end - 1) == ',') {
+            end--;
+        }
+        if (end == 0) {
+            throw new IllegalArgumentException("no certificate ids given");
+        }
+        String[] parts = ids.substring(0, end).split(",", max + 1);
+        if (parts.length > max) {
+            throw new IllegalArgumentException("too many certificate ids (max " + max + ")");
+        }
+        List<Long> result = new ArrayList<>(parts.length);
+        for (String part : parts) {
+            try {
+                result.add(Long.parseLong(part.trim()));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("invalid certificate id");
+            }
+        }
+        return result;
     }
 
     /**

@@ -19,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.orm.jpa.JpaSystemException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,8 +34,10 @@ import com.bbn.marti.remote.exception.ValidationException;
 import com.bbn.marti.sync.MissionPackageQueryServlet;
 import com.bbn.marti.sync.model.Mission;
 import com.bbn.marti.sync.service.MissionService;
+import com.bbn.marti.util.BoundedBody;
 import com.bbn.marti.util.CommonUtil;
 import com.bbn.marti.util.KmlUtils;
+import com.bbn.marti.util.PayloadTooLargeException;
 import com.bbn.security.web.MartiValidator;
 import com.bbn.security.web.MartiValidatorConstants;
 
@@ -82,6 +83,11 @@ public class CITrapReportAPI extends BaseRestController {
         return false;
     }
 
+    // report uploads are capped at the enterprise sync size limit (CoreConfig)
+    private static long reportSizeLimitBytes() {
+        return CoreConfigFacade.getInstance().getRemoteConfiguration().getNetwork().getEnterpriseSyncSizeLimitMB() * 1000000L;
+    }
+
 	@Autowired
     private Validator validator = new MartiValidator();
     private static final Logger logger = LoggerFactory.getLogger(CITrapReportAPI.class);
@@ -109,25 +115,28 @@ public class CITrapReportAPI extends BaseRestController {
 
     @RequestMapping(value = "/citrap", method = RequestMethod.POST)
     ResponseEntity<String> postReport(
-            @RequestBody byte[] reportMP,
             @RequestParam(value = "clientUid", required = true) String clientUid,
             HttpServletRequest request,
             HttpServletResponse response) {
         try {
+            // read the body with the size cap applied while reading, not after
+            byte[] reportMP;
+            try {
+                reportMP = BoundedBody.read(request, reportSizeLimitBytes());
+            } catch (PayloadTooLargeException e) {
+                logger.warn("citrap report rejected: body over {} bytes", e.getLimit());
+                return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
+            }
+            if (reportMP.length == 0) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+
             // validate inputs
             validator.getValidInput("citrap", clientUid,
             		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.DEFAULT_STRING_CHARS, true);
 
             // Get group vector for the user associated with this session
             String groupVector = martiUtil.getGroupBitVector(request);
-        
-            if (reportMP.length > CoreConfigFacade.getInstance().getRemoteConfiguration().getNetwork().getEnterpriseSyncSizeLimitMB() * 1000000) {
-                String message = "Uploaded file exceeds server's size limit of "
-                        + CoreConfigFacade.getInstance().getRemoteConfiguration().getNetwork().getEnterpriseSyncSizeLimitMB()
-                        + " MB! (limit is set in CoreConfig)";
-                logger.error(message);
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-            }
 
             ReportType report = ciTrapReportService.addReport(
                     reportMP, clientUid, groupVector, missionService, subscriptionManager,
@@ -444,10 +453,21 @@ public class CITrapReportAPI extends BaseRestController {
     ResponseEntity putReport(
             @PathVariable("id") String id,
             @RequestParam(value = "clientUid", required = true) String clientUid,
-            @RequestBody byte[] contents,
             HttpServletRequest request) {
 
         try {
+            // same size cap as a new report (POST /citrap), enforced while reading
+            byte[] contents;
+            try {
+                contents = BoundedBody.read(request, reportSizeLimitBytes());
+            } catch (PayloadTooLargeException e) {
+                logger.warn("citrap report update rejected: body over {} bytes", e.getLimit());
+                return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
+            }
+            if (contents.length == 0) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+
             // validate inputs
             validator.getValidInput("citrap", id,
             		MartiValidatorConstants.Regex.MartiSafeString.name(), MartiValidatorConstants.LONG_STRING_CHARS, true);
@@ -501,18 +521,20 @@ public class CITrapReportAPI extends BaseRestController {
     ResponseEntity addAttachment(
             @PathVariable("id") String id,
             @RequestParam(value = "clientUid", required = true) String clientUid,
-            @RequestBody byte[] contents,
             HttpServletRequest request) {
 
         try {
-            // enforce maximum upload size (100 MB)
+            // enforce maximum upload size (100 MB) while reading the body
             final long MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
-            if (contents == null || contents.length == 0) {
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-            }
-            if (contents.length > MAX_UPLOAD_SIZE) {
-                logger.error("Attachment upload rejected: size {} exceeds maximum allowed {}", contents.length, MAX_UPLOAD_SIZE);
+            byte[] contents;
+            try {
+                contents = BoundedBody.read(request, MAX_UPLOAD_SIZE);
+            } catch (PayloadTooLargeException e) {
+                logger.warn("Attachment upload rejected: body over {} bytes", MAX_UPLOAD_SIZE);
                 return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
+            }
+            if (contents.length == 0) {
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
             }
 
             // validate inputs

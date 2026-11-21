@@ -17,6 +17,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
@@ -99,6 +102,13 @@ public class OnboardingApi extends BaseRestController {
 	private static final String USER_AUTH_FILE = "/opt/tak/UserAuthenticationFile.xml";
 	private static final String USER_MANAGER_JAR = "/opt/tak/utils/UserManager.jar";
 	private static final String MAKE_CERT_SCRIPT = "makeCert.sh";
+
+	// makeCert.sh and UserManager each fork a process (UserManager a whole JVM) and edit
+	// shared files, so only one onboarding/offboarding runs at a time and none may hang.
+	private static final ReentrantLock CERT_TOOL_LOCK = new ReentrantLock();
+	private static final long LOCK_WAIT_SECONDS = Long.getLong("tak.onboarding.lockWaitSeconds", 30L);
+	private static final long TOOL_TIMEOUT_SECONDS = Long.getLong("tak.onboarding.toolTimeoutSeconds", 120L);
+	private static final int MAX_TOOL_OUTPUT_BYTES = 8192;
 
 	@Autowired
 	private CommonUtil martiUtil;
@@ -193,46 +203,45 @@ public class OnboardingApi extends BaseRestController {
 		requireAdmin(request, "create", username);
 		validateUsername(username);
 
-		if (new File(CERTS_FILES_DIR, username + ".p12").exists()) {
-			throw new IllegalArgumentException("user already has a cert; revoke first");
-		}
+		lockCertTools("create", username);
+		try {
+			if (new File(CERTS_FILES_DIR, username + ".p12").exists()) {
+				throw new IllegalArgumentException("user already has a cert; revoke first");
+			}
 
-		String certPass = generateCertPassword();
-		String caPass = System.getenv("CA_PASS");
-		if (caPass == null || caPass.isEmpty()) {
-			throw new IllegalStateException("CA_PASS env var not set on container");
-		}
+			String certPass = generateCertPassword();
+			String caPass = System.getenv("CA_PASS");
+			if (caPass == null || caPass.isEmpty()) {
+				throw new IllegalStateException("CA_PASS env var not set on container");
+			}
 
-		ProcessBuilder makeCert = new ProcessBuilder(
-				"bash", MAKE_CERT_SCRIPT, "client", username);
-		makeCert.directory(new File(CERTS_DIR));
-		Map<String, String> env = makeCert.environment();
-		env.put("CAPASS", caPass);
-		env.put("PASS", certPass);
-		makeCert.redirectErrorStream(true);
-		Process proc = makeCert.start();
-		String makeOut = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-		int makeExit = proc.waitFor();
-		if (makeExit != 0) {
-			logger.error("makeCert.sh failed for {} (exit={}): {}", username, makeExit, makeOut);
-			throw new RuntimeException("cert generation failed; see server logs");
-		}
+			ProcessBuilder makeCert = new ProcessBuilder(
+					"bash", MAKE_CERT_SCRIPT, "client", username);
+			makeCert.directory(new File(CERTS_DIR));
+			Map<String, String> env = makeCert.environment();
+			env.put("CAPASS", caPass);
+			env.put("PASS", certPass);
+			ToolResult make = runTool(makeCert, MAKE_CERT_SCRIPT);
+			if (make.exit != 0) {
+				logger.error("makeCert.sh failed for {} (exit={}): {}", username, make.exit, make.output);
+				throw new RuntimeException("cert generation failed; see server logs");
+			}
 
-		ProcessBuilder certmod = new ProcessBuilder(
-				"java", "-jar", USER_MANAGER_JAR, "certmod", "-A",
-				CERTS_FILES_DIR + "/" + username + ".pem");
-		certmod.redirectErrorStream(true);
-		Process cmProc = certmod.start();
-		String cmOut = new String(cmProc.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-		int cmExit = cmProc.waitFor();
-		if (cmExit != 0) {
-			logger.error("certmod -A failed for {} (exit={}): {}", username, cmExit, cmOut);
-			throw new RuntimeException("user registration failed; see server logs");
-		}
+			ProcessBuilder certmod = new ProcessBuilder(
+					"java", "-jar", USER_MANAGER_JAR, "certmod", "-A",
+					CERTS_FILES_DIR + "/" + username + ".pem");
+			ToolResult cm = runTool(certmod, "UserManager certmod -A");
+			if (cm.exit != 0) {
+				logger.error("certmod -A failed for {} (exit={}): {}", username, cm.exit, cm.output);
+				throw new RuntimeException("user registration failed; see server logs");
+			}
 
-		OnboardingResult result = new OnboardingResult(username, certPass);
-		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
-				OnboardingResult.class.getName(), result), HttpStatus.OK);
+			OnboardingResult result = new OnboardingResult(username, certPass);
+			return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
+					OnboardingResult.class.getName(), result), HttpStatus.OK);
+		} finally {
+			CERT_TOOL_LOCK.unlock();
+		}
 	}
 
 	@PostMapping("/onboarding/users/{username}/datapackage/{platform}")
@@ -318,67 +327,111 @@ public class OnboardingApi extends BaseRestController {
 					+ "' is protected and cannot be revoked");
 		}
 
-		File clientPem = new File(CERTS_FILES_DIR, username + ".pem");
-		if (clientPem.exists()) {
-			String caPass = System.getenv("CA_PASS");
-			if (caPass != null && !caPass.isEmpty()) {
-				ProcessBuilder revokeCert = new ProcessBuilder(
-						"bash", "revokeCert.sh", username, "intermediate", "intermediate");
-				revokeCert.directory(new File(CERTS_DIR));
-				Map<String, String> env = revokeCert.environment();
-				env.put("CAPASS", caPass);
-				env.put("PASS", caPass);
-				revokeCert.redirectErrorStream(true);
-				Process p = revokeCert.start();
-				p.getInputStream().readAllBytes();
-				p.waitFor();
+		lockCertTools("revoke", username);
+		try {
+			File clientPem = new File(CERTS_FILES_DIR, username + ".pem");
+			if (clientPem.exists()) {
+				String caPass = System.getenv("CA_PASS");
+				if (caPass != null && !caPass.isEmpty()) {
+					ProcessBuilder revokeCert = new ProcessBuilder(
+							"bash", "revokeCert.sh", username, "intermediate", "intermediate");
+					revokeCert.directory(new File(CERTS_DIR));
+					Map<String, String> env = revokeCert.environment();
+					env.put("CAPASS", caPass);
+					env.put("PASS", caPass);
+					runTool(revokeCert, "revokeCert.sh");
+				}
+				ProcessBuilder certmod = new ProcessBuilder(
+						"java", "-jar", USER_MANAGER_JAR, "certmod", "-D",
+						clientPem.getAbsolutePath());
+				runTool(certmod, "UserManager certmod -D");
 			}
-			ProcessBuilder certmod = new ProcessBuilder(
-					"java", "-jar", USER_MANAGER_JAR, "certmod", "-D",
-					clientPem.getAbsolutePath());
-			certmod.redirectErrorStream(true);
-			Process cmp = certmod.start();
-			cmp.getInputStream().readAllBytes();
-			cmp.waitFor();
-		}
 
-		ProcessBuilder usermod = new ProcessBuilder(
-				"java", "-jar", USER_MANAGER_JAR, "usermod", "-D", username);
-		usermod.redirectErrorStream(true);
-		Process up = usermod.start();
-		up.getInputStream().readAllBytes();
-		up.waitFor();
+			ProcessBuilder usermod = new ProcessBuilder(
+					"java", "-jar", USER_MANAGER_JAR, "usermod", "-D", username);
+			runTool(usermod, "UserManager usermod -D");
 
-		// Clean every artifact makeCert.sh produces. The script writes the
-		// primary credentials at the literal SNAME, and a -trusted variant
-		// plus truststore-<sname>.p12 + config-<sname>.cfg. SNAME is the
-		// raw arg, so usually matches our username case-for-case, but the
-		// underlying openssl pieces sometimes leave lowercased filenames.
-		// Cover both casings so an offboarded user never lingers on EFS.
-		String[] casings = username.equals(username.toLowerCase())
-				? new String[]{username}
-				: new String[]{username, username.toLowerCase()};
-		String[] suffixes = {".pem", ".key", ".csr", ".jks", ".p12", "-trusted.pem"};
-		for (String cas : casings) {
-			for (String ext : suffixes) {
-				File f = new File(CERTS_FILES_DIR, cas + ext);
-				if (f.exists() && !f.delete()) {
-					logger.warn("Failed to delete {} on EFS for offboarded user",
-							f.getAbsolutePath());
+			// Clean every artifact makeCert.sh produces. The script writes the
+			// primary credentials at the literal SNAME, and a -trusted variant
+			// plus truststore-<sname>.p12 + config-<sname>.cfg. SNAME is the
+			// raw arg, so usually matches our username case-for-case, but the
+			// underlying openssl pieces sometimes leave lowercased filenames.
+			// Cover both casings so an offboarded user never lingers on EFS.
+			String[] casings = username.equals(username.toLowerCase())
+					? new String[]{username}
+					: new String[]{username, username.toLowerCase()};
+			String[] suffixes = {".pem", ".key", ".csr", ".jks", ".p12", "-trusted.pem"};
+			for (String cas : casings) {
+				for (String ext : suffixes) {
+					File f = new File(CERTS_FILES_DIR, cas + ext);
+					if (f.exists() && !f.delete()) {
+						logger.warn("Failed to delete {} on EFS for offboarded user",
+								f.getAbsolutePath());
+					}
+				}
+				File ts = new File(CERTS_FILES_DIR, "truststore-" + cas + ".p12");
+				if (ts.exists() && !ts.delete()) {
+					logger.warn("Failed to delete {} on EFS for offboarded user", ts.getAbsolutePath());
+				}
+				File cfg = new File(CERTS_DIR, "config-" + cas + ".cfg");
+				if (cfg.exists() && !cfg.delete()) {
+					logger.warn("Failed to delete {} on EFS for offboarded user", cfg.getAbsolutePath());
 				}
 			}
-			File ts = new File(CERTS_FILES_DIR, "truststore-" + cas + ".p12");
-			if (ts.exists() && !ts.delete()) {
-				logger.warn("Failed to delete {} on EFS for offboarded user", ts.getAbsolutePath());
+
+			return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
+					String.class.getName(), "revoked"), HttpStatus.OK);
+		} finally {
+			CERT_TOOL_LOCK.unlock();
+		}
+	}
+
+	/** Takes the onboarding lock, or answers 503 if another operation holds it too long. */
+	private static void lockCertTools(String action, String username) throws InterruptedException {
+		if (!CERT_TOOL_LOCK.tryLock(LOCK_WAIT_SECONDS, TimeUnit.SECONDS)) {
+			logger.warn("onboarding {} for {} refused: another onboarding operation is still running", action, username);
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+					"another onboarding operation is in progress; retry shortly");
+		}
+	}
+
+	private static final class ToolResult {
+		final int exit;
+		final String output;
+		ToolResult(int exit, String output) {
+			this.exit = exit;
+			this.output = output;
+		}
+	}
+
+	/**
+	 * Runs a cert tool with a time limit. Output goes to a temp file (so a full pipe
+	 * cannot stall the tool) and only the first few KB are kept for logging. A tool
+	 * that overruns is killed and the request fails with 500.
+	 */
+	private static ToolResult runTool(ProcessBuilder pb, String what) throws IOException, InterruptedException {
+		// owner-only temp file: tool output can include cert details
+		File out = Files.createTempFile("onboarding-", ".log").toFile();
+		try {
+			pb.redirectErrorStream(true);
+			pb.redirectOutput(out);
+			Process proc = pb.start();
+			if (!proc.waitFor(TOOL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+				proc.destroyForcibly();
+				logger.error("{} did not finish within {}s; killed", what, TOOL_TIMEOUT_SECONDS);
+				throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+						what + " timed out after " + TOOL_TIMEOUT_SECONDS + "s; see server logs");
 			}
-			File cfg = new File(CERTS_DIR, "config-" + cas + ".cfg");
-			if (cfg.exists() && !cfg.delete()) {
-				logger.warn("Failed to delete {} on EFS for offboarded user", cfg.getAbsolutePath());
+			byte[] head;
+			try (InputStream in = new FileInputStream(out)) {
+				head = in.readNBytes(MAX_TOOL_OUTPUT_BYTES);
+			}
+			return new ToolResult(proc.exitValue(), new String(head, StandardCharsets.UTF_8));
+		} finally {
+			if (!out.delete()) {
+				out.deleteOnExit();
 			}
 		}
-
-		return new ResponseEntity<>(new ApiResponse<>(Constants.API_VERSION,
-				String.class.getName(), "revoked"), HttpStatus.OK);
 	}
 
 	private static void addZip(ZipOutputStream zip, String entry, byte[] data) throws IOException {

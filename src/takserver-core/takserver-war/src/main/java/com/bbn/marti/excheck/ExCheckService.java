@@ -67,6 +67,7 @@ import com.bbn.marti.sync.Metadata;
 import com.bbn.marti.sync.service.MissionTokenUtils;
 import com.bbn.marti.sync.repository.MissionRoleRepository;
 import com.bbn.marti.sync.service.MissionService;
+import com.bbn.marti.util.PayloadTooLargeException;
 import com.bbn.marti.remote.util.SpringContextBeanForApi;
 
 import tak.server.Constants;
@@ -386,15 +387,22 @@ public class ExCheckService {
         missionService.addMissionContent(templatesMission.getGuidAsUUID(), content, clientUid, groupVector);
     }
 
+    // Largest template / task XML loaded from enterprise sync; matches the ExCheck API upload limit.
+    static final int MAX_ESYNC_XML_SIZE = 10 * 1024 * 1024; // 10 MB
+
     @Cacheable(Constants.EXCHECK_CACHE)
     public Checklist getTemplateFromESync(String uid, String groupVector) {
         try {
             // pull the mission package from enterprise sync so we can update it
             com.bbn.marti.sync.EnterpriseSyncService syncStore = SpringContextBeanForApi.getSpringContext().getBean(com.bbn.marti.sync.EnterpriseSyncService.class);
-            byte[] templateBytes = syncStore.getContentByUid(uid, groupVector);
+            // the uid can name any enterprise sync resource, so don't load more than a template may be
+            byte[] templateBytes = syncStore.getContentByUid(uid, groupVector, MAX_ESYNC_XML_SIZE);
             if (templateBytes != null) {
                 return checklistFromXml(new String(templateBytes));
             }
+        } catch (PayloadTooLargeException e) {
+            logger.warn("ExCheck template {} rejected: stored content over {} bytes", uid, MAX_ESYNC_XML_SIZE);
+            throw e;
         } catch (Exception e) {
             logger.error("Exception in getTemplatesFromESync!", e);
         }
@@ -407,10 +415,13 @@ public class ExCheckService {
         try {
             // pull the mission package from enterprise sync so we can update it
             com.bbn.marti.sync.EnterpriseSyncService syncStore = SpringContextBeanForApi.getSpringContext().getBean(com.bbn.marti.sync.EnterpriseSyncService.class);
-            byte[] taskBytes = syncStore.getContentByUid(uid, groupVector);
+            byte[] taskBytes = syncStore.getContentByUid(uid, groupVector, MAX_ESYNC_XML_SIZE);
             if (taskBytes != null) {
                 return checklistTaskFromXml(new String(taskBytes));
             }
+        } catch (PayloadTooLargeException e) {
+            logger.warn("ExCheck task {} rejected: stored content over {} bytes", uid, MAX_ESYNC_XML_SIZE);
+            throw e;
         } catch (Exception e) {
             logger.error("Exception in getTaskFromESync!", e);
         }

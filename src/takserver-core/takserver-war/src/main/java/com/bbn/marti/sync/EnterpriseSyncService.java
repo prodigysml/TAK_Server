@@ -78,6 +78,14 @@ public interface EnterpriseSyncService {
 	 * @throws NamingException
 	 */
 	 byte[] getContentByUid(String uid, String groupVector) throws SQLException, NamingException;
+
+	/**
+	 * Like {@link #getContentByUid(String, String)}, but refuses to load content larger than
+	 * {@code maxBytes}: the stored size is checked in the same query, so an over-size object is
+	 * never pulled into memory.
+	 * @throws com.bbn.marti.util.PayloadTooLargeException if the stored object is larger than {@code maxBytes}
+	 */
+	 byte[] getContentByUid(String uid, String groupVector, long maxBytes) throws SQLException, NamingException;
 	 
 	 /**
 		 * Gets the content of an Enterprise Sync object.
