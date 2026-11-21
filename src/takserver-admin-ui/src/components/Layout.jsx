@@ -67,7 +67,7 @@ function Nav({ path, onPick }) {
         ))}
       </Box>
       <Box sx={{ px: 2.5, py: 2, borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '0.8125rem' }}>
-        <Box component="a" href="/Marti/metrics/index.html" sx={{ color: tokens.sidebarText, display: 'block', mb: 1 }}>Switch to classic UI</Box>
+        <Box component="a" href="/index.html" sx={{ color: tokens.sidebarText, display: 'block', mb: 1 }}>Switch to classic UI</Box>
         <Box component="button" type="button" onClick={signOut} sx={{ all: 'unset', cursor: 'pointer', color: tokens.sidebarText, '&:focus-visible': { outline: '2px solid #7FB8B5' } }}>
           Sign out
         </Box>

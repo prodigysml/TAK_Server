@@ -8,15 +8,25 @@ export class ApiError extends Error {
   }
 }
 
-function describe(status, body) {
-  if (status === 401 || status === 403) return 'You don’t have permission for this. Sign in with an admin certificate.';
-  if (status === 404) return 'Not found on the server.';
-  if (status === 413) return 'That upload is larger than the server allows.';
+// Prefer the server's own reason (e.g. "Only mission owner or admin can delete a
+// mission"); fall back to plain text per status when it sends none.
+function serverReason(body) {
   if (body && typeof body === 'object') {
-    const m = body.message || body.error || (Array.isArray(body.messages) && body.messages.join(' '));
+    const m = body.message || (Array.isArray(body.messages) && body.messages.join(' '));
     if (m) return String(m).slice(0, 300);
   }
   if (typeof body === 'string' && body.trim() && !body.trim().startsWith('<')) return body.trim().slice(0, 300);
+  return null;
+}
+
+function describe(status, body) {
+  const reason = serverReason(body);
+  // Spring's generic "Access Denied" says less than our own text.
+  if (reason && !/^(access denied|forbidden|unauthorized)$/i.test(reason)) return reason;
+  if (status === 401 || status === 403) return 'You don’t have permission for this. Sign in with an admin certificate.';
+  if (status === 404) return 'Not found on the server.';
+  if (status === 413) return 'That upload is larger than the server allows.';
+  if (status === 400) return 'The server rejected this request.';
   return `Server returned ${status}.`;
 }
 

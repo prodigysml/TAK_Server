@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import DashboardIcon from '@mui/icons-material/SpaceDashboardOutlined';
 import PeopleIcon from '@mui/icons-material/PeopleAltOutlined';
 import BadgeIcon from '@mui/icons-material/BadgeOutlined';
@@ -6,19 +7,19 @@ import InputIcon from '@mui/icons-material/SettingsInputAntennaOutlined';
 import FlagIcon from '@mui/icons-material/FlagOutlined';
 import HistoryIcon from '@mui/icons-material/HistoryToggleOffOutlined';
 
-import Overview from './pages/Overview';
-import Users from './pages/Users';
-import ClientCerts from './pages/ClientCerts';
-import ConnectedClients from './pages/ConnectedClients';
-import Inputs from './pages/Inputs';
-import Missions from './pages/Missions';
-import DataRetention from './pages/DataRetention';
+const Overview = lazy(() => import('./pages/Overview'));
+const Users = lazy(() => import('./pages/Users'));
+const ClientCerts = lazy(() => import('./pages/ClientCerts'));
+const ConnectedClients = lazy(() => import('./pages/ConnectedClients'));
+const Inputs = lazy(() => import('./pages/Inputs'));
+const Missions = lazy(() => import('./pages/Missions'));
+const DataRetention = lazy(() => import('./pages/DataRetention'));
 
 // classic: the page this replaces, linked from the top bar so admins can fall back.
 export const sections = [
   {
     title: null,
-    items: [{ path: '/', label: 'Overview', icon: DashboardIcon, element: Overview, classic: '/Marti/metrics/index.html' }],
+    items: [{ path: '/', label: 'Overview', icon: DashboardIcon, element: Overview, classic: '/index.html' }],
   },
   {
     title: 'People',

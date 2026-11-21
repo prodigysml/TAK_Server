@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
+import { Loading } from './components/States';
 import Layout from './components/Layout';
 import { useRoute } from './router';
 import { findRoute } from './routes';
@@ -10,7 +11,9 @@ export default function App() {
   const Page = route.element;
   return (
     <Layout route={route}>
-      <Page key={route.path} />
+      <Suspense fallback={<Loading />}>
+        <Page key={route.path} />
+      </Suspense>
     </Layout>
   );
 }
