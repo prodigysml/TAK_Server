@@ -2780,12 +2780,16 @@ public class SubmissionService extends BaseService implements MessagingConfigura
      *  - port outside [1024, 65535]
      *  - loopback, link-local, multicast, any-local, site-local addresses
      *  - any host not present in the operator-configured allow-list
-     *    (only enforced when the allow-list is non-empty)
+     *    (tak.subscription.publishAllowedHosts). An empty allow-list blocks
+     *    every target: a publish subscription is joined to __ANON__ with no
+     *    filter and is not tied to the sender's connection, so allowing any
+     *    public host let one client stream all __ANON__ traffic to a server of
+     *    its choosing, and keep it streaming after its certificate was revoked.
      *
      * @param address resolved address from the publish directive
      * @param port destination port
      * @param hostToken raw host token from the publish directive (matched against allowList)
-     * @param allowListCsv comma-separated allow-list; empty string = no allow-list check
+     * @param allowListCsv comma-separated allow-list; empty or blank = nothing allowed
      * @return null if target is allowed, otherwise a short reason string for logging
      */
     static String isPublishTargetBlocked(java.net.InetAddress address, int port,
@@ -2798,15 +2802,14 @@ public class SubmissionService extends BaseService implements MessagingConfigura
                 || address.isSiteLocalAddress()) {
             return "rejecting publish target in private/loopback/link-local/multicast range: " + address;
         }
-        if (allowListCsv != null && !allowListCsv.isEmpty()) {
+        if (allowListCsv != null && hostToken != null) {
             for (String h : allowListCsv.split(",")) {
-                if (hostToken != null && h.trim().equalsIgnoreCase(hostToken.trim())) {
+                if (!h.isBlank() && h.trim().equalsIgnoreCase(hostToken.trim())) {
                     return null;
                 }
             }
-            return "publish target " + hostToken + " not in tak.subscription.publishAllowedHosts";
         }
-        return null;
+        return "publish target " + hostToken + " not in tak.subscription.publishAllowedHosts";
     }
 
 }

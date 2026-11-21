@@ -86,10 +86,18 @@ public class SubmissionServiceSsrfTest {
 	}
 
 	@Test
-	public void allowsPublicHostWithEmptyAllowList() throws Exception {
-		// 8.8.8.8 is a public IP; without an allow-list configured, allow it
+	public void blocksPublicHostWithEmptyAllowList() throws Exception {
+		// No allow-list configured means no publish targets at all: a publish
+		// subscription receives all __ANON__ traffic and outlives the sender.
 		String r = SubmissionService.isPublishTargetBlocked(addr("8.8.8.8"), 8443, "8.8.8.8", "");
-		assertNull("public IP must pass when no allow-list set", r);
+		assertNotNull("public IP must be blocked when no allow-list set", r);
+		assertTrue(r.contains("publishAllowedHosts"));
+	}
+
+	@Test
+	public void blocksPublicHostWithBlankOrNullAllowList() throws Exception {
+		assertNotNull(SubmissionService.isPublishTargetBlocked(addr("8.8.8.8"), 8443, "8.8.8.8", " , ,"));
+		assertNotNull(SubmissionService.isPublishTargetBlocked(addr("8.8.8.8"), 8443, "8.8.8.8", null));
 	}
 
 	@Test
