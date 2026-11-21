@@ -1,6 +1,9 @@
 import React from 'react';
-import { Box, Divider, Paper, Typography } from '@mui/material';
+import { Alert, Box, Divider, Paper, Typography } from '@mui/material';
 import PageHeader from '../components/PageHeader';
+import { Loading } from '../components/States';
+import { api } from '../api/client';
+import { useApi } from '../api/useApi';
 import RetentionPolicies from './dataretention/RetentionPolicies';
 import RetentionSchedule from './dataretention/RetentionSchedule';
 import MissionArchive from './dataretention/MissionArchive';
@@ -15,13 +18,40 @@ function Section({ id, title, description, children }) {
   );
 }
 
+// The retention endpoints answer 500 when TAK's separate retention service
+// (takserver-retention) isn't running. Probe once and say so plainly.
+async function probeService() {
+  try {
+    await api.get('/Marti/api/retention/policy');
+    return 'running';
+  } catch (e) {
+    return e && e.status === 500 ? 'off' : 'unknown';
+  }
+}
+
 export default function DataRetention() {
+  const probe = useApi(probeService, []);
+  const header = (
+    <PageHeader
+      title="Data retention"
+      description="Choose how long the server keeps each kind of data, when old data is deleted, and when inactive missions are archived."
+    />
+  );
+  if (probe.loading) return <Box>{header}<Loading /></Box>;
+  if (probe.data === 'off') {
+    return (
+      <Box>
+        {header}
+        <Alert severity="info" sx={{ maxWidth: 760 }}>
+          Data retention isn&apos;t running on this server, so nothing is being deleted or archived: all data is kept.
+          The server&apos;s retention service has to be started before policies can be set here.
+        </Alert>
+      </Box>
+    );
+  }
   return (
     <Box>
-      <PageHeader
-        title="Data retention"
-        description="Choose how long the server keeps each kind of data, when old data is deleted, and when inactive missions are archived."
-      />
+      {header}
 
       <Section
         id="retention-policies"
