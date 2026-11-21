@@ -1606,13 +1606,20 @@ public class MissionServiceDefaultImpl implements MissionService {
 					throw new ForbiddenException("clientUid does not belong to authenticated user");
 				}
 
-				// add invitations for the clientUid
-				missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
-						clientUid, MissionInvitation.Type.clientUid.name(), groupVector));
+				if (subscriptionUsername == null) {
+					// Ownership can't be proven (no user attached to the subscription yet),
+					// so don't hand out the clientUid/callsign invitations, which can carry
+					// mission passwords. The caller still gets their own username invitations.
+					logger.warn("clientUid {} has no owning user; skipping clientUid/callsign invitations for {}", clientUid, username);
+				} else {
+					// add invitations for the clientUid
+					missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
+							clientUid, MissionInvitation.Type.clientUid.name(), groupVector));
 
-				// add any invitations for the associated streaming channel callsign
-				missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
-						subscription.callsign, MissionInvitation.Type.callsign.name(), groupVector));
+					// add any invitations for the associated streaming channel callsign
+					missionInvitations.addAll(missionInvitationRepository.findAllMissionInvitationsByInviteeIgnoreCaseAndType(
+							subscription.callsign, MissionInvitation.Type.callsign.name(), groupVector));
+				}
 			}
 
 			// add any invitations for the authenticated username
