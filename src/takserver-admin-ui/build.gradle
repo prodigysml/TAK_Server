@@ -1,0 +1,42 @@
+plugins {
+    id "com.github.node-gradle.node" version "3.1.1"
+}
+
+jar {
+    enabled = false
+}
+
+apply plugin: 'base'
+apply plugin: "com.github.node-gradle.node"
+
+node {
+    version = "20.18.1"
+    download = true
+}
+
+// npm ci installs exactly what package-lock.json pins.
+task npmCi(type: NpmTask) {
+    args = ['ci', '--no-audit', '--no-fund']
+    inputs.file('package-lock.json')
+    outputs.dir('node_modules')
+}
+
+task bundle(type: NpmTask, dependsOn: npmCi) {
+    group = 'bundleAndDeploy'
+    args = ['run', 'build']
+    inputs.dir('src')
+    inputs.file('index.html')
+    inputs.file('vite.config.js')
+    inputs.file('package-lock.json')
+    outputs.dir('build')
+}
+
+// The new admin UI is served from /Marti/ui/. The classic pages are untouched.
+task deployToCore(type: Sync, dependsOn: bundle) {
+    group = 'bundleAndDeploy'
+    from 'build'
+    into '../takserver-core/src/main/webapp/Marti/ui'
+}
+
+assemble.dependsOn(deployToCore)
+build.dependsOn(deployToCore)

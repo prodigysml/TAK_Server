@@ -5,3 +5,8 @@ src/**/build/
 src/.gradle/
 src/takserver-core/src/main/resources/ver.json
 src/takserver-core/src/main/resources/shortver.txt
+
+# Built by :takserver-admin-ui:deployToCore
+src/takserver-core/src/main/webapp/Marti/ui/
+src/takserver-admin-ui/node_modules/
+src/takserver-admin-ui/build/

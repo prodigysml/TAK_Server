@@ -112,6 +112,7 @@ bootWar.dependsOn copyVerFile
 bootJar.dependsOn copyVerFile
 bootWar.dependsOn test
 bootWar.dependsOn ":takserver-tool-ui:deployToCore"
+bootWar.dependsOn ":takserver-admin-ui:deployToCore"
 
 springBoot {
     mainClass = "tak.server.ServerConfiguration" // Is it correct?
