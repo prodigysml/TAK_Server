@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import com.bbn.marti.exceptions.DuplicateException;
+import com.bbn.marti.util.PayloadTooLargeException;
 import com.google.common.base.Strings;
 
 @ControllerAdvice
@@ -92,6 +93,18 @@ public class CustomExceptionHandler {
         return new ResponseEntity<ErrorResponse>(new ErrorResponse(status, 2L, "Invalid Request Body"), headers, status);
     }
     
+    //  Respond to an over-size request body with 413 Payload Too Large
+    @ExceptionHandler({PayloadTooLargeException.class})
+    public ResponseEntity<ErrorResponse> handlePayloadTooLarge(PayloadTooLargeException e) {
+        HttpHeaders headers = new HttpHeaders();
+
+        logger.warn("Rejected request body over limit of {} bytes", e.getLimit());
+
+        HttpStatus status = HttpStatus.PAYLOAD_TOO_LARGE;
+
+        return new ResponseEntity<ErrorResponse>(new ErrorResponse(status, 2L, e.getMessage()), headers, status);
+    }
+
     //  Respond to a application or data-level duplicate exception with 409 Conflict
     @ExceptionHandler({DuplicateException.class})
     public ResponseEntity<ErrorResponse> handleDuplicateException(DuplicateException e) {

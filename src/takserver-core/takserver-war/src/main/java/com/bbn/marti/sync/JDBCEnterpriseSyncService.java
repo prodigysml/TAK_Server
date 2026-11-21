@@ -61,6 +61,7 @@ import com.bbn.marti.remote.service.RetentionPolicyConfig;
 import com.bbn.marti.remote.util.RemoteUtil;
 import com.bbn.marti.sync.Metadata.Field;
 import com.bbn.marti.util.CommonUtil;
+import com.bbn.marti.util.PayloadTooLargeException;
 import com.google.common.base.Strings;
 
 import tak.server.Constants;
@@ -1251,6 +1252,36 @@ public class JDBCEnterpriseSyncService implements EnterpriseSyncService {
 		}
 
 		return result;
+	}
+
+	@Override
+	public byte[] getContentByUid(String uid, String groupVector, long maxBytes) throws SQLException, NamingException {
+		if (Strings.isNullOrEmpty(groupVector)) {
+			throw new IllegalArgumentException("empty group vector");
+		}
+
+		// Same row selection as getContentByUid, but the data column is only returned when it fits.
+		try (Connection connection = dataSource.getConnection(); PreparedStatement query = queryHelper.prepareStatement("SELECT length("
+				+ Column.data.toString() + "), CASE WHEN length(" + Column.data.toString() + ") <= ? THEN " + Column.data.toString() + " END FROM "
+				+ RESOURCE_TABLE + " r WHERE " + Column.uid.toString()
+				+ " = ? "
+				+ RemoteUtil.getInstance().getGroupAndClause()
+				+" ORDER BY id desc limit 1;", connection)) {
+			query.setLong(1, maxBytes);
+			query.setString(2, uid);
+			query.setString(3, groupVector);
+
+			try (ResultSet queryResults = query.executeQuery()) {
+				if (!queryResults.next()) {
+					return null;
+				}
+				long length = queryResults.getLong(1);
+				if (length > maxBytes) {
+					throw new PayloadTooLargeException(maxBytes);
+				}
+				return queryResults.getBytes(2);
+			}
+		}
 	}
 
 	@Override

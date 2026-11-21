@@ -102,6 +102,7 @@ import com.bbn.marti.sync.repository.MissionRoleRepository;
 import com.bbn.marti.sync.repository.MissionSubscriptionRepository;
 import com.bbn.marti.sync.service.MissionService;
 import com.bbn.marti.sync.service.MissionTokenUtils;
+import com.bbn.marti.util.BoundedBody;
 import com.bbn.marti.util.CommonUtil;
 import com.bbn.marti.util.KmlUtils;
 import com.bbn.marti.util.spring.RequestHolderBean;
@@ -1865,22 +1866,20 @@ public class MissionApi extends BaseRestController {
 	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
 	@RequestMapping(value = "/missions/{name:.+}/contents/missionpackage", method = RequestMethod.PUT)
 	public ApiResponse<List<MissionChange>> addMissionPackage(@PathVariable("name") String name,
-															  @RequestBody byte[] missionPackage,
 															  @RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
 															  HttpServletRequest request)
-			throws ValidationException, IntrusionException, RemoteException {
+			throws ValidationException, IntrusionException, IOException {
 
 		// validate this differently since it's a path variable
 		validator.getValidInput(context, name, "MartiSafeString", DEFAULT_PARAMETER_LENGTH, false);
 
 		validateParameters(new Object() {}.getClass().getEnclosingMethod());
 
+		// the cap is enforced while reading the body (over-size is answered with 413)
 		final int MAX_MISSION_PACKAGE_SIZE = 100 * 1024 * 1024; // 100 MB
-		if (missionPackage == null || missionPackage.length == 0) {
+		byte[] missionPackage = BoundedBody.read(request, MAX_MISSION_PACKAGE_SIZE);
+		if (missionPackage.length == 0) {
 			throw new IllegalArgumentException("empty mission package");
-		}
-		if (missionPackage.length > MAX_MISSION_PACKAGE_SIZE) {
-			throw new IllegalArgumentException("Mission package exceeds maximum allowed size of " + MAX_MISSION_PACKAGE_SIZE + " bytes");
 		}
 
 		Mission mission = missionService.getMissionByNameCheckGroups(name, martiUtil.getGroupVectorBitString(request));
@@ -4586,6 +4585,21 @@ public class MissionApi extends BaseRestController {
 		missionService.deleteExternalMissionData(mission.getGuidAsUUID(), externalMissionDataId, notes, creatorUid, groupVector);
 	}
 
+	private static final int MAX_EXTERNAL_DATA_TOKEN_CHARS = 10240;
+
+	// Reads the external data change token, bounded while reading (4 bytes per char covers any
+	// charset), then applies the character limit.
+	private static String readExternalDataToken(HttpServletRequest request) throws IOException {
+		String token = BoundedBody.readString(request, 4L * MAX_EXTERNAL_DATA_TOKEN_CHARS);
+		if (token.isEmpty()) {
+			throw new IllegalArgumentException("missing token");
+		}
+		if (token.length() > MAX_EXTERNAL_DATA_TOKEN_CHARS) {
+			throw new IllegalArgumentException("Token exceeds maximum allowed size");
+		}
+		return token;
+	}
+
 	@PreAuthorize("hasPermission(#request, 'MISSION_WRITE')")
 	@RequestMapping(value = "/missions/{name}/externaldata/{id}/change", method = RequestMethod.POST)
 	@ResponseStatus(HttpStatus.OK)
@@ -4594,11 +4608,8 @@ public class MissionApi extends BaseRestController {
 			@PathVariable(value = "id") String externalMissionDataId,
 			@RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
 			@RequestParam(value = "notes") @ValidatedBy("MartiSafeString") String notes,
-			@RequestBody String token,
-			HttpServletRequest request) {
-		if (token != null && token.length() > 10240) {
-			throw new IllegalArgumentException("Token exceeds maximum allowed size");
-		}
+			HttpServletRequest request) throws IOException {
+		String token = readExternalDataToken(request);
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		Mission mission = missionService.getMission(missionName, groupVector);
@@ -4614,11 +4625,8 @@ public class MissionApi extends BaseRestController {
 			@PathVariable(value = "id") String externalMissionDataId,
 			@RequestParam(value = "creatorUid") @ValidatedBy("MartiSafeString") String creatorUid,
 			@RequestParam(value = "notes") @ValidatedBy("MartiSafeString") String notes,
-			@RequestBody String token,
-			HttpServletRequest request) {
-		if (token != null && token.length() > 10240) {
-			throw new IllegalArgumentException("Token exceeds maximum allowed size");
-		}
+			HttpServletRequest request) throws IOException {
+		String token = readExternalDataToken(request);
 		String groupVector = martiUtil.getGroupVectorBitString(request);
 
 		UUID missionGuid = parseGuid(missionGuidParam);
