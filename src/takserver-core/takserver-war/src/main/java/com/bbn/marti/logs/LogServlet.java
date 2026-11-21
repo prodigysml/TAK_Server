@@ -23,8 +23,9 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import com.bbn.marti.email.EmailClient;
 import com.bbn.marti.remote.config.CoreConfigFacade;
+import com.bbn.marti.util.BoundedBody;
+import com.bbn.marti.util.PayloadTooLargeException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.codec.Base64;
@@ -54,6 +55,9 @@ public class LogServlet extends EsapiServlet {
 	protected Map<String, HttpParameterConstraints> optionalGetParameters;
 	private static final long serialVersionUID = 3520164783651907004L;
 	private static final org.slf4j.Logger logger = LoggerFactory.getLogger(LogServlet.class);
+
+	// most log ids accepted in one comma-separated export request (id=ALL is not limited, it is streamed)
+	private static final int MAX_EXPORT_IDS = Integer.getInteger("tak.logs.maxExportIds", 1000);
 		
 	@Override
 	protected void initalizeEsapiServlet()
@@ -157,16 +161,19 @@ public class LogServlet extends EsapiServlet {
 	      	String platform = getParameterValue(httpParameters, QueryParameter.platform.name());
 	      	String majorVersion = getParameterValue(httpParameters, QueryParameter.majorVersion.name());
 	      	String minorVersion = getParameterValue(httpParameters, QueryParameter.minorVersion.name());
-	      	// limit upload size to 50 MB to prevent memory exhaustion
+	      	// limit upload size to 50 MB to prevent memory exhaustion. The cap is enforced while
+	      	// reading, so a chunked body (no Content-Length) can't get past it.
 	      	final int MAX_LOG_UPLOAD_SIZE = 50 * 1024 * 1024;
-	      	if (request.getContentLength() > MAX_LOG_UPLOAD_SIZE) {
+	      	byte[] encoded;
+	      	try {
+	      		encoded = BoundedBody.read(request.getInputStream(), request.getContentLengthLong(), MAX_LOG_UPLOAD_SIZE);
+	      	} catch (PayloadTooLargeException e) {
+	      		logger.warn("log upload rejected: body over {} bytes", MAX_LOG_UPLOAD_SIZE);
 	      		response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "Payload too large");
 	      		return;
 	      	}
-	      	String encodedString = IOUtils.toString(request.getInputStream());
-	    	      		      	
-	      	final int BUFFER = 2048;
-	      	byte[] zip = Base64.decode(encodedString.getBytes());
+
+	      	byte[] zip = Base64.decode(encoded);
 
 			HashMap<String, byte[]> missionPackage = extractMissionPackage(zip);
 			Iterator it = missionPackage.entrySet().iterator();
@@ -264,6 +271,11 @@ public class LogServlet extends EsapiServlet {
     		
 	      	String id = getParameterValue(httpParameters, QueryParameter.id.name());
 	      	String[] ids = id.split(",");
+	      	if (ids.length > MAX_EXPORT_IDS) {
+	      		logger.warn("log export rejected: {} ids requested, limit is {}", ids.length, MAX_EXPORT_IDS);
+	      		response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Too many log ids");
+	      		return;
+	      	}
 
 	      	if (ids.length == 1) {
 				if (ids[0].equals("ALL")) {
@@ -295,11 +307,18 @@ public class LogServlet extends EsapiServlet {
 			}
 	      	
 	      	//
-	      	// return the selected files as a zip
+	      	// return the selected files as a zip, streamed straight to the client so an export
+	      	// of every stored log is never held in memory at once
 	      	//
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			BufferedOutputStream bos = new BufferedOutputStream(baos);
-			ZipOutputStream zos = new ZipOutputStream(bos);
+			response.setContentType("application/zip");
+
+			String date = new SimpleDateFormat("yyyy-MM-dd_hh-mm-ss").format(new Date());
+			String filename = "LogExport" + date + ".zip";
+			response.addHeader(
+					"Content-Disposition",
+					"attachment; filename=" + filename);
+
+			ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(response.getOutputStream()));
 
 			for (String nextId : ids)
 			{
@@ -317,21 +336,11 @@ public class LogServlet extends EsapiServlet {
 			}
 			zos.close();
 
-			response.setContentType("application/zip");
-			int contentLength = baos.size();
-			response.setContentLength(contentLength);
-
-			String date = new SimpleDateFormat("yyyy-MM-dd_hh-mm-ss").format(new Date());
-			String filename = "LogExport" + date + ".zip";
-			response.addHeader(
-					"Content-Disposition",
-					"attachment; filename=" + filename);
-
-		   response.getOutputStream().write(baos.toByteArray());
-
 	    } catch (Exception e) {
 	        logger.error("Exception!", e);
-	        response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+	        if (!response.isCommitted()) {
+	        	response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+	        }
 	    }        
     }
     

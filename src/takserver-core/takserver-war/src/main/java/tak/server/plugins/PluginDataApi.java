@@ -13,17 +13,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.io.IOException;
 import java.util.Map;
 
 import com.bbn.marti.cot.search.model.ApiResponse;
 import com.bbn.marti.network.BaseRestController;
 import com.bbn.marti.remote.exception.TakException;
 import com.bbn.marti.sync.api.MissionApi.ValidatedBy;
+import com.bbn.marti.util.BoundedBody;
 import com.bbn.marti.util.spring.RequestHolderBean;
 import com.google.common.base.Charsets;
 
@@ -51,23 +52,31 @@ public class PluginDataApi extends BaseRestController {
 	private RequestHolderBean requestHolderBean;
 
 	/*
+	 * Read the request body, enforcing MAX_PLUGIN_PAYLOAD_SIZE while reading so an over-size
+	 * (or chunked) body is never fully buffered. Over-size bodies are answered with 413.
+	 */
+	private byte[] readBody() throws IOException {
+		byte[] body = BoundedBody.read(requestHolderBean.getRequest(), MAX_PLUGIN_PAYLOAD_SIZE);
+		if (body.length == 0) {
+			throw new IllegalArgumentException("empty request body");
+		}
+		return body;
+	}
+
+	/*
 	 * Submit generic to a plugin for processing. Data must be UTF-8 text. 
 	 */
 	@RequestMapping(value = "/plugins/{name:.+}/submit", method = RequestMethod.PUT)
 	public ResponseEntity<ApiResponse<String>> submitToPluginUTF8(
 			@PathVariable("name") @ValidatedBy("MartiSafeString") @NotNull String pluginClassName,
-			@RequestParam Map<String,String> allRequestParams,
-			@RequestBody(required = true) byte[] requestBodyBytes) {
+			@RequestParam Map<String,String> allRequestParams) throws IOException {
+
+		byte[] requestBodyBytes = readBody();
 
 		// TODO: handle IllegalArgumentException better
 		try {
 			if (requestBodyBytes == null) {
 				throw new IllegalArgumentException("null data submitted to plugin - ignoring.");
-			}
-
-			if (requestBodyBytes.length > MAX_PLUGIN_PAYLOAD_SIZE) {
-				logger.error("Plugin submit payload rejected: size {} exceeds maximum {}", requestBodyBytes.length, MAX_PLUGIN_PAYLOAD_SIZE);
-				return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
 			}
 
 			String contentType =  requestHolderBean.getRequest().getHeader("content-type");
@@ -102,19 +111,15 @@ public class PluginDataApi extends BaseRestController {
 	@RequestMapping(value = "/plugins/{name:.+}/submit/result", method = RequestMethod.PUT)
 	public ResponseEntity<String> submitToPluginUTF8WithResult(
 			@PathVariable("name") @ValidatedBy("MartiSafeString") @NotNull String pluginClassName,
-			@RequestParam Map<String,String> allRequestParams,
-			@RequestBody(required = true) byte[] requestBodyBytes) {
+			@RequestParam Map<String,String> allRequestParams) throws IOException {
+
+		byte[] requestBodyBytes = readBody();
 
 		PluginResponse result = null;
 		// TODO: handle IllegalArgumentException better
 		try {
 			if (requestBodyBytes == null) {
 				throw new IllegalArgumentException("null data submitted to plugin - ignoring.");
-			}
-
-			if (requestBodyBytes.length > MAX_PLUGIN_PAYLOAD_SIZE) {
-				logger.error("Plugin submit payload rejected: size {} exceeds maximum {}", requestBodyBytes.length, MAX_PLUGIN_PAYLOAD_SIZE);
-				return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
 			}
 
 			String contentType =  requestHolderBean.getRequest().getHeader("content-type");
@@ -162,18 +167,13 @@ public class PluginDataApi extends BaseRestController {
 	@RequestMapping(value = "/plugins/{name:.+}/submit", method = RequestMethod.POST)
 	public ResponseEntity<ApiResponse<String>> updateInPlugin(
 			@PathVariable("name") @ValidatedBy("MartiSafeString") @NotNull String pluginClassName,
-			@RequestParam Map<String,String> allRequestParams,
-			@RequestBody(required = true) byte[] requestBodyBytes) {
+			@RequestParam Map<String,String> allRequestParams) throws IOException {
+
+		byte[] requestBodyBytes = readBody();
 
 		try {
 			if (requestBodyBytes == null) {
 				throw new IllegalArgumentException("null data updated in plugin - ignoring.");
-			}
-
-			// Same cap as the PUT submit handlers above.
-			if (requestBodyBytes.length > MAX_PLUGIN_PAYLOAD_SIZE) {
-				logger.error("Plugin update payload rejected: size {} exceeds maximum {}", requestBodyBytes.length, MAX_PLUGIN_PAYLOAD_SIZE);
-				return new ResponseEntity<>(HttpStatus.PAYLOAD_TOO_LARGE);
 			}
 
 			String contentType =  requestHolderBean.getRequest().getHeader("content-type");
