@@ -5,6 +5,7 @@ package com.bbn.tak.tls;
 import com.bbn.marti.remote.util.RemoteUtil;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -200,6 +201,10 @@ public class TakCert implements Serializable, Comparable<TakCert> {
         this.revocationDate = revocationDate;
     }
 
+    // The token is a live bearer credential: X509Authenticator authenticates the
+    // certificate holder with it. Keep it out of every JSON response; admins only
+    // need to know whether one exists (hasToken).
+    @JsonIgnore
     @Column(name = "token", unique = false, columnDefinition="VARCHAR")
     public String getToken() {
         return token;
@@ -207,6 +212,12 @@ public class TakCert implements Serializable, Comparable<TakCert> {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    @JsonProperty("hasToken")
+    @Transient
+    public boolean isTokenPresent() {
+        return token != null && !token.isEmpty();
     }
 
     @Override
